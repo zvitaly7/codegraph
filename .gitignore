@@ -1,0 +1,5 @@
+node_modules/
+.kg-cache/
+coverage/
+*.log
+.DS_Store
