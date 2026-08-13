@@ -116,6 +116,32 @@ describe('buildIndex — stats & meta', () => {
     const idx = buildIndex(sampleGraph());
     expect(idx.meta.generatedAt).toBe('2020-01-01T00:00:00.000Z');
   });
+
+  it('omits meta.staleness unless a staleness result is supplied', () => {
+    const idx = buildIndex(sampleGraph(), FIXED);
+    expect(idx.meta.staleness).toBeUndefined();
+  });
+
+  it('embeds only the {stale, cacheRevision, currentRevision, reason} fields of staleness', () => {
+    const staleness = {
+      hasCache: true, stale: true, reason: 'revision-changed',
+      cacheRevision: 'aaaa', currentRevision: 'bbbb',
+    };
+    const idx = buildIndex(sampleGraph(), { ...FIXED, staleness });
+    expect(idx.meta.staleness).toEqual({
+      stale: true, cacheRevision: 'aaaa', currentRevision: 'bbbb', reason: 'revision-changed',
+    });
+    // `hasCache` is an internal field and must not leak into the index.
+    expect(idx.meta.staleness).not.toHaveProperty('hasCache');
+  });
+
+  it('normalizes missing staleness revisions to null', () => {
+    const staleness = { hasCache: false, stale: true, reason: 'no-cache' };
+    const idx = buildIndex(sampleGraph(), { ...FIXED, staleness });
+    expect(idx.meta.staleness).toEqual({
+      stale: true, cacheRevision: null, currentRevision: null, reason: 'no-cache',
+    });
+  });
 });
 
 describe('buildIndex — nodes & edges', () => {

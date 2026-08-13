@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import { resolveConfig } from '../config/load.mjs';
+import { checkStaleness } from '../lib/staleness.mjs';
 import { loadGraph } from './lib/graph.mjs';
 import { serve } from './lib/rpc.mjs';
 
@@ -23,6 +24,18 @@ export async function run(argv) {
   }
 
   const cacheDir = cfg._flags.cache ? resolve(cwd, cfg._flags.cache) : cfg.outDir;
+
+  // Non-blocking freshness notice: warn (once, to stderr only) when the cache
+  // was built from a different revision than the repo is on now. `vcs-unknown`
+  // and `no-cache` carry no revisions to compare, so they stay silent here.
+  const staleness = checkStaleness(cacheDir);
+  if (staleness.stale === true && staleness.cacheRevision) {
+    process.stderr.write(
+      `[codegraph] warning: graph cache is at ${staleness.cacheRevision}, `
+      + `repo is at ${staleness.currentRevision} `
+      + '— run `codegraph regenerate` to refresh\n',
+    );
+  }
 
   let graph;
   try {

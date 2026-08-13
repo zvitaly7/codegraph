@@ -94,6 +94,17 @@
     text-overflow: ellipsis;
   }
   .titleblock h1 .proj { color: var(--accent); }
+  /* Muted freshness badge, shown only when the loaded index is stale. */
+  .stale-badge {
+    flex: none;
+    font-size: 10.5px; font-weight: 700; letter-spacing: .04em;
+    color: var(--ink-mute);
+    background: var(--bg);
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    padding: 3px 10px;
+    white-space: nowrap;
+  }
   .titleblock p {
     margin: 2px 0 0;
     font-size: 12.5px;
@@ -406,6 +417,7 @@
     en: {
       title: "Knowledge Graph Explorer",
       subtitle: "Interactive map of the {project} codebase: files, symbols, packages and how they depend on each other.",
+      staleBadge: "cache is stale — regenerate",
       helpTitle: "About this explorer",
       helpBody: [
         "This is a static, offline map of a codebase. It loads graph-index.json and lets you search and focus any node to see how it connects.",
@@ -489,6 +501,7 @@
     ru: {
       title: "Обзор графа знаний",
       subtitle: "Интерактивная карта кодовой базы {project}: файлы, символы, пакеты и их зависимости.",
+      staleBadge: "кэш устарел — пересоберите",
       helpTitle: "Об этом обозревателе",
       helpBody: [
         "Это статическая офлайн-карта кодовой базы. Она загружает graph-index.json и позволяет искать и фокусироваться на любом узле, чтобы увидеть его связи.",
@@ -824,6 +837,13 @@
     titleblock.append(h("p", { text: t("subtitle", { project: meta.project || "?" }) }));
 
     const left = h("div", { class: "hdr-left" }, helpBtn, titleblock);
+
+    // Freshness badge: only when the embedded staleness says the cache is stale.
+    const st = meta.staleness;
+    if (st && st.stale === true) {
+      const tip = (st.cacheRevision || "?") + " → " + (st.currentRevision || "?");
+      left.append(h("span", { class: "stale-badge", title: tip, text: t("staleBadge") }));
+    }
 
     // Stats
     const statsRow = h("div", { class: "stats" });

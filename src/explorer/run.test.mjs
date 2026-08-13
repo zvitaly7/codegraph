@@ -90,6 +90,12 @@ describe('explorer run()', () => {
     expect(idx.insights.mostDependedPackages).toEqual([{ name: 'react', files: 1 }]);
     expect(idx.insights.biggestImporters).toEqual([{ file: 'src/b.ts', imports: 1 }]);
     expect(idx.insights.mostUsedSymbols[0]).toMatchObject({ id: 'sym:src/a.ts#foo', files: 1 });
+
+    // Staleness is embedded in meta. The seed manifest has no repoRoot, so the
+    // current revision is unknowable → vcs-unknown (stale null), not an error.
+    expect(idx.meta.staleness).toEqual({
+      stale: null, cacheRevision: 'rev1', currentRevision: null, reason: 'vcs-unknown',
+    });
   });
 
   it('copies a self-contained i18n SPA (translations + ru, no external URLs)', async () => {
@@ -99,6 +105,9 @@ describe('explorer run()', () => {
     expect(html.length).toBeGreaterThan(1000);
     expect(/translations\s*=/.test(html)).toBe(true);
     expect(/\bru:\s*\{/.test(html)).toBe(true);
+    // The localized "stale cache" badge strings ship in both languages.
+    expect(html).toContain('cache is stale — regenerate');
+    expect(html).toContain('кэш устарел — пересоберите');
     // No external/CDN fetches — the only http(s) token is the SVG namespace URI.
     const urls = html.match(/https?:\/\/[^\s"')]+/g) || [];
     expect(urls.every((u) => u === 'http://www.w3.org/2000/svg')).toBe(true);

@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import { resolveConfig } from '../config/load.mjs';
+import { checkStaleness } from '../lib/staleness.mjs';
 
 /**
  * `codegraph regenerate` — the one-shot orchestrator. Runs every graph layer in
@@ -54,7 +55,11 @@ export async function run(argv) {
     cfg = await resolveConfig({
       cwd,
       argv,
-      extraOptions: { 'skip-explorer': { type: 'boolean' } },
+      extraOptions: {
+        'skip-explorer': { type: 'boolean' },
+        'if-stale': { type: 'boolean' },
+        'force': { type: 'boolean' },
+      },
     });
   } catch (err) {
     emit(`regenerate: usage error: ${err.message}`);
@@ -63,6 +68,18 @@ export async function run(argv) {
 
   const { repoRoot, outDir, _flags: flags } = cfg;
   const skipExplorer = Boolean(flags['skip-explorer']);
+
+  // --if-stale: only rebuild when the cache is stale (or its staleness is
+  // unknown). --force always rebuilds and thus overrides --if-stale. When the
+  // cache is DEFINITIVELY up to date (stale === false) we skip the whole
+  // pipeline. `vcs-unknown` (stale === null) is NOT "up to date", so we proceed.
+  if (Boolean(flags['if-stale']) && !Boolean(flags.force)) {
+    const status = checkStaleness(outDir);
+    if (status.stale === false) {
+      emit(`graph up to date at ${status.currentRevision} — skipping`);
+      return 0;
+    }
+  }
 
   // Every layer receives the SAME repo + base cache, so the snapshot stays
   // consistent across layers. Forward an explicit --config too, so a shared

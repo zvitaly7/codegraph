@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -27,6 +28,18 @@ function makeFixtureRepo() {
   writeFileSync(join(repo, 'src', 'a.mjs'), "import { b } from './b.mjs';\nexport const a = b + 1;\n");
   writeFileSync(join(repo, 'src', 'b.mjs'), "import { c } from './c.mjs';\nexport const b = c + 1;\n");
   writeFileSync(join(repo, 'src', 'c.mjs'), 'export const c = 1;\n');
+  return repo;
+}
+
+/** Same fixture, but a real git repo with one commit (so a HEAD revision exists). */
+function makeGitFixtureRepo() {
+  const repo = makeFixtureRepo();
+  const g = (...a) => execFileSync('git', ['-C', repo, ...a], { stdio: 'pipe' });
+  g('init', '-q', '-b', 'main');
+  g('config', 'user.email', 't@t');
+  g('config', 'user.name', 't');
+  g('add', '-A');
+  execFileSync('git', ['-C', repo, 'commit', '-q', '-m', 'init'], { stdio: 'pipe' });
   return repo;
 }
 
@@ -129,5 +142,78 @@ describe('regenerate orchestrator — fail-fast', () => {
     expect(existsSync(join(base, 'domains', 'manifest.json'))).toBe(false);
 
     expect(errLines.join('')).toContain('aborted at "symbols"');
+  });
+});
+
+describe('regenerate orchestrator — --if-stale / --force', () => {
+  it('skips the pipeline on an up-to-date cache (exit 0, no layers re-run)', async () => {
+    const repo = makeGitFixtureRepo();
+    const base = join(repo, '.kg-cache');
+    const errLines = captureStderr();
+
+    // First build records the repo's current revision in the cache.
+    expect(await run(['--repo-root', repo, '--out', base])).toBe(0);
+    expect(existsSync(join(base, 'inventory', 'manifest.json'))).toBe(true);
+    errLines.length = 0; // discard first-build chatter
+
+    // Second run: the cache matches HEAD, so --if-stale short-circuits.
+    const code = await run(['--repo-root', repo, '--out', base, '--if-stale']);
+    expect(code).toBe(0);
+    const err = errLines.join('');
+    expect(err).toContain('up to date');
+    expect(err).toContain('skipping');
+    // No layer banners were emitted → the pipeline never ran.
+    expect(err).not.toContain('▶ inventory');
+  });
+
+  it('--force overrides --if-stale and rebuilds even when up to date', async () => {
+    const repo = makeGitFixtureRepo();
+    const base = join(repo, '.kg-cache');
+    const errLines = captureStderr();
+    expect(await run(['--repo-root', repo, '--out', base])).toBe(0);
+    errLines.length = 0;
+
+    const code = await run(['--repo-root', repo, '--out', base, '--if-stale', '--force']);
+    expect(code).toBe(0);
+    const err = errLines.join('');
+    expect(err).not.toContain('skipping');
+    expect(err).toContain('▶ inventory'); // layers ran
+  });
+
+  it('rebuilds when the recorded revision no longer matches HEAD', async () => {
+    const repo = makeGitFixtureRepo();
+    const base = join(repo, '.kg-cache');
+    const errLines = captureStderr();
+    expect(await run(['--repo-root', repo, '--out', base])).toBe(0);
+
+    // Simulate staleness by rewriting the cached revision to a bogus value.
+    const manifestPath = join(base, 'inventory', 'manifest.json');
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    const fake = '0'.repeat(40);
+    manifest.vcs = { ...(manifest.vcs || {}), revision: fake };
+    manifest.snapshotId = `snapshot:x:${fake}`;
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+    errLines.length = 0;
+
+    const code = await run(['--repo-root', repo, '--out', base, '--if-stale']);
+    expect(code).toBe(0);
+    const err = errLines.join('');
+    expect(err).not.toContain('skipping');
+    expect(err).toContain('▶ inventory'); // stale → full rebuild
+  });
+
+  it('--if-stale proceeds normally when staleness is unknown (no VCS)', async () => {
+    const repo = makeFixtureRepo(); // plain dir, not a git repo
+    const base = join(repo, '.kg-cache');
+    const errLines = captureStderr();
+    expect(await run(['--repo-root', repo, '--out', base])).toBe(0);
+    errLines.length = 0;
+
+    // No revision to compare → unknown, never definitively up-to-date → rebuild.
+    const code = await run(['--repo-root', repo, '--out', base, '--if-stale']);
+    expect(code).toBe(0);
+    const err = errLines.join('');
+    expect(err).not.toContain('skipping');
+    expect(err).toContain('▶ inventory');
   });
 });

@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 
 const BIN = fileURLToPath(new URL('../../bin/codegraph.mjs', import.meta.url));
 
@@ -25,6 +25,26 @@ function buildCache() {
     from: 'file:src/run.mjs', to: 'file:src/dep.mjs', properties: { kind: 'internal', specifier: './dep.mjs' },
   }));
   return cache;
+}
+
+/** A temp git repo with a single commit; returns { repo, head }. */
+function makeGitRepo() {
+  const repo = mkdtempSync(join(tmpdir(), 'cg-mcp-git-'));
+  const g = (...a) => execFileSync('git', ['-C', repo, ...a], { stdio: 'pipe' });
+  g('init', '-q', '-b', 'main');
+  g('config', 'user.email', 't@t');
+  g('config', 'user.name', 't');
+  execFileSync('git', ['-C', repo, 'commit', '-q', '--allow-empty', '-m', 'init'], { stdio: 'pipe' });
+  const head = execFileSync('git', ['-C', repo, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  return { repo, head };
+}
+
+/** Add an inventory manifest to `cache` recording `revision` built from `repoRoot`. */
+function writeManifest(cache, repoRoot, revision) {
+  writeFileSync(join(cache, 'inventory', 'manifest.json'), JSON.stringify({
+    repoRoot, snapshotId: `snapshot:proj:${revision}`,
+    vcs: { type: 'git', available: true, revision },
+  }));
 }
 
 /** Spawn the CLI, feed `lines` to stdin, resolve with {code, stdout, stderr}. */
@@ -65,6 +85,33 @@ describe('codegraph mcp (end-to-end CLI)', () => {
     // Diagnostics go to stderr, never stdout.
     expect(stderr).toContain('[codegraph mcp]');
     expect(stderr).toContain('layers=inventory,imports');
+  }, 20000);
+
+  it('warns on stderr (not stdout) when the graph cache is stale, then still serves', async () => {
+    const { repo } = makeGitRepo();
+    // Record a revision that differs from the repo's HEAD → revision-changed.
+    writeManifest(cache, repo, 'deadbeefcafe');
+
+    const { code, stdout, stderr } = await runMcp(cache, [
+      '{"jsonrpc":"2.0","id":1,"method":"tools/list"}',
+    ]);
+    expect(code).toBe(0);
+    expect(stderr).toContain('[codegraph] warning: graph cache is at deadbeefcafe');
+    expect(stderr).toContain('run `codegraph regenerate` to refresh');
+    // The warning must never leak onto the protocol stream.
+    expect(stdout).not.toContain('warning');
+    // Serving is not blocked — tools/list still answered.
+    expect(JSON.parse(stdout.split('\n').filter(Boolean)[0]).id).toBe(1);
+  }, 20000);
+
+  it('does not warn when the cache matches the current revision', async () => {
+    const { repo, head } = makeGitRepo();
+    writeManifest(cache, repo, head);
+    const { code, stderr } = await runMcp(cache, [
+      '{"jsonrpc":"2.0","id":1,"method":"tools/list"}',
+    ]);
+    expect(code).toBe(0);
+    expect(stderr).not.toContain('warning: graph cache is at');
   }, 20000);
 
   it('reports "graph empty" on stderr for a missing cache but still serves', async () => {

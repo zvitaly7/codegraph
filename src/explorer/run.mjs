@@ -15,6 +15,7 @@ import { join, resolve, normalize, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { resolveConfig } from '../config/load.mjs';
+import { checkStaleness } from '../lib/staleness.mjs';
 import { writeJsonAtomic, writeTextAtomic } from '../inventory/write.mjs';
 import { loadArtifacts } from './lib/load_artifacts.mjs';
 import { buildIndex } from './lib/build_index.mjs';
@@ -131,7 +132,9 @@ export async function run(argv) {
     return 2;
   }
 
-  const index = buildIndex(graph, { generatedAt: new Date().toISOString() });
+  // Embed a cache-freshness signal so the SPA can flag a stale index.
+  const staleness = checkStaleness(cache);
+  const index = buildIndex(graph, { generatedAt: new Date().toISOString(), staleness });
 
   const explorerDir = join(cache, 'explorer');
   const outPath = join(explorerDir, 'graph-index.json');
