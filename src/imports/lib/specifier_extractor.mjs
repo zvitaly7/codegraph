@@ -15,7 +15,7 @@ import ts from 'typescript';
  * @param {string} filePath absolute path of the importing file (used only when
  *        `text` is omitted, so callers may pass just the path).
  * @param {string} [text] file contents; read from `filePath` when undefined.
- * @returns {string[]} import specifier strings, in source order (with repeats).
+ * @returns {string[]} import specifier strings, in source order (duplicates kept).
  */
 export function extractSpecifiers(filePath, text) {
   const source = text ?? readFileSync(filePath, 'utf8');

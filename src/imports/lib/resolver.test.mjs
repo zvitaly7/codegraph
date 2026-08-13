@@ -87,7 +87,7 @@ describe('bare specifiers → external packages', () => {
     expect(r('@scope/pkg/sub/deep', 'src/a.ts')).toEqual({ kind: 'external', targetId: 'pkg:@scope/pkg', packageName: '@scope/pkg' });
   });
 
-  it('treats node: builtins as external packages', () => {
+  it('classifies node: builtins as external packages', () => {
     expect(r('node:fs', 'src/a.ts')).toEqual({ kind: 'external', targetId: 'pkg:node:fs', packageName: 'node:fs' });
   });
 
