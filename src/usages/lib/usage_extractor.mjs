@@ -79,13 +79,22 @@ function enclosingSymId(node, path, symbolIds) {
  * @param {Set<string>} args.symbolIds resolvable endpoints — Symbol node ids of
  *        the form `sym:<relPath>#<name>`.
  * @param {string} args.repoRoot absolute repo root (for relative paths).
+ * @param {import('typescript').Program} [args.program] pre-built program to reuse
+ *        (incremental mode passes a whole-repo program so resolution is identical
+ *        to a full build); when omitted one is created from `fileNames`.
+ * @param {string[]} [args.walkFiles] restrict record emission to this subset of
+ *        files; when omitted every file in `fileNames` is walked (full build).
  * @returns {Array<{fromSymId:string, toSymId:string}>} deduped per (from, to),
  *          sorted deterministically.
  */
-export function extractUsages({ fileNames, options, symbolIds, repoRoot }) {
-  const roots = [...fileNames].sort();
-  const program = ts.createProgram(roots, options);
+export function extractUsages({
+  fileNames, options, symbolIds, repoRoot, program: providedProgram, walkFiles,
+}) {
+  // Resolve against the full program (a caller may pass a whole-repo incremental
+  // program), but only WALK — and thus emit records for — `walkFiles` when given.
+  const program = providedProgram ?? ts.createProgram([...fileNames].sort(), options);
   const checker = program.getTypeChecker();
+  const roots = [...(walkFiles ?? fileNames)].sort();
 
   const seen = new Map(); // `${fromSymId} ${toSymId}` → record
 

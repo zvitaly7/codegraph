@@ -5,4 +5,5 @@ export const DEFAULTS = {
   vcs: 'auto',         // 'auto' | 'git' | 'arc' | 'none'
   outDir: '.kg-cache',
   domains: null,       // null → auto-derive
+  incremental: 'off',  // 'off' | 'incremental' — heavy-layer rebuild mode
 };

@@ -6,6 +6,11 @@ import { normPosix } from '../inventory/schema.mjs';
 import { readInventorySources, readInventoryManifest } from '../lib/inventory_reader.mjs';
 import { TsconfigIndex } from '../lib/tsconfig_index.mjs';
 import { defaultCompilerOptions } from '../lib/ts_resolve.mjs';
+import { changedFilesSince } from '../lib/changed_files.mjs';
+import {
+  revisionOfArtifactManifest, loadImportersIndex, computeAffectedFiles,
+  changedFilesRiskGlobals, buildIncrementalProgram, affectedFilesToWalk, symIdPath,
+} from '../lib/incremental.mjs';
 import { extractUsages } from './lib/usage_extractor.mjs';
 import { buildGraph } from './lib/graph_builder.mjs';
 
@@ -46,6 +51,80 @@ function compilerOptions(repoRoot, tsconfigOverride) {
   return options;
 }
 
+/** Reconstruct `{ fromSymId, toSymId }` records from a cached edges.jsonl. */
+function loadCachedUsageRecords(edgesPath) {
+  const records = [];
+  const text = readFileSync(edgesPath, 'utf8');
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue;
+    const e = JSON.parse(line);
+    if (e.type !== 'USES') continue;
+    records.push({ fromSymId: e.from, toSymId: e.to });
+  }
+  return records;
+}
+
+/**
+ * Produce the usage records to build the graph from. In `off` mode (or on any
+ * incremental fallback) this is a full extraction. In `incremental` mode it drops
+ * the affected files' cached records (a usage record is owned by the file that
+ * declares its `fromSymId`), re-extracts ONLY those files against a whole-repo
+ * program, and merges — a result byte-identical to a full rebuild. Every fallback
+ * prints a one-line note to stderr and yields the full extraction.
+ */
+function resolveUsages({ cfg, repoRoot, outDir, fileNames, options, symbolIds, currentSourcePaths }) {
+  const full = () => extractUsages({ fileNames, options, symbolIds, repoRoot });
+  if (cfg.incremental !== 'incremental') return full();
+
+  const fallback = (reason) => {
+    console.error(`usages: incremental fallback to full — ${reason}`);
+    return full();
+  };
+
+  const usesDir = join(outDir, 'usages');
+  const edgesPath = join(usesDir, 'edges.jsonl');
+  const manifestPath = join(usesDir, 'manifest.json');
+  if (!existsSync(edgesPath) || !existsSync(manifestPath)) return fallback('no prior usages cache');
+
+  const since = revisionOfArtifactManifest(manifestPath);
+  if (!since) return fallback('prior cache revision unknown');
+
+  const cf = changedFilesSince(repoRoot, since);
+  if (!cf.ok) return fallback('changed-files detection unavailable');
+  if (changedFilesRiskGlobals({ ...cf, repoRoot })) return fallback('a changed file may inject globals');
+
+  let cached;
+  try {
+    cached = loadCachedUsageRecords(edgesPath);
+  } catch (err) {
+    return fallback(`cannot read cached edges (${err.message})`);
+  }
+
+  const importers = loadImportersIndex(join(outDir, 'imports', 'edges.jsonl'));
+  const changed = [...cf.added, ...cf.modified, ...cf.deleted];
+  const affected = computeAffectedFiles(changed, importers);
+
+  // A usage record is owned by the file that DECLARES its `fromSymId`. Keep the
+  // record only if that owner is non-affected and BOTH endpoints still exist.
+  const kept = cached.filter(
+    (r) => !affected.has(symIdPath(r.fromSymId)) && symbolIds.has(r.fromSymId) && symbolIds.has(r.toSymId),
+  );
+
+  const walk = affectedFilesToWalk(affected, currentSourcePaths, repoRoot);
+  let fresh = [];
+  if (walk.length > 0) {
+    const program = buildIncrementalProgram({
+      rootNames: fileNames, options, tsBuildInfoFile: join(outDir, '.tsbuildinfo'),
+    });
+    fresh = extractUsages({ fileNames, options, symbolIds, repoRoot, program, walkFiles: walk });
+  }
+
+  console.error(
+    `usages: incremental — re-extracted ${walk.length} file(s), reused ${kept.length} cached edge(s)`,
+  );
+  return [...kept, ...fresh];
+}
+
 /**
  * Layer 2d — usages. Type-checks the repo and emits a symbol→symbol USES graph:
  * for each declared Symbol (from the symbols layer), which OTHER Symbols its body
@@ -64,10 +143,16 @@ export async function run(argv) {
         inventory: { type: 'string' },
         symbols: { type: 'string' },
         'max-files': { type: 'string' },
+        incremental: { type: 'string' },
       },
     });
   } catch (err) {
     console.error(`usages: usage error: ${err.message}`);
+    return 2;
+  }
+
+  if (cfg.incremental !== 'off' && cfg.incremental !== 'incremental') {
+    console.error(`usages: --incremental must be 'off' or 'incremental', got ${cfg.incremental}`);
     return 2;
   }
 
@@ -118,13 +203,16 @@ export async function run(argv) {
     symbolNodesById.set(node.id, node);
   }
 
+  const currentSourcePaths = new Set(sources.map((row) => normPosix(row.path)));
   const fileNames = sources
     .map((row) => join(repoRoot, normPosix(row.path)))
     .filter((abs) => existsSync(abs));
 
   const options = compilerOptions(repoRoot, cfg.tsconfig);
 
-  const usages = extractUsages({ fileNames, options, symbolIds, repoRoot });
+  const usages = resolveUsages({
+    cfg, repoRoot, outDir, fileNames, options, symbolIds, currentSourcePaths,
+  });
 
   const { nodes, edges, counts } = buildGraph({ usages, symbolNodesById });
 

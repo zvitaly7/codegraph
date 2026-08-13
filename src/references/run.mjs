@@ -5,6 +5,11 @@ import { writeJsonAtomic, writeJsonlAtomic } from '../inventory/write.mjs';
 import { normPosix } from '../inventory/schema.mjs';
 import { readInventorySources, readInventoryManifest } from '../lib/inventory_reader.mjs';
 import { TsconfigIndex } from '../lib/tsconfig_index.mjs';
+import { changedFilesSince } from '../lib/changed_files.mjs';
+import {
+  revisionOfArtifactManifest, loadImportersIndex, computeAffectedFiles,
+  changedFilesRiskGlobals, buildIncrementalProgram, affectedFilesToWalk,
+} from '../lib/incremental.mjs';
 import { extractReferences, defaultCompilerOptions } from './lib/reference_extractor.mjs';
 import { buildGraph } from './lib/graph_builder.mjs';
 
@@ -50,6 +55,82 @@ function compilerOptions(repoRoot, tsconfigOverride) {
   return options;
 }
 
+/** Reconstruct `{ fromPath, symId, sameFile }` records from a cached edges.jsonl. */
+function loadCachedReferenceRecords(edgesPath) {
+  const records = [];
+  const text = readFileSync(edgesPath, 'utf8');
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue;
+    const e = JSON.parse(line);
+    if (e.type !== 'REFERENCES') continue;
+    records.push({
+      fromPath: e.from.slice('file:'.length),
+      symId: e.to,
+      sameFile: Boolean(e.properties?.sameFile),
+    });
+  }
+  return records;
+}
+
+/**
+ * Produce the reference records to build the graph from. In `off` mode (or on any
+ * incremental fallback) this is a full extraction. In `incremental` mode it drops
+ * the affected files' cached records, re-extracts ONLY those files against a
+ * whole-repo program, and merges — a result byte-identical to a full rebuild.
+ * Every fallback prints a one-line note to stderr and yields the full extraction.
+ */
+function resolveReferences({ cfg, repoRoot, outDir, fileNames, options, symbolIds, currentSourcePaths }) {
+  const full = () => extractReferences({ fileNames, options, symbolIds, repoRoot });
+  if (cfg.incremental !== 'incremental') return full();
+
+  const fallback = (reason) => {
+    console.error(`references: incremental fallback to full — ${reason}`);
+    return full();
+  };
+
+  const refDir = join(outDir, 'references');
+  const edgesPath = join(refDir, 'edges.jsonl');
+  const manifestPath = join(refDir, 'manifest.json');
+  if (!existsSync(edgesPath) || !existsSync(manifestPath)) return fallback('no prior references cache');
+
+  const since = revisionOfArtifactManifest(manifestPath);
+  if (!since) return fallback('prior cache revision unknown');
+
+  const cf = changedFilesSince(repoRoot, since);
+  if (!cf.ok) return fallback('changed-files detection unavailable');
+  if (changedFilesRiskGlobals({ ...cf, repoRoot })) return fallback('a changed file may inject globals');
+
+  let cached;
+  try {
+    cached = loadCachedReferenceRecords(edgesPath);
+  } catch (err) {
+    return fallback(`cannot read cached edges (${err.message})`);
+  }
+
+  const importers = loadImportersIndex(join(outDir, 'imports', 'edges.jsonl'));
+  const changed = [...cf.added, ...cf.modified, ...cf.deleted];
+  const affected = computeAffectedFiles(changed, importers);
+
+  // Keep cached records from non-affected files whose target symbol still exists
+  // (the membership test self-heals references to deleted symbols).
+  const kept = cached.filter((r) => !affected.has(r.fromPath) && symbolIds.has(r.symId));
+
+  // Re-extract affected files against a whole-repo incremental program.
+  const walk = affectedFilesToWalk(affected, currentSourcePaths, repoRoot);
+  let fresh = [];
+  if (walk.length > 0) {
+    const program = buildIncrementalProgram({
+      rootNames: fileNames, options, tsBuildInfoFile: join(outDir, '.tsbuildinfo'),
+    });
+    fresh = extractReferences({ fileNames, options, symbolIds, repoRoot, program, walkFiles: walk });
+  }
+
+  console.error(
+    `references: incremental — re-extracted ${walk.length} file(s), reused ${kept.length} cached edge(s)`,
+  );
+  return [...kept, ...fresh];
+}
+
 /**
  * Layer 2c — references. Type-checks the repo and emits a file→symbol REFERENCES
  * graph: for each source, which declared Symbols (from the symbols layer) it
@@ -69,10 +150,16 @@ export async function run(argv) {
         inventory: { type: 'string' },
         symbols: { type: 'string' },
         'max-files': { type: 'string' },
+        incremental: { type: 'string' },
       },
     });
   } catch (err) {
     console.error(`references: usage error: ${err.message}`);
+    return 2;
+  }
+
+  if (cfg.incremental !== 'off' && cfg.incremental !== 'incremental') {
+    console.error(`references: --incremental must be 'off' or 'incremental', got ${cfg.incremental}`);
     return 2;
   }
 
@@ -125,13 +212,16 @@ export async function run(argv) {
     if (node.properties?.exported) exportedBaseIds.add(baseSymId(node.id));
   }
 
+  const currentSourcePaths = new Set(sources.map((row) => normPosix(row.path)));
   const fileNames = sources
     .map((row) => join(repoRoot, normPosix(row.path)))
     .filter((abs) => existsSync(abs));
 
   const options = compilerOptions(repoRoot, cfg.tsconfig);
 
-  const references = extractReferences({ fileNames, options, symbolIds, repoRoot });
+  const references = resolveReferences({
+    cfg, repoRoot, outDir, fileNames, options, symbolIds, currentSourcePaths,
+  });
 
   const { nodes, edges, counts } = buildGraph({ references, symbolNodesById });
 

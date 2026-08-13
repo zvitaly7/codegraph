@@ -43,6 +43,9 @@ export async function resolveConfig({ cwd, argv, extraOptions = {} }) {
     ...fileCfg,
     repoRoot,
     outDir: resolve(cwd, values['out'] ?? fileCfg.outDir ?? DEFAULTS.outDir),
+    // Precedence: flag → config file → default. The flag only appears in `values`
+    // when a command declares `--incremental` in its extraOptions.
+    incremental: values.incremental ?? fileCfg.incremental ?? DEFAULTS.incremental,
     _flags: values,
   };
 }

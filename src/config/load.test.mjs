@@ -44,4 +44,35 @@ describe('resolveConfig', () => {
 
     expect(cfg.srcRoots).toEqual(['lib']); // auto-discovered codegraph.config.json
   });
+
+  it('defaults incremental to off', async () => {
+    const cfg = await resolveConfig({ cwd: '/tmp/x', argv: [] });
+    expect(cfg.incremental).toBe('off');
+  });
+
+  it('resolves incremental from the --incremental flag (declared as an extraOption)', async () => {
+    const cfg = await resolveConfig({
+      cwd: '/tmp/x',
+      argv: ['--incremental', 'incremental'],
+      extraOptions: { incremental: { type: 'string' } },
+    });
+    expect(cfg.incremental).toBe('incremental');
+  });
+
+  it('incremental flag overrides the config file, which overrides the default', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cg-load-inc-'));
+    writeFileSync(join(dir, 'codegraph.config.json'), JSON.stringify({ incremental: 'incremental' }), 'utf8');
+
+    // Config file wins over the default when no flag is given.
+    const fromFile = await resolveConfig({ cwd: dir, argv: ['--repo-root', dir] });
+    expect(fromFile.incremental).toBe('incremental');
+
+    // The flag wins over the config file.
+    const fromFlag = await resolveConfig({
+      cwd: dir,
+      argv: ['--repo-root', dir, '--incremental', 'off'],
+      extraOptions: { incremental: { type: 'string' } },
+    });
+    expect(fromFlag.incremental).toBe('off');
+  });
 });
