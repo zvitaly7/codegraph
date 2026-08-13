@@ -2,7 +2,11 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { run } from './run.mjs';
+
+/** The packaged SPA that `explorer` must copy into <cache>/explorer/. */
+const SPA_HTML = fileURLToPath(new URL('./index.html', import.meta.url));
 
 function writeLayer(cache, layer, { nodes = [], edges = [] } = {}) {
   const dir = join(cache, layer);
@@ -73,6 +77,11 @@ describe('explorer run()', () => {
     const outPath = join(cache, 'explorer', 'graph-index.json');
     expect(existsSync(outPath)).toBe(true);
 
+    // The SPA is copied verbatim next to the index so --serve hosts both.
+    const htmlPath = join(cache, 'explorer', 'index.html');
+    expect(existsSync(htmlPath)).toBe(true);
+    expect(readFileSync(htmlPath, 'utf8')).toBe(readFileSync(SPA_HTML, 'utf8'));
+
     const idx = JSON.parse(readFileSync(outPath, 'utf8'));
     expect(idx.stats).toEqual({ files: 2, symbols: 2, packages: 1, domains: 1, edges: expect.any(Number) });
     expect(idx.meta.project).toBe('demo');
@@ -81,6 +90,18 @@ describe('explorer run()', () => {
     expect(idx.insights.mostDependedPackages).toEqual([{ name: 'react', files: 1 }]);
     expect(idx.insights.biggestImporters).toEqual([{ file: 'src/b.ts', imports: 1 }]);
     expect(idx.insights.mostUsedSymbols[0]).toMatchObject({ id: 'sym:src/a.ts#foo', files: 1 });
+  });
+
+  it('copies a self-contained i18n SPA (translations + ru, no external URLs)', async () => {
+    const cache = seedCache(join(tmp, 'spa'));
+    expect(await run(['--cache', cache])).toBe(0);
+    const html = readFileSync(join(cache, 'explorer', 'index.html'), 'utf8');
+    expect(html.length).toBeGreaterThan(1000);
+    expect(/translations\s*=/.test(html)).toBe(true);
+    expect(/\bru:\s*\{/.test(html)).toBe(true);
+    // No external/CDN fetches — the only http(s) token is the SVG namespace URI.
+    const urls = html.match(/https?:\/\/[^\s"')]+/g) || [];
+    expect(urls.every((u) => u === 'http://www.w3.org/2000/svg')).toBe(true);
   });
 
   it('defaults the cache to --out (outDir) when --cache is omitted', async () => {

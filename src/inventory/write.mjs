@@ -42,6 +42,11 @@ export function writeJsonAtomic(path, obj) {
   writeAtomic(path, `${JSON.stringify(obj, null, 2)}\n`);
 }
 
+/** A raw string (e.g. a packaged HTML asset), written atomically. */
+export function writeTextAtomic(path, text) {
+  writeAtomic(path, String(text));
+}
+
 /**
  * JSON Lines, written atomically: one compact JSON per line joined by '\n',
  * keys recursively sorted for determinism, no trailing newline.

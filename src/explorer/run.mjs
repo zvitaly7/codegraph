@@ -3,21 +3,26 @@
 //
 // Reads every present layer under <cache> (default: the resolved outDir),
 // computes a single `graph-index.json`, and writes it to <cache>/explorer/.
-// With --serve, a static file server hosts <cache>/explorer/ so index.html
-// (added by the separate SPA task) and graph-index.json are browsable.
+// The packaged SPA `index.html` is copied there too, so the browser explorer
+// and its data sit side by side. With --serve, a static file server hosts
+// <cache>/explorer/ so index.html and graph-index.json are browsable offline.
 //
 // Exit codes: 0 success · 1 write / server failure · 2 usage / no artifacts.
 
 import { createServer } from 'node:http';
-import { createReadStream, existsSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, statSync, readFileSync } from 'node:fs';
 import { join, resolve, normalize, extname, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { resolveConfig } from '../config/load.mjs';
-import { writeJsonAtomic } from '../inventory/write.mjs';
+import { writeJsonAtomic, writeTextAtomic } from '../inventory/write.mjs';
 import { loadArtifacts } from './lib/load_artifacts.mjs';
 import { buildIndex } from './lib/build_index.mjs';
 
 const DEFAULT_PORT = 8765;
+
+/** Packaged SPA shipped beside this module; copied into <cache>/explorer/. */
+const SPA_HTML_PATH = fileURLToPath(new URL('./index.html', import.meta.url));
 
 const CONTENT_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -130,8 +135,12 @@ export async function run(argv) {
 
   const explorerDir = join(cache, 'explorer');
   const outPath = join(explorerDir, 'graph-index.json');
+  const htmlPath = join(explorerDir, 'index.html');
   try {
     writeJsonAtomic(outPath, index);
+    // Copy the packaged SPA next to the index so `--serve` (and any static
+    // host) can serve both files from <cache>/explorer/.
+    writeTextAtomic(htmlPath, readFileSync(SPA_HTML_PATH, 'utf8'));
   } catch (err) {
     console.error(`explorer: failed to write index: ${err.message}`);
     return 1;
