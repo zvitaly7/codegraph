@@ -3,8 +3,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolveConfig } from '../config/load.mjs';
 import { writeJsonAtomic, writeJsonlAtomic } from '../inventory/write.mjs';
 import { normPosix } from '../inventory/schema.mjs';
-import { readInventorySources, readInventoryManifest } from './lib/inventory_reader.mjs';
-import { TsconfigIndex } from './lib/tsconfig_index.mjs';
+import { readInventorySources, readInventoryManifest } from '../lib/inventory_reader.mjs';
+import { TsconfigIndex } from '../lib/tsconfig_index.mjs';
 import { extractSpecifiers } from './lib/specifier_extractor.mjs';
 import { buildGraph } from './lib/graph_builder.mjs';
 
