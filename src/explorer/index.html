@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Knowledge Graph Explorer</title>
+<style>
+  /* ---- Design tokens: a clean, light, whitespace-heavy dashboard ---- */
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --ink: #1f2430;
+    --ink-soft: #566072;
+    --ink-mute: #8a93a6;
+    --line: #e6e9ef;
+    --line-strong: #d3d8e2;
+    --accent: #2563eb;
+    --accent-soft: #eef2ff;
+    --shadow: 0 1px 2px rgba(20, 28, 46, .04), 0 6px 20px rgba(20, 28, 46, .05);
+    --shadow-lift: 0 2px 6px rgba(20, 28, 46, .08), 0 12px 32px rgba(20, 28, 46, .10);
+    --radius: 12px;
+    --radius-sm: 8px;
+
+    /* Node kind colors */
+    --n-file: #2563eb;
+    --n-symbol: #7c3aed;
+    --n-package: #d97706;
+    --n-domain: #0d9488;
+
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+            Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+            "Liberation Mono", monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: var(--font);
+    color: var(--ink);
+    background: var(--bg);
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font-family: inherit; }
+  a { color: inherit; }
+
+  #app {
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr) 340px;
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      "hdr hdr hdr"
+      "side main details";
+    height: 100vh;
+    min-width: 1040px;
+  }
+
+  /* ---------------- Header ---------------- */
+  #hdr {
+    grid-area: hdr;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 16px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+  }
+  .hdr-left { display: flex; align-items: center; gap: 14px; min-width: 0; }
+  .help-btn {
+    flex: none;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: 1px solid var(--line-strong);
+    background: var(--panel);
+    color: var(--ink-soft);
+    font-size: 15px; font-weight: 700;
+    cursor: pointer;
+    display: grid; place-items: center;
+    position: relative;
+  }
+  .help-btn:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+  .titleblock { min-width: 0; }
+  .titleblock h1 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .titleblock h1 .proj { color: var(--accent); }
+  .titleblock p {
+    margin: 2px 0 0;
+    font-size: 12.5px;
+    color: var(--ink-mute);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 46vw;
+  }
+  .hdr-right { display: flex; align-items: center; gap: 22px; flex: none; }
+  .stats { display: flex; gap: 22px; }
+  .stat { text-align: right; }
+  .stat .num { font-size: 20px; font-weight: 750; letter-spacing: -.02em; line-height: 1; }
+  .stat .lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-mute); margin-top: 3px; }
+
+  .lang {
+    display: flex; align-items: center;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .lang button {
+    border: 0; background: var(--panel); color: var(--ink-soft);
+    padding: 6px 11px; font-size: 12px; font-weight: 650; cursor: pointer;
+  }
+  .lang button + button { border-left: 1px solid var(--line); }
+  .lang button.on { background: var(--accent); color: #fff; }
+
+  /* Help popover */
+  .help-pop {
+    position: absolute;
+    top: 40px; left: 0;
+    width: 340px;
+    background: var(--panel);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lift);
+    padding: 14px 16px;
+    z-index: 30;
+    font-weight: 400;
+    color: var(--ink-soft);
+    text-align: left;
+  }
+  .help-pop h3 { margin: 0 0 6px; font-size: 13.5px; color: var(--ink); }
+  .help-pop p { margin: 0 0 8px; font-size: 12.5px; line-height: 1.5; }
+  .help-pop p:last-child { margin-bottom: 0; }
+
+  /* ---------------- Panels ---------------- */
+  #side, #details { background: var(--panel); overflow-y: auto; }
+  #side { grid-area: side; border-right: 1px solid var(--line); }
+  #details { grid-area: details; border-left: 1px solid var(--line); }
+  #main { grid-area: main; overflow-y: auto; padding: 26px 30px 60px; }
+
+  .side-sec { padding: 18px 18px 8px; }
+  .side-sec + .side-sec { border-top: 1px solid var(--line); }
+  .sec-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .09em;
+    color: var(--ink-mute); font-weight: 700; margin: 0 0 12px;
+  }
+
+  .search-input {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    color: var(--ink);
+    background: var(--bg);
+    outline: none;
+  }
+  .search-input:focus { border-color: var(--accent); background: var(--panel); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+  .pills { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 6px; }
+  .pill {
+    border: 1px solid var(--line-strong);
+    background: var(--panel);
+    color: var(--ink-soft);
+    border-radius: 999px;
+    padding: 4px 11px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .pill:hover { border-color: var(--accent); color: var(--accent); }
+  .pill.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+  .results { margin-top: 8px; display: flex; flex-direction: column; gap: 2px; }
+  .results-note { font-size: 11.5px; color: var(--ink-mute); padding: 4px 2px 8px; }
+
+  /* Generic click-to-focus row */
+  .row {
+    display: flex; align-items: center; gap: 9px;
+    width: 100%;
+    text-align: left;
+    border: 0; background: transparent;
+    padding: 6px 8px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    color: var(--ink);
+  }
+  .row:hover { background: var(--accent-soft); }
+  .row-main { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+  .row-name { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row-sub { font-size: 11px; color: var(--ink-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row-metric { flex: none; font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; font-weight: 600; }
+  .row-count { flex: none; font-size: 11.5px; color: var(--ink-mute); font-variant-numeric: tabular-nums; }
+
+  .dot { flex: none; width: 9px; height: 9px; border-radius: 50%; }
+  .dot.file { background: var(--n-file); }
+  .dot.symbol { background: var(--n-symbol); }
+  .dot.package { background: var(--n-package); }
+  .dot.domain { background: var(--n-domain); }
+
+  .tbadge {
+    flex: none;
+    font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
+    padding: 2px 7px; border-radius: 999px; font-weight: 700;
+  }
+  .tbadge.file { background: #e6efff; color: #1d4ed8; }
+  .tbadge.symbol { background: #f1e9ff; color: #6d28d9; }
+  .tbadge.package { background: #fdf0dc; color: #b45309; }
+  .tbadge.domain { background: #d9f5f0; color: #0f766e; }
+
+  /* Edge-type checklist */
+  .edge-list { display: flex; flex-direction: column; gap: 2px; }
+  .edge-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 6px; border-radius: var(--radius-sm); cursor: pointer;
+  }
+  .edge-row:hover { background: var(--bg); }
+  .edge-row input { margin: 0; accent-color: var(--accent); width: 15px; height: 15px; flex: none; }
+  .edge-swatch { flex: none; }
+  .edge-meta { min-width: 0; }
+  .edge-name { font-size: 12.5px; font-weight: 600; }
+  .edge-sub { font-size: 11px; color: var(--ink-mute); font-family: var(--mono); }
+
+  /* ---------------- Landing ---------------- */
+  .landing-head h2 { margin: 0 0 4px; font-size: 22px; letter-spacing: -.02em; }
+  .landing-head p { margin: 0 0 22px; color: var(--ink-soft); font-size: 14px; max-width: 720px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 16px 12px;
+  }
+  .card-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    margin-bottom: 10px;
+  }
+  .card-head h3 { margin: 0; font-size: 13.5px; letter-spacing: -.01em; }
+  .card-badge {
+    font-size: 11px; font-weight: 700; color: var(--ink-soft);
+    background: var(--bg); border: 1px solid var(--line);
+    border-radius: 999px; padding: 2px 9px;
+  }
+  .card-none { color: var(--ink-mute); font-size: 12.5px; font-style: italic; padding: 4px 2px 6px; }
+  .card-list { display: flex; flex-direction: column; gap: 1px; margin: 0 -6px; }
+
+  .product-card { margin-bottom: 22px; }
+  .product-row .arrow { color: var(--ink-mute); padding: 0 2px; }
+
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 18px;
+    margin-top: 22px;
+  }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .two-col .col-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--ink-mute); font-weight: 700; margin: 0 0 4px; padding: 0 6px;
+  }
+
+  /* ---------------- Focus ---------------- */
+  .crumbs { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 16px; }
+  .crumbs button { border: 0; background: transparent; color: var(--accent); cursor: pointer; padding: 0; font-size: 13px; }
+  .crumbs .sep { color: var(--ink-mute); }
+  .crumbs .cur { color: var(--ink-soft); font-weight: 600; }
+
+  .focus-head {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 14px 18px; margin-bottom: 20px;
+  }
+  .focus-head .fh-name { font-size: 18px; font-weight: 700; letter-spacing: -.01em; }
+  .focus-head .fh-kind { font-size: 12px; color: var(--ink-mute); font-family: var(--mono); }
+  .focus-head .fh-sum { font-size: 12.5px; color: var(--ink-soft); margin-left: auto; text-align: right; }
+
+  .hub-wrap { overflow-x: auto; padding-bottom: 6px; }
+  .hub {
+    position: relative;
+    width: 900px; height: 560px;
+    margin: 0 auto;
+  }
+  .hub svg.wires { position: absolute; inset: 0; width: 900px; height: 560px; overflow: visible; pointer-events: none; }
+  .wire-label {
+    font-size: 10px; font-weight: 700; letter-spacing: .05em;
+    fill: var(--ink-mute); text-transform: uppercase;
+  }
+
+  .node-card {
+    position: absolute;
+    background: var(--panel);
+    border: 1px solid var(--line-strong);
+    border-left-width: 5px;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lift);
+    padding: 12px 14px;
+    display: flex; flex-direction: column; gap: 6px;
+    justify-content: center;
+  }
+  .node-card .nc-top { display: flex; align-items: center; gap: 8px; }
+  .node-card .nc-name { font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
+  .node-card .nc-kind { font-size: 11.5px; color: var(--ink-mute); font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; }
+
+  .cluster {
+    position: absolute;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .cluster-head {
+    display: flex; align-items: center; gap: 7px;
+    padding: 9px 12px 8px;
+    border-bottom: 1px solid var(--line);
+    font-size: 12px; font-weight: 700;
+  }
+  .cluster-head .ch-count {
+    margin-left: auto; font-size: 11px; color: var(--ink-mute);
+    font-variant-numeric: tabular-nums; font-weight: 700;
+  }
+  .cluster-body { overflow-y: auto; padding: 4px 6px; }
+  .cluster-empty { color: var(--ink-mute); font-size: 12px; font-style: italic; padding: 8px 8px; }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 22px;
+    margin: 6px auto 0;
+    max-width: 900px;
+    padding: 12px 14px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+  .legend .lg-group { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .legend .lg-title { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-mute); font-weight: 700; }
+  .legend .lg-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-soft); }
+
+  /* Details panel */
+  #details .det-head { padding: 18px 18px 10px; }
+  .det-node { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+  .det-node .dn-name { font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
+  .det-id {
+    font-family: var(--mono); font-size: 11px; color: var(--ink-soft);
+    background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+    padding: 6px 8px; word-break: break-all; margin-top: 6px;
+  }
+  .det-empty { color: var(--ink-mute); font-size: 13px; padding: 18px; line-height: 1.6; }
+  .det-sec { padding: 12px 12px 6px; border-top: 1px solid var(--line); }
+  .det-sec h4 {
+    margin: 0 0 6px; padding: 0 6px;
+    font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-soft);
+  }
+
+  .err { margin: 40px auto; max-width: 560px; background: var(--panel); border: 1px solid var(--line);
+         border-radius: var(--radius); padding: 22px 24px; box-shadow: var(--shadow); }
+  .err h2 { margin: 0 0 8px; font-size: 16px; }
+  .err code { font-family: var(--mono); background: var(--bg); padding: 2px 6px; border-radius: 5px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="hdr"></header>
+  <aside id="side"></aside>
+  <main id="main"></main>
+  <aside id="details"></aside>
+</div>
+
+<script>
+"use strict";
+(function () {
+  /* ======================================================================
+   * i18n — every chrome label lives here. Graph DATA values are never
+   * translated (only the surrounding UI labels are).
+   *
+   * >>> TO ADD A LANGUAGE <<<
+   *   1. Add a full `translations['<code>'] = { ... }` block below,
+   *      copying `translations.en` and translating every value (including
+   *      the nested `edgeLabels`, `clusterTitles` and `nodeTypes` objects).
+   *   2. Add `{ code: '<code>', label: '<SHORT>' }` to the LANGUAGES array.
+   * That single dict + list entry drives the whole header switcher and every
+   * label on screen. Missing keys fall back to English automatically.
+   * ==================================================================== */
+  const translations = {
+    en: {
+      title: "Knowledge Graph Explorer",
+      subtitle: "Interactive map of the {project} codebase: files, symbols, packages and how they depend on each other.",
+      helpTitle: "About this explorer",
+      helpBody: [
+        "This is a static, offline map of a codebase. It loads graph-index.json and lets you search and focus any node to see how it connects.",
+        "Click an insight row or a search result to focus a node. A focused node shows who depends on it, what it depends on, and what it contains or declares.",
+        "Use EDGE TYPES on the left to show or hide each kind of relationship in the focus view. Switch languages any time with EN / RU in the header."
+      ],
+      statFiles: "Files",
+      statSymbols: "Symbols",
+      statPackages: "Packages",
+      statDomains: "Domains",
+      statEdges: "Edges",
+
+      searchTitle: "Search",
+      searchPlaceholder: "search files, symbols, packages…",
+      filterAll: "All",
+      filterFiles: "Files",
+      filterSymbols: "Symbols",
+      filterPackages: "Packages",
+      filterDomains: "Domains",
+      searchHint: "Type to search {n} nodes.",
+      searchNoResults: "No matches for “{q}”.",
+      searchShowing: "Showing {shown} of {total} matches.",
+
+      edgeTypesTitle: "Edge types",
+      edgeLabels: {
+        IMPORTS:          { name: "Imports",          sub: "file → file" },
+        IMPORTS_EXTERNAL: { name: "External imports", sub: "file → package" },
+        DECLARES:         { name: "Declares",         sub: "file → symbol" },
+        REFERENCES:       { name: "References",       sub: "file → symbol" },
+        USES:             { name: "Uses",             sub: "symbol → symbol" },
+        DEPENDS_ON:       { name: "Depends on",       sub: "domain → domain" },
+        CONTAINS:         { name: "Contains",         sub: "domain → file" }
+      },
+
+      startHere: "Start here",
+      startLine: "This map has {nodes} nodes connected by {edges} dependency edges. Click any row to focus a node, or search on the left.",
+      productMapTitle: "Product map",
+      productMapBadge: "{product} product · {infra} infra",
+      wordLinks: "links",
+      wordFiles: "files",
+      wordDegree: "degree",
+      wordImports: "imports",
+      wordNone: "none",
+
+      cardBiggestDomains: "Biggest product domains",
+      cardMostUsedSymbols: "Most-used symbols",
+      cardMostConnectedSymbols: "Most-connected symbols",
+      cardHooksComponents: "Most-used hooks & components",
+      colHooks: "Hooks",
+      colComponents: "Components",
+      cardDeadExports: "Dead / unused exports",
+      cardMostDependedPackages: "Most-depended-on packages",
+      cardBiggestImporters: "Biggest importers",
+
+      home: "Home",
+      clusterTitles: {
+        dependedOnBy: "Depended on by",
+        dependsOn: "Depends on",
+        usedBy: "Used by",
+        uses: "Uses",
+        importedBy: "Imported by",
+        imports: "Imports",
+        referencedBy: "Referenced by",
+        declares: "Declares",
+        declaredIn: "Declared in",
+        containsFiles: "Files",
+        belongsTo: "Belongs to"
+      },
+      legendNodes: "Nodes",
+      legendEdges: "Edges",
+      nodeTypes: { file: "File", symbol: "Symbol", package: "Package", domain: "Domain" },
+
+      detailsTitle: "Details",
+      detailsEmpty: "No node focused. Pick an insight or search on the left.",
+      detailType: "Type",
+
+      loadErrorTitle: "Could not load the graph",
+      loadErrorBody: "Failed to fetch {file}. Serve this folder over HTTP (for example with codegraph explorer --serve) and reload."
+    },
+
+    ru: {
+      title: "Обзор графа знаний",
+      subtitle: "Интерактивная карта кодовой базы {project}: файлы, символы, пакеты и их зависимости.",
+      helpTitle: "Об этом обозревателе",
+      helpBody: [
+        "Это статическая офлайн-карта кодовой базы. Она загружает graph-index.json и позволяет искать и фокусироваться на любом узле, чтобы увидеть его связи.",
+        "Нажмите строку инсайта или результат поиска, чтобы сфокусироваться на узле. У выбранного узла видно, кто от него зависит, от чего зависит он и что он содержит или объявляет.",
+        "Используйте раздел «Типы связей» слева, чтобы показывать или скрывать каждый вид связей в режиме фокуса. Язык можно переключить кнопками EN / RU в шапке."
+      ],
+      statFiles: "Файлы",
+      statSymbols: "Символы",
+      statPackages: "Пакеты",
+      statDomains: "Домены",
+      statEdges: "Связи",
+
+      searchTitle: "Поиск",
+      searchPlaceholder: "поиск файлов, символов, пакетов…",
+      filterAll: "Все",
+      filterFiles: "Файлы",
+      filterSymbols: "Символы",
+      filterPackages: "Пакеты",
+      filterDomains: "Домены",
+      searchHint: "Введите запрос для поиска среди {n} узлов.",
+      searchNoResults: "Ничего не найдено по «{q}».",
+      searchShowing: "Показано {shown} из {total} совпадений.",
+
+      edgeTypesTitle: "Типы связей",
+      edgeLabels: {
+        IMPORTS:          { name: "Импорты",         sub: "файл → файл" },
+        IMPORTS_EXTERNAL: { name: "Внешние импорты", sub: "файл → пакет" },
+        DECLARES:         { name: "Объявляет",       sub: "файл → символ" },
+        REFERENCES:       { name: "Ссылки",          sub: "файл → символ" },
+        USES:             { name: "Использует",      sub: "символ → символ" },
+        DEPENDS_ON:       { name: "Зависит от",      sub: "домен → домен" },
+        CONTAINS:         { name: "Содержит",        sub: "домен → файл" }
+      },
+
+      startHere: "Начните здесь",
+      startLine: "На этой карте {nodes} узлов, связанных {edges} рёбрами зависимостей. Нажмите на строку, чтобы сфокусироваться на узле, или воспользуйтесь поиском слева.",
+      productMapTitle: "Карта продукта",
+      productMapBadge: "{product} продукт. · {infra} инфра",
+      wordLinks: "связей",
+      wordFiles: "файлов",
+      wordDegree: "степень",
+      wordImports: "импортов",
+      wordNone: "нет",
+
+      cardBiggestDomains: "Крупнейшие продуктовые домены",
+      cardMostUsedSymbols: "Самые используемые символы",
+      cardMostConnectedSymbols: "Самые связанные символы",
+      cardHooksComponents: "Популярные хуки и компоненты",
+      colHooks: "Хуки",
+      colComponents: "Компоненты",
+      cardDeadExports: "Мёртвые / неиспользуемые экспорты",
+      cardMostDependedPackages: "Самые востребованные пакеты",
+      cardBiggestImporters: "Крупнейшие импортёры",
+
+      home: "Главная",
+      clusterTitles: {
+        dependedOnBy: "Зависят от него",
+        dependsOn: "Зависит от",
+        usedBy: "Используется в",
+        uses: "Использует",
+        importedBy: "Импортируется в",
+        imports: "Импортирует",
+        referencedBy: "Ссылаются",
+        declares: "Объявляет",
+        declaredIn: "Объявлен в",
+        containsFiles: "Файлы",
+        belongsTo: "Относится к"
+      },
+      legendNodes: "Узлы",
+      legendEdges: "Связи",
+      nodeTypes: { file: "Файл", symbol: "Символ", package: "Пакет", domain: "Домен" },
+
+      detailsTitle: "Детали",
+      detailsEmpty: "Узел не выбран. Выберите инсайт или воспользуйтесь поиском слева.",
+      detailType: "Тип",
+
+      loadErrorTitle: "Не удалось загрузить граф",
+      loadErrorBody: "Не удалось получить {file}. Отдавайте эту папку по HTTP (например, командой codegraph explorer --serve) и перезагрузите страницу."
+    }
+  };
+
+  // The switcher renders one button per entry, in order. Add yours here too.
+  const LANGUAGES = [
+    { code: "en", label: "EN" },
+    { code: "ru", label: "RU" }
+  ];
+
+  /* ---- Visual constants (kept in JS so SVG stroke attrs get real colors) ---- */
+  const NODE_COLORS = { file: "#2563eb", symbol: "#7c3aed", package: "#d97706", domain: "#0d9488" };
+  // The seven UI edge relations. `style` drives both the swatch and the wires.
+  const EDGE_STYLE = {
+    IMPORTS:          { color: "#2563eb", style: "solid"  },
+    IMPORTS_EXTERNAL: { color: "#d97706", style: "dashed" },
+    DECLARES:         { color: "#7c3aed", style: "solid"  },
+    REFERENCES:       { color: "#a855f7", style: "dashed" },
+    USES:             { color: "#6366f1", style: "dotted" },
+    DEPENDS_ON:       { color: "#0d9488", style: "solid"  },
+    CONTAINS:         { color: "#0891b2", style: "solid"  }
+  };
+  const EDGE_ORDER = ["IMPORTS", "IMPORTS_EXTERNAL", "DECLARES", "REFERENCES", "USES", "DEPENDS_ON", "CONTAINS"];
+  function dashArray(style) {
+    if (style === "dashed") return "5 3";
+    if (style === "dotted") return "1 4";
+    return null;
+  }
+
+  /* ---------------------------- state ---------------------------- */
+  let lang = localStorage.getItem("codegraph.lang") || "en";
+  if (!translations[lang]) lang = "en";
+
+  const state = {
+    data: null,
+    nodesById: new Map(),
+    outAdj: new Map(),      // id -> [{ ltype, from, to, weight }]
+    inAdj: new Map(),
+    productCount: 0,
+    infraCount: 0,
+    focusId: null,
+    typeFilter: "all",      // all | file | symbol | package | domain
+    query: "",
+    edgeOn: new Set(EDGE_ORDER)
+  };
+
+  // Persistent element refs (built once).
+  let elResults = null;
+
+  /* ---------------------------- i18n helpers ---------------------------- */
+  function t(key, params) {
+    const dict = translations[lang] || translations.en;
+    let s = dict[key];
+    if (s == null) s = translations.en[key];
+    if (s == null) return key;
+    if (typeof s === "string" && params) {
+      s = s.replace(/\{(\w+)\}/g, (m, p) => (params[p] != null ? params[p] : m));
+    }
+    return s;
+  }
+  function tt(key) {
+    const dict = translations[lang] || translations.en;
+    return dict[key] || translations.en[key];
+  }
+  function fmt(n) {
+    try { return Number(n).toLocaleString(lang === "ru" ? "ru-RU" : "en-US"); }
+    catch (e) { return String(n); }
+  }
+
+  /* ---------------------------- DOM helpers ---------------------------- */
+  function h(tag, attrs) {
+    const e = document.createElement(tag);
+    if (attrs) {
+      for (const k in attrs) {
+        const v = attrs[k];
+        if (v == null || v === false) continue;
+        if (k === "class") e.className = v;
+        else if (k === "text") e.textContent = v;
+        else if (k === "style" && typeof v === "object") Object.assign(e.style, v);
+        else if (k.slice(0, 2) === "on" && typeof v === "function") e.addEventListener(k.slice(2), v);
+        else e.setAttribute(k, v);
+      }
+    }
+    for (let i = 2; i < arguments.length; i++) {
+      const kid = arguments[i];
+      if (kid == null || kid === false) continue;
+      if (Array.isArray(kid)) { for (const c of kid) if (c != null && c !== false) e.append(c.nodeType ? c : document.createTextNode(c)); }
+      else e.append(kid.nodeType ? kid : document.createTextNode(kid));
+    }
+    return e;
+  }
+  const SVGNS = "http://www.w3.org/2000/svg";
+  function s(tag, attrs) {
+    const e = document.createElementNS(SVGNS, tag);
+    if (attrs) for (const k in attrs) { if (attrs[k] != null) e.setAttribute(k, attrs[k]); }
+    return e;
+  }
+
+  function guessType(id) {
+    if (id.startsWith("file:")) return "file";
+    if (id.startsWith("sym:")) return "symbol";
+    if (id.startsWith("pkg:")) return "package";
+    if (id.startsWith("domain:")) return "domain";
+    return "file";
+  }
+  function nodeName(id) {
+    const n = state.nodesById.get(id);
+    if (n) return n.name;
+    return id.replace(/^(file:|sym:|pkg:|domain:)/, "");
+  }
+  function nodeType(id) {
+    const n = state.nodesById.get(id);
+    return n ? n.type : guessType(id);
+  }
+  function dot(type) { return h("span", { class: "dot " + type }); }
+  function typeBadge(type) { return h("span", { class: "tbadge " + type, text: tt("nodeTypes")[type] || type }); }
+
+  function edgeSwatch(ltype) {
+    const st = EDGE_STYLE[ltype];
+    const svg = s("svg", { width: 26, height: 10, viewBox: "0 0 26 10" });
+    const line = s("line", { x1: 1, y1: 5, x2: 25, y2: 5, stroke: st.color, "stroke-width": 2.5, "stroke-linecap": "round" });
+    const da = dashArray(st.style);
+    if (da) line.setAttribute("stroke-dasharray", da);
+    svg.append(line);
+    return svg;
+  }
+
+  /* ---------------------------- index build ---------------------------- */
+  function logicalType(edge) {
+    if (edge.type === "IMPORTS") return (typeof edge.to === "string" && edge.to.startsWith("pkg:")) ? "IMPORTS_EXTERNAL" : "IMPORTS";
+    if (edge.type === "BELONGS_TO") return "CONTAINS";
+    return edge.type; // DECLARES, REFERENCES, USES, DEPENDS_ON
+  }
+  function buildIndexes(data) {
+    state.nodesById = new Map();
+    state.outAdj = new Map();
+    state.inAdj = new Map();
+    state.productCount = 0;
+    state.infraCount = 0;
+
+    for (const n of data.nodes || []) {
+      state.nodesById.set(n.id, n);
+      if (n.type === "domain") {
+        if (n.kind === "product") state.productCount++;
+        else state.infraCount++;
+      }
+    }
+    for (const raw of data.edges || []) {
+      const e = { ltype: logicalType(raw), from: raw.from, to: raw.to, weight: raw.weight || 1 };
+      let o = state.outAdj.get(e.from); if (!o) { o = []; state.outAdj.set(e.from, o); } o.push(e);
+      let i = state.inAdj.get(e.to); if (!i) { i = []; state.inAdj.set(e.to, i); } i.push(e);
+    }
+  }
+
+  // Aggregate neighbors of `id` in a direction, over a set of logical types.
+  // `respect` = also drop types unchecked in the EDGE TYPES panel.
+  function neighbors(id, dir, ltypes, respect) {
+    const adj = (dir === "out" ? state.outAdj : state.inAdj).get(id) || [];
+    const set = ltypes instanceof Set ? ltypes : new Set(ltypes);
+    const acc = new Map();
+    for (const e of adj) {
+      if (!set.has(e.ltype)) continue;
+      if (respect && !state.edgeOn.has(e.ltype)) continue;
+      const other = dir === "out" ? e.to : e.from;
+      acc.set(other, (acc.get(other) || 0) + e.weight);
+    }
+    const rows = [];
+    for (const [oid, count] of acc) rows.push({ id: oid, count: count });
+    rows.sort((a, b) => (b.count - a.count) || cmpStr(nodeName(a.id), nodeName(b.id)) || cmpStr(a.id, b.id));
+    return rows;
+  }
+  function cmpStr(a, b) { return a < b ? -1 : a > b ? 1 : 0; }
+
+  /* ---------------------------- cluster model ---------------------------- */
+  // Each node type exposes a fixed set of relationship clusters. `hub` ones are
+  // drawn in the radial SVG view; all are mirrored in the DETAILS panel.
+  function clustersFor(node) {
+    switch (node.type) {
+      case "domain": return [
+        { key: "dependedOnBy",  col: "left",   hub: true,  dir: "in",  ltypes: ["DEPENDS_ON"] },
+        { key: "dependsOn",     col: "right",  hub: true,  dir: "out", ltypes: ["DEPENDS_ON"] },
+        { key: "containsFiles", col: "bottom", hub: true,  dir: "in",  ltypes: ["CONTAINS"] }
+      ];
+      case "file": return [
+        { key: "importedBy", col: "left",   hub: true,  dir: "in",  ltypes: ["IMPORTS"] },
+        { key: "imports",    col: "right",  hub: true,  dir: "out", ltypes: ["IMPORTS", "IMPORTS_EXTERNAL"] },
+        { key: "declares",   col: "bottom", hub: true,  dir: "out", ltypes: ["DECLARES"] },
+        { key: "belongsTo",  col: "bottom", hub: false, dir: "out", ltypes: ["CONTAINS"] }
+      ];
+      case "symbol": return [
+        { key: "usedBy",       col: "left",   hub: true, dir: "in",  ltypes: ["USES"] },
+        { key: "referencedBy", col: "left",   hub: true, dir: "in",  ltypes: ["REFERENCES"] },
+        { key: "uses",         col: "right",  hub: true, dir: "out", ltypes: ["USES"] },
+        { key: "declaredIn",   col: "bottom", hub: true, dir: "in",  ltypes: ["DECLARES"] }
+      ];
+      case "package": return [
+        { key: "importedBy", col: "left", hub: true, dir: "in", ltypes: ["IMPORTS_EXTERNAL"] }
+      ];
+      default: return [];
+    }
+  }
+  // Types actually visible (checked) for a cluster.
+  function enabledLtypes(cluster) { return cluster.ltypes.filter((l) => state.edgeOn.has(l)); }
+
+  /* ---------------------------- rows ---------------------------- */
+  // A click-to-focus row. opts: { metric, metricLabel, sub, count }
+  function focusRow(id, opts) {
+    opts = opts || {};
+    const type = nodeType(id);
+    const row = h("button", { class: "row", onclick: () => setFocus(id) });
+    row.append(dot(type));
+    const main = h("div", { class: "row-main" });
+    main.append(h("span", { class: "row-name", text: nodeName(id) }));
+    if (opts.sub) main.append(h("span", { class: "row-sub", text: opts.sub }));
+    row.append(main);
+    if (opts.count != null && opts.count > 1) row.append(h("span", { class: "row-count", text: "×" + fmt(opts.count) }));
+    if (opts.metric != null) row.append(h("span", { class: "row-metric", text: fmt(opts.metric) + (opts.metricLabel ? " " + opts.metricLabel : "") }));
+    return row;
+  }
+  function subFor(id) {
+    const n = state.nodesById.get(id);
+    if (!n) return null;
+    if (n.type === "file") return n.path || null;
+    if (n.type === "symbol") return n.path ? (n.kind ? n.kind + " · " + n.path : n.path) : (n.kind || null);
+    if (n.type === "domain") return n.kind || null;
+    return null;
+  }
+
+  /* ============================ RENDER: header ============================ */
+  function renderHeader() {
+    const hdr = document.getElementById("hdr");
+    hdr.textContent = "";
+    const meta = state.data.meta || {};
+    const stats = state.data.stats || {};
+
+    // Help affordance + title
+    const helpBtn = h("button", { class: "help-btn", title: t("helpTitle"), "aria-label": t("helpTitle") }, "?");
+    const pop = h("div", { class: "help-pop", style: { display: "none" } });
+    pop.append(h("h3", { text: t("helpTitle") }));
+    for (const line of tt("helpBody")) pop.append(h("p", { text: line }));
+    helpBtn.append(pop);
+    helpBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      pop.style.display = pop.style.display === "none" ? "block" : "none";
+    });
+    document.addEventListener("click", () => { pop.style.display = "none"; });
+    pop.addEventListener("click", (ev) => ev.stopPropagation());
+
+    const titleblock = h("div", { class: "titleblock" });
+    const h1 = h("h1");
+    h1.append(t("title") + " · ");
+    h1.append(h("span", { class: "proj", text: meta.project || "?" }));
+    titleblock.append(h1);
+    titleblock.append(h("p", { text: t("subtitle", { project: meta.project || "?" }) }));
+
+    const left = h("div", { class: "hdr-left" }, helpBtn, titleblock);
+
+    // Stats
+    const statsRow = h("div", { class: "stats" });
+    const statDefs = [
+      ["statFiles", stats.files], ["statSymbols", stats.symbols], ["statPackages", stats.packages],
+      ["statDomains", stats.domains], ["statEdges", stats.edges]
+    ];
+    for (const [k, v] of statDefs) {
+      statsRow.append(h("div", { class: "stat" },
+        h("div", { class: "num", text: fmt(v || 0) }),
+        h("div", { class: "lbl", text: t(k) })));
+    }
+
+    // Language switcher
+    const langBox = h("div", { class: "lang" });
+    for (const L of LANGUAGES) {
+      langBox.append(h("button", {
+        class: L.code === lang ? "on" : "",
+        text: L.label,
+        onclick: () => setLang(L.code)
+      }));
+    }
+
+    hdr.append(left, h("div", { class: "hdr-right" }, statsRow, langBox));
+  }
+
+  /* ============================ RENDER: sidebar ============================ */
+  function renderSidebar() {
+    const side = document.getElementById("side");
+    side.textContent = "";
+
+    // --- Search ---
+    const searchSec = h("div", { class: "side-sec" });
+    searchSec.append(h("div", { class: "sec-title", text: t("searchTitle") }));
+    const input = h("input", { class: "search-input", type: "text", placeholder: t("searchPlaceholder"), value: state.query });
+    input.addEventListener("input", () => { state.query = input.value; renderResults(); });
+    searchSec.append(input);
+
+    const pills = h("div", { class: "pills" });
+    const pillDefs = [["all", "filterAll"], ["file", "filterFiles"], ["symbol", "filterSymbols"], ["package", "filterPackages"], ["domain", "filterDomains"]];
+    for (const [val, key] of pillDefs) {
+      pills.append(h("button", {
+        class: "pill" + (state.typeFilter === val ? " on" : ""),
+        text: t(key),
+        onclick: () => { state.typeFilter = val; renderSidebar(); }
+      }));
+    }
+    searchSec.append(pills);
+
+    elResults = h("div", { class: "results" });
+    searchSec.append(elResults);
+    side.append(searchSec);
+
+    // --- Edge types ---
+    const edgeSec = h("div", { class: "side-sec" });
+    edgeSec.append(h("div", { class: "sec-title", text: t("edgeTypesTitle") }));
+    const list = h("div", { class: "edge-list" });
+    const labels = tt("edgeLabels");
+    for (const key of EDGE_ORDER) {
+      const cb = h("input", { type: "checkbox" });
+      cb.checked = state.edgeOn.has(key);
+      cb.addEventListener("change", () => {
+        if (cb.checked) state.edgeOn.add(key); else state.edgeOn.delete(key);
+        renderMain(); renderDetails();
+      });
+      const label = labels[key] || { name: key, sub: "" };
+      const rowEl = h("label", { class: "edge-row" },
+        cb,
+        h("span", { class: "edge-swatch" }, edgeSwatch(key)),
+        h("div", { class: "edge-meta" },
+          h("div", { class: "edge-name", text: label.name }),
+          h("div", { class: "edge-sub", text: label.sub })));
+      list.append(rowEl);
+    }
+    edgeSec.append(list);
+    side.append(edgeSec);
+
+    renderResults();
+  }
+
+  function renderResults() {
+    if (!elResults) return;
+    elResults.textContent = "";
+    const q = state.query.trim().toLowerCase();
+    if (!q) {
+      elResults.append(h("div", { class: "results-note", text: t("searchHint", { n: fmt(state.nodesById.size) }) }));
+      return;
+    }
+    const LIMIT = 60;
+    const matches = [];
+    let total = 0;
+    for (const n of state.nodesById.values()) {
+      if (state.typeFilter !== "all" && n.type !== state.typeFilter) continue;
+      const hay = (n.name + " " + (n.path || "") + " " + n.id).toLowerCase();
+      if (hay.indexOf(q) === -1) continue;
+      total++;
+      if (matches.length < LIMIT) matches.push(n);
+    }
+    if (total === 0) {
+      elResults.append(h("div", { class: "results-note", text: t("searchNoResults", { q: state.query.trim() }) }));
+      return;
+    }
+    elResults.append(h("div", { class: "results-note", text: t("searchShowing", { shown: fmt(matches.length), total: fmt(total) }) }));
+    for (const n of matches) elResults.append(focusRow(n.id, { sub: subFor(n.id) }));
+  }
+
+  /* ============================ RENDER: main ============================ */
+  function renderMain() {
+    const main = document.getElementById("main");
+    main.textContent = "";
+    if (state.focusId && state.nodesById.has(state.focusId)) renderFocus(main);
+    else renderLanding(main);
+  }
+
+  function renderLanding(main) {
+    const stats = state.data.stats || {};
+    const ins = state.data.insights || {};
+
+    const head = h("div", { class: "landing-head" },
+      h("h2", { text: t("startHere") }),
+      h("p", { text: t("startLine", { nodes: fmt(state.nodesById.size), edges: fmt(stats.edges || 0) }) }));
+    main.append(head);
+
+    // Product map card
+    const productMap = ins.productMap || [];
+    const pcard = h("div", { class: "card product-card" });
+    const phead = h("div", { class: "card-head" },
+      h("h3", { text: t("productMapTitle") }),
+      h("span", { class: "card-badge", text: t("productMapBadge", { product: state.productCount, infra: state.infraCount }) }));
+    pcard.append(phead);
+    if (productMap.length === 0) {
+      pcard.append(h("div", { class: "card-none", text: t("wordNone") }));
+    } else {
+      const plist = h("div", { class: "card-list" });
+      for (const row of productMap) {
+        const btn = h("button", { class: "row product-row", onclick: () => setFocus(row.from) });
+        btn.append(dot("domain"));
+        const m = h("div", { class: "row-main" });
+        const nameLine = h("span", { class: "row-name" });
+        nameLine.append(row.fromName);
+        nameLine.append(h("span", { class: "arrow", text: " → " }));
+        nameLine.append(row.toName);
+        m.append(nameLine);
+        btn.append(m);
+        btn.append(h("span", { class: "row-metric", text: fmt(row.weight) + " " + t("wordLinks") }));
+        plist.append(btn);
+      }
+      pcard.append(plist);
+    }
+    main.append(pcard);
+
+    // Insight cards grid
+    const grid = h("div", { class: "cards-grid" });
+
+    grid.append(listCard(t("cardBiggestDomains"), ins.biggestDomains, (r) => focusRow(r.id, { metric: r.files, metricLabel: t("wordFiles") })));
+    grid.append(listCard(t("cardMostUsedSymbols"), ins.mostUsedSymbols, (r) => focusRow(r.id, { metric: r.files, metricLabel: t("wordFiles"), sub: subFor(r.id) })));
+    grid.append(listCard(t("cardMostConnectedSymbols"), ins.mostConnectedSymbols, (r) => focusRow(r.id, { metric: r.degree, metricLabel: t("wordDegree"), sub: subFor(r.id) })));
+    grid.append(hooksCard(ins.hooks || [], ins.components || []));
+    grid.append(listCard(t("cardDeadExports"), ins.deadExports, (r) => focusRow(r.id, { sub: subFor(r.id) }), { badge: fmt(ins.deadExportsTotal || 0) }));
+    grid.append(listCard(t("cardMostDependedPackages"), ins.mostDependedPackages, (r) => focusRow("pkg:" + r.name, { metric: r.files, metricLabel: t("wordFiles") })));
+    grid.append(listCard(t("cardBiggestImporters"), ins.biggestImporters, (r) => focusRow("file:" + r.file, { metric: r.imports, metricLabel: t("wordImports"), sub: r.file })));
+
+    main.append(grid);
+  }
+
+  function listCard(title, rows, rowFn, opts) {
+    opts = opts || {};
+    const card = h("div", { class: "card" });
+    const head = h("div", { class: "card-head" }, h("h3", { text: title }));
+    if (opts.badge != null) head.append(h("span", { class: "card-badge", text: opts.badge }));
+    card.append(head);
+    if (!rows || rows.length === 0) {
+      card.append(h("div", { class: "card-none", text: t("wordNone") }));
+    } else {
+      const list = h("div", { class: "card-list" });
+      for (const r of rows) list.append(rowFn(r));
+      card.append(list);
+    }
+    return card;
+  }
+
+  function hooksCard(hooks, components) {
+    const card = h("div", { class: "card" });
+    card.append(h("div", { class: "card-head" }, h("h3", { text: t("cardHooksComponents") })));
+    const cols = h("div", { class: "two-col" });
+    const mkCol = (title, rows) => {
+      const col = h("div");
+      col.append(h("div", { class: "col-title", text: title }));
+      if (!rows || rows.length === 0) col.append(h("div", { class: "card-none", text: t("wordNone") }));
+      else { const l = h("div", { class: "card-list" }); for (const r of rows) l.append(focusRow(r.id, { metric: r.files })); col.append(l); }
+      return col;
+    };
+    cols.append(mkCol(t("colHooks"), hooks));
+    cols.append(mkCol(t("colComponents"), components));
+    card.append(cols);
+    return card;
+  }
+
+  /* ---------------------------- Focus view ---------------------------- */
+  function renderFocus(main) {
+    const node = state.nodesById.get(state.focusId);
+
+    // Breadcrumb
+    const crumbs = h("div", { class: "crumbs" },
+      h("button", { text: t("home"), onclick: () => setFocus(null) }),
+      h("span", { class: "sep", text: "›" }),
+      h("span", { class: "cur", text: node.name }));
+    main.append(crumbs);
+
+    // Focus header (badge + name + kind + summary)
+    const clusters = clustersFor(node);
+    const summaryParts = [];
+    for (const c of clusters) {
+      const count = neighbors(node.id, c.dir, c.ltypes, false).length;
+      if (count > 0) summaryParts.push(fmt(count) + " " + tt("clusterTitles")[c.key].toLowerCase());
+    }
+    const head = h("div", { class: "focus-head" },
+      typeBadge(node.type),
+      h("div", {}, h("span", { class: "fh-name", text: node.name })),
+      node.kind ? h("span", { class: "fh-kind", text: node.kind }) : null,
+      h("div", { class: "fh-sum", text: summaryParts.join("  ·  ") }));
+    main.append(head);
+
+    // Radial hub
+    main.append(renderHub(node, clusters));
+
+    // Legend
+    main.append(renderLegend());
+  }
+
+  function renderHub(node, clusters) {
+    const W = 900, H = 560;
+    const center = { x: 340, y: 205, w: 220, h: 110 };
+    const cx = center.x + center.w / 2, cyBottom = center.y + center.h, cyMid = center.y + center.h / 2;
+
+    const wrap = h("div", { class: "hub-wrap" });
+    const hub = h("div", { class: "hub" });
+    const wires = s("svg", { class: "wires", viewBox: "0 0 " + W + " " + H });
+    hub.append(wires);
+
+    // Visible hub clusters (checked + at least one enabled type).
+    const visible = clusters.filter((c) => c.hub && enabledLtypes(c).length > 0);
+    const cols = { left: [], right: [], bottom: [] };
+    for (const c of visible) cols[c.col].push(c);
+
+    const placed = [];
+    // Left / right columns stack vertically.
+    layoutColumn(cols.left, 20, 250, "left", placed);
+    layoutColumn(cols.right, W - 20 - 250, 250, "right", placed);
+    // Bottom (at most one hub cluster) sits centered below the node card.
+    if (cols.bottom.length) {
+      placed.push({ cluster: cols.bottom[0], x: 330, y: 360, w: 240, hMax: 180, anchor: { x: 450, y: 360 }, side: "bottom" });
+    }
+
+    // Draw wires first (behind cards).
+    for (const p of placed) {
+      const lt = p.cluster.ltypes[0];
+      const st = EDGE_STYLE[lt];
+      let d, lx, ly;
+      if (p.side === "left") {
+        const ax = p.x + p.w, ay = p.anchor.y;
+        d = "M " + center.x + " " + cyMid + " C " + (center.x - 36) + " " + cyMid + ", " + (ax + 36) + " " + ay + ", " + ax + " " + ay;
+        lx = (center.x + ax) / 2; ly = (cyMid + ay) / 2 - 6;
+      } else if (p.side === "right") {
+        const ax = p.x, ay = p.anchor.y;
+        d = "M " + (center.x + center.w) + " " + cyMid + " C " + (center.x + center.w + 36) + " " + cyMid + ", " + (ax - 36) + " " + ay + ", " + ax + " " + ay;
+        lx = (center.x + center.w + ax) / 2; ly = (cyMid + ay) / 2 - 6;
+      } else {
+        const ax = p.anchor.x, ay = p.anchor.y;
+        d = "M " + cx + " " + cyBottom + " C " + cx + " " + (cyBottom + 18) + ", " + ax + " " + (ay - 18) + ", " + ax + " " + ay;
+        lx = cx + 10; ly = (cyBottom + ay) / 2;
+      }
+      const path = s("path", { d: d, fill: "none", stroke: st.color, "stroke-width": 2 });
+      const da = dashArray(st.style);
+      if (da) path.setAttribute("stroke-dasharray", da);
+      wires.append(path);
+      const label = s("text", { class: "wire-label", x: lx, y: ly, "text-anchor": "middle" });
+      label.textContent = (tt("edgeLabels")[lt].name || lt).toUpperCase();
+      wires.append(label);
+    }
+
+    // Center node card.
+    const nc = h("div", {
+      class: "node-card",
+      style: {
+        left: center.x + "px", top: center.y + "px", width: center.w + "px", height: center.h + "px",
+        borderLeftColor: NODE_COLORS[node.type]
+      }
+    },
+      h("div", { class: "nc-top" }, dot(node.type), typeBadge(node.type)),
+      h("div", { class: "nc-name", text: node.name }),
+      node.kind ? h("div", { class: "nc-kind", text: node.kind }) : null);
+    hub.append(nc);
+
+    // Cluster cards.
+    for (const p of placed) hub.append(renderClusterCard(node, p));
+
+    wrap.append(hub);
+    return wrap;
+  }
+
+  function layoutColumn(list, x, w, side, placed) {
+    const n = list.length;
+    if (n === 0) return;
+    const top = 20, bottom = 540, gap = 20;
+    const totalH = bottom - top;
+    const cardH = (totalH - gap * (n - 1)) / n;
+    for (let i = 0; i < n; i++) {
+      const y = top + i * (cardH + gap);
+      placed.push({
+        cluster: list[i], x: x, y: y, w: w, hMax: cardH,
+        anchor: { x: side === "left" ? x + w : x, y: y + cardH / 2 }, side: side
+      });
+    }
+  }
+
+  function renderClusterCard(node, p) {
+    const c = p.cluster;
+    const rows = neighbors(node.id, c.dir, enabledLtypes(c), true);
+    const card = h("div", {
+      class: "cluster",
+      style: { left: p.x + "px", top: p.y + "px", width: p.w + "px", maxHeight: p.hMax + "px" }
+    });
+    card.append(h("div", { class: "cluster-head" },
+      h("span", { class: "edge-swatch" }, edgeSwatch(c.ltypes[0])),
+      h("span", { text: tt("clusterTitles")[c.key] }),
+      h("span", { class: "ch-count", text: fmt(rows.length) })));
+    const body = h("div", { class: "cluster-body" });
+    if (rows.length === 0) body.append(h("div", { class: "cluster-empty", text: t("wordNone") }));
+    else for (const r of rows) body.append(focusRow(r.id, { count: r.count }));
+    card.append(body);
+    return card;
+  }
+
+  function renderLegend() {
+    const legend = h("div", { class: "legend" });
+    const nodesGroup = h("div", { class: "lg-group" }, h("span", { class: "lg-title", text: t("legendNodes") }));
+    for (const type of ["file", "symbol", "package", "domain"]) {
+      nodesGroup.append(h("span", { class: "lg-item" }, dot(type), tt("nodeTypes")[type]));
+    }
+    const edgesGroup = h("div", { class: "lg-group" }, h("span", { class: "lg-title", text: t("legendEdges") }));
+    for (const key of EDGE_ORDER) {
+      edgesGroup.append(h("span", { class: "lg-item" }, edgeSwatch(key), tt("edgeLabels")[key].name));
+    }
+    legend.append(nodesGroup, edgesGroup);
+    return legend;
+  }
+
+  /* ============================ RENDER: details ============================ */
+  function renderDetails() {
+    const panel = document.getElementById("details");
+    panel.textContent = "";
+    panel.append(h("div", { class: "det-head" }, h("div", { class: "sec-title", text: t("detailsTitle") })));
+
+    if (!state.focusId || !state.nodesById.has(state.focusId)) {
+      panel.append(h("div", { class: "det-empty", text: t("detailsEmpty") }));
+      return;
+    }
+    const node = state.nodesById.get(state.focusId);
+    const head = document.querySelector("#details .det-head");
+    head.append(h("div", { class: "det-node" }, dot(node.type),
+      h("span", { class: "dn-name", text: node.name }), typeBadge(node.type)));
+    if (node.kind) head.append(h("div", { class: "row-sub", text: t("detailType") + ": " + node.kind }));
+    head.append(h("div", { class: "det-id", text: node.id }));
+
+    for (const c of clustersFor(node)) {
+      const ltypes = enabledLtypes(c);
+      if (ltypes.length === 0) continue;
+      const rows = neighbors(node.id, c.dir, ltypes, true);
+      const sec = h("div", { class: "det-sec" });
+      sec.append(h("h4", { text: tt("clusterTitles")[c.key] + " (" + fmt(rows.length) + ")" }));
+      if (rows.length === 0) sec.append(h("div", { class: "card-none", text: t("wordNone") }));
+      else { const list = h("div", { class: "card-list" }); for (const r of rows) list.append(focusRow(r.id, { count: r.count, sub: subFor(r.id) })); sec.append(list); }
+      panel.append(sec);
+    }
+  }
+
+  /* ---------------------------- actions ---------------------------- */
+  function setFocus(id) {
+    if (id && !state.nodesById.has(id)) return; // ignore stale/constructed ids
+    state.focusId = id || null;
+    document.getElementById("main").scrollTop = 0;
+    document.getElementById("details").scrollTop = 0;
+    renderMain();
+    renderDetails();
+  }
+  function setLang(code) {
+    if (!translations[code]) return;
+    lang = code;
+    try { localStorage.setItem("codegraph.lang", code); } catch (e) {}
+    document.documentElement.setAttribute("lang", code);
+    renderAll();
+  }
+  function renderAll() {
+    renderHeader();
+    renderSidebar();
+    renderMain();
+    renderDetails();
+  }
+
+  /* ---------------------------- boot ---------------------------- */
+  function showError(err) {
+    const main = document.getElementById("main");
+    main.textContent = "";
+    main.append(h("div", { class: "err" },
+      h("h2", { text: t("loadErrorTitle") }),
+      h("p", { text: t("loadErrorBody", { file: "graph-index.json" }) }),
+      h("p", {}, h("code", { text: String(err && err.message ? err.message : err) }))));
+  }
+
+  document.documentElement.setAttribute("lang", lang);
+  fetch("graph-index.json")
+    .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then((data) => {
+      state.data = data;
+      buildIndexes(data);
+      renderAll();
+    })
+    .catch((err) => {
+      // Render header/sidebar chrome if possible, then the error in main.
+      try { renderHeaderMinimal(); } catch (e) {}
+      showError(err);
+    });
+
+  // Minimal header when data failed to load (no stats).
+  function renderHeaderMinimal() {
+    const hdr = document.getElementById("hdr");
+    hdr.textContent = "";
+    const titleblock = h("div", { class: "titleblock" }, h("h1", { text: t("title") }));
+    const langBox = h("div", { class: "lang" });
+    for (const L of LANGUAGES) langBox.append(h("button", { class: L.code === lang ? "on" : "", text: L.label, onclick: () => setLang(L.code) }));
+    hdr.append(h("div", { class: "hdr-left" }, titleblock), h("div", { class: "hdr-right" }, langBox));
+  }
+})();
+</script>
+</body>
+</html>
