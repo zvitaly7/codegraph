@@ -71,7 +71,7 @@ function captureStderr() {
 }
 
 describe('regenerate orchestrator — happy path', () => {
-  it('runs inventory→imports→symbols→domains and writes all four manifests (exit 0)', async () => {
+  it('runs the full pipeline (core→heavy→explorer) and writes every manifest (exit 0)', async () => {
     const repo = makeFixtureRepo();
     const base = join(repo, '.kg-cache');
     const errLines = captureStderr();
@@ -79,15 +79,19 @@ describe('regenerate orchestrator — happy path', () => {
     const code = await run(['--repo-root', repo, '--out', base]);
     expect(code).toBe(0);
 
-    for (const layer of LAYERS) {
+    // The four cheap layers + the two heavy layers each write a manifest…
+    for (const layer of [...LAYERS, 'references', 'usages']) {
       expect(existsSync(join(base, layer, 'manifest.json'))).toBe(true);
     }
+    // …and the explorer writes its browser index last.
+    expect(existsSync(join(base, 'explorer', 'graph-index.json'))).toBe(true);
 
     const err = errLines.join('');
-    for (const layer of LAYERS) {
+    for (const layer of [...LAYERS, 'references', 'usages', 'explorer']) {
       expect(err).toContain(`▶ ${layer}`); // "▶ <layer>"
     }
     expect(err).toContain(`Explore/query: codegraph mcp --cache ${base}`);
+    expect(err).toContain('heavy layers mode=off'); // default mode
 
     // Orchestrator chatter must never touch stdout (would corrupt layer artifacts).
     const out = stdoutSpy.mock.calls.map((c) => c.join(' ')).join('\n');
@@ -95,7 +99,7 @@ describe('regenerate orchestrator — happy path', () => {
     expect(out).not.toContain('Explore/query');
   });
 
-  it('honors --skip-explorer by omitting the explorer hint (still exit 0)', async () => {
+  it('honors --skip-explorer by omitting the explorer step (still exit 0)', async () => {
     const repo = makeFixtureRepo();
     const base = join(repo, '.kg-cache');
     const errLines = captureStderr();
@@ -104,7 +108,60 @@ describe('regenerate orchestrator — happy path', () => {
     expect(code).toBe(0);
     const err = errLines.join('');
     expect(err).toContain('Explore/query: codegraph mcp --cache');
-    expect(err).not.toContain('codegraph explorer');
+    expect(err).not.toContain('▶ explorer');
+    expect(existsSync(join(base, 'explorer', 'graph-index.json'))).toBe(false);
+    // Heavy layers still ran.
+    expect(existsSync(join(base, 'references', 'manifest.json'))).toBe(true);
+  });
+
+  it('honors --skip-heavy by omitting references/usages (explorer still runs)', async () => {
+    const repo = makeFixtureRepo();
+    const base = join(repo, '.kg-cache');
+    const errLines = captureStderr();
+
+    const code = await run(['--repo-root', repo, '--out', base, '--skip-heavy']);
+    expect(code).toBe(0);
+    const err = errLines.join('');
+    expect(err).not.toContain('▶ references');
+    expect(err).not.toContain('▶ usages');
+    expect(err).not.toContain('heavy layers mode='); // no heavy layers to report
+    expect(existsSync(join(base, 'references', 'manifest.json'))).toBe(false);
+    expect(existsSync(join(base, 'usages', 'manifest.json'))).toBe(false);
+    // The cheap layers + explorer still ran.
+    expect(existsSync(join(base, 'domains', 'manifest.json'))).toBe(true);
+    expect(existsSync(join(base, 'explorer', 'graph-index.json'))).toBe(true);
+  });
+
+  it('forwards --incremental to the heavy layers and stays byte-identical to a full rebuild', async () => {
+    const repo = makeGitFixtureRepo();
+    const base = join(repo, '.kg-cache');
+    const errLines = captureStderr();
+
+    // Seed a full cache, then re-run incrementally (no changes) into the same base.
+    expect(await run(['--repo-root', repo, '--out', base])).toBe(0);
+    expect(await run(['--repo-root', repo, '--out', base, '--incremental', 'incremental'])).toBe(0);
+    expect(errLines.join('')).toContain('heavy layers mode=incremental');
+
+    // A fresh full rebuild of the same tree into a separate cache.
+    const full = join(repo, '.kg-full');
+    expect(await run(['--repo-root', repo, '--out', full])).toBe(0);
+
+    // The incremental heavy artifacts must equal the fresh full ones, byte for byte.
+    for (const layer of ['references', 'usages']) {
+      for (const file of ['nodes.jsonl', 'edges.jsonl']) {
+        expect(readFileSync(join(base, layer, file), 'utf8'))
+          .toBe(readFileSync(join(full, layer, file), 'utf8'));
+      }
+    }
+  });
+
+  it('rejects an invalid --incremental value (exit 2)', async () => {
+    const repo = makeFixtureRepo();
+    const base = join(repo, '.kg-cache');
+    const errLines = captureStderr();
+    const code = await run(['--repo-root', repo, '--out', base, '--incremental', 'bogus']);
+    expect(code).toBe(2);
+    expect(errLines.join('')).toContain("--incremental must be 'off' or 'incremental'");
   });
 });
 

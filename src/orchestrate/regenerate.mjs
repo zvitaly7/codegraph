@@ -13,27 +13,34 @@ import { checkStaleness } from '../lib/staleness.mjs';
  * to stdout; the orchestrator never touches stdout, so a layer's stdout artifacts
  * (e.g. the MCP server's protocol stream) are never polluted.
  *
- * Layer order:  inventory → imports → symbols → domains
+ * Layer order:
+ *   inventory → imports → symbols → domains → references → usages → explorer
  *
- * TODO(references, usages): these heavy AST layers slot in AFTER `symbols` (they
- *   consume the inventory + symbol graphs). They walk and type-resolve every
- *   source, so the process needs a large V8 heap — launch it with
- *   `NODE_OPTIONS=--max-old-space-size=8192`. Not wired yet (their run() stubs
- *   still throw), so they are simply left out of the pipeline for now.
- * TODO(explorer): when `src/explorer/run.mjs` is implemented it runs LAST (it
- *   builds the browser index over the finished graph), unless `--skip-explorer`.
- *   Left out for now — still a stub.
+ * The cheap layers (inventory/imports/symbols/domains) always run FULL. The heavy
+ * type-checking layers (references, usages) accept `--incremental <off|incremental>`,
+ * forwarded from this command; incremental is a byte-identical speed optimization
+ * over a full rebuild. `--skip-heavy` omits references/usages (light graph only);
+ * `--skip-explorer` omits the browser index (which otherwise runs last).
+ *
+ * NOTE: references/usages build a TypeScript program over the whole repo and run
+ * the type-checker, so on BIG repos the process may need a larger V8 heap — launch
+ * it with `NODE_OPTIONS=--max-old-space-size=8192 codegraph regenerate ...`. This
+ * is documented, not forced, so small repos stay light.
  */
 
-// The core pipeline: an ordered list of { name, load }. `load` dynamically imports
-// the layer module, keeping layers lazily loaded (and individually mockable in
-// tests). References/usages/explorer are intentionally absent until implemented.
-const PIPELINE = [
+// Each step is { name, load, heavy? }. `load` dynamically imports the layer
+// module, keeping layers lazily loaded (and individually mockable in tests).
+const CORE_STEPS = [
   { name: 'inventory', load: () => import('../inventory/run.mjs') },
   { name: 'imports', load: () => import('../imports/run.mjs') },
   { name: 'symbols', load: () => import('../symbols/run.mjs') },
   { name: 'domains', load: () => import('../domains/run.mjs') },
 ];
+const HEAVY_STEPS = [
+  { name: 'references', load: () => import('../references/run.mjs'), heavy: true },
+  { name: 'usages', load: () => import('../usages/run.mjs'), heavy: true },
+];
+const EXPLORER_STEP = { name: 'explorer', load: () => import('../explorer/run.mjs') };
 
 /** Write one orchestrator line to stderr (never stdout). */
 const emit = (line) => process.stderr.write(`${line}\n`);
@@ -57,8 +64,10 @@ export async function run(argv) {
       argv,
       extraOptions: {
         'skip-explorer': { type: 'boolean' },
+        'skip-heavy': { type: 'boolean' },
         'if-stale': { type: 'boolean' },
         'force': { type: 'boolean' },
+        incremental: { type: 'string' },
       },
     });
   } catch (err) {
@@ -66,8 +75,14 @@ export async function run(argv) {
     return 2;
   }
 
+  if (cfg.incremental !== 'off' && cfg.incremental !== 'incremental') {
+    emit(`regenerate: --incremental must be 'off' or 'incremental', got ${cfg.incremental}`);
+    return 2;
+  }
+
   const { repoRoot, outDir, _flags: flags } = cfg;
   const skipExplorer = Boolean(flags['skip-explorer']);
+  const skipHeavy = Boolean(flags['skip-heavy']);
 
   // --if-stale: only rebuild when the cache is stale (or its staleness is
   // unknown). --force always rebuilds and thus overrides --if-stale. When the
@@ -81,25 +96,35 @@ export async function run(argv) {
     }
   }
 
+  // Assemble the pipeline from the requested layers.
+  const steps = [...CORE_STEPS];
+  if (!skipHeavy) steps.push(...HEAVY_STEPS);
+  if (!skipExplorer) steps.push(EXPLORER_STEP);
+
   // Every layer receives the SAME repo + base cache, so the snapshot stays
   // consistent across layers. Forward an explicit --config too, so a shared
   // configuration reaches every layer.
-  const layerArgv = ['--repo-root', repoRoot, '--out', outDir];
-  if (flags.config) layerArgv.push('--config', resolve(cwd, flags.config));
+  const baseArgv = ['--repo-root', repoRoot, '--out', outDir];
+  if (flags.config) baseArgv.push('--config', resolve(cwd, flags.config));
 
   emit(`regenerate: repo=${repoRoot}`);
   emit(`regenerate: base cache=${outDir}`);
+  if (!skipHeavy) emit(`regenerate: heavy layers mode=${cfg.incremental}`);
 
   const pipelineStart = performance.now();
-  for (const step of PIPELINE) {
+  for (const step of steps) {
     emit(`▶ ${step.name}`);
     const stepStart = performance.now();
+
+    // Heavy layers get the incremental mode; everyone else runs full.
+    const stepArgv = step.heavy
+      ? [...baseArgv, '--incremental', cfg.incremental]
+      : [...baseArgv];
 
     let code;
     try {
       const mod = await step.load();
-      // Fresh argv per layer — never let a layer mutate the shared array.
-      code = await mod.run([...layerArgv]);
+      code = await mod.run(stepArgv);
     } catch (err) {
       emit(`✗ ${step.name} threw after ${fmtDuration(performance.now() - stepStart)}: ${err?.stack || err?.message || err}`);
       emit(`regenerate: pipeline aborted at "${step.name}" — cache may be partial`);
@@ -120,10 +145,8 @@ export async function run(argv) {
   emit(`  base cache: ${outDir}`);
   emit('Next:');
   emit(`  Explore/query: codegraph mcp --cache ${outDir}`);
-  // The browser index is the explorer layer's job; hint at it once it lands,
-  // unless the caller opted out with --skip-explorer.
   if (!skipExplorer) {
-    emit(`  Browser index (when explorer lands): codegraph explorer --out ${outDir}`);
+    emit(`  Browser index: open ${outDir}/explorer/index.html`);
   }
   return 0;
 }
