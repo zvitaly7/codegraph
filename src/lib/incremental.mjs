@@ -65,7 +65,7 @@ export function revisionOfArtifactManifest(manifestPath) {
 /**
  * Reverse the IMPORTS graph: map each imported file to the set of files that
  * import it (internal file→file edges only). Reads `<cache>/imports/edges.jsonl`.
- * Missing/unreadable → an empty index (caller then treats every changed file as
+ * Missing/unreadable → an empty index (caller then sees every changed file as
  * having no importers, which is still safe — it just re-extracts fewer files).
  *
  * @returns {Map<string, Set<string>>} importedPath → Set(importerPath), POSIX.

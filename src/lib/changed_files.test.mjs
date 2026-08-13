@@ -77,7 +77,7 @@ describe('changedFilesSince', () => {
     expect(new Set(all).size).toBe(all.length);
   });
 
-  it('treats a rename as delete(old) + add(new)', () => {
+  it('reports a rename as delete(old) + add(new)', () => {
     g('mv', join('src', 'c.ts'), join('src', 'c2.ts'));
     const r = changedFilesSince(repo, rev);
     expect(r.ok).toBe(true);
