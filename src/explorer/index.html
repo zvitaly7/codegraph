@@ -287,17 +287,27 @@
   .hub-wrap { overflow-x: auto; padding-bottom: 6px; }
   .hub {
     position: relative;
-    width: 900px; height: 560px;
+    width: 100%;
+    min-width: 1000px;
+    height: 640px;
     margin: 0 auto;
   }
-  .hub svg.wires { position: absolute; inset: 0; width: 900px; height: 560px; overflow: visible; pointer-events: none; }
+  .hub svg.wires {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    overflow: visible; pointer-events: none; z-index: 1;
+  }
+  .wire-path { fill: none; }
+  .wire-label-bg { fill: var(--panel); stroke: var(--line-strong); stroke-width: 1; }
   .wire-label {
-    font-size: 10px; font-weight: 700; letter-spacing: .05em;
-    fill: var(--ink-mute); text-transform: uppercase;
+    font-size: 10px; font-weight: 700; letter-spacing: .03em;
+    fill: var(--ink-soft); text-transform: uppercase;
   }
 
   .node-card {
     position: absolute;
+    z-index: 2;
+    min-height: 96px;
     background: var(--panel);
     border: 1px solid var(--line-strong);
     border-left-width: 5px;
@@ -313,6 +323,7 @@
 
   .cluster {
     position: absolute;
+    z-index: 2;
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: var(--radius);
@@ -603,6 +614,8 @@
 
   // Persistent element refs (built once).
   let elResults = null;
+  // Set by the focus hub to redraw its connectors after layout / on resize.
+  let redrawWires = null;
 
   /* ---------------------------- i18n helpers ---------------------------- */
   function t(key, params) {
@@ -746,7 +759,7 @@
       ];
       case "symbol": return [
         { key: "usedBy",       col: "left",   hub: true, dir: "in",  ltypes: ["USES"] },
-        { key: "referencedBy", col: "left",   hub: true, dir: "in",  ltypes: ["REFERENCES"] },
+        { key: "referencedBy", col: "top",    hub: true, dir: "in",  ltypes: ["REFERENCES"] },
         { key: "uses",         col: "right",  hub: true, dir: "out", ltypes: ["USES"] },
         { key: "declaredIn",   col: "bottom", hub: true, dir: "in",  ltypes: ["DECLARES"] }
       ];
@@ -921,6 +934,7 @@
   function renderMain() {
     const main = document.getElementById("main");
     main.textContent = "";
+    redrawWires = null; // no hub on screen unless the focus view sets it
     if (state.focusId && state.nodesById.has(state.focusId)) renderFocus(main);
     else renderLanding(main);
   }
@@ -1041,63 +1055,35 @@
     main.append(renderLegend());
   }
 
-  function renderHub(node, clusters) {
-    const W = 900, H = 560;
-    const center = { x: 340, y: 205, w: 220, h: 110 };
-    const cx = center.x + center.w / 2, cyBottom = center.y + center.h, cyMid = center.y + center.h / 2;
+  // Fixed geometry for the radial hub. Cards are positioned with CSS so each
+  // sits in a stable zone (incoming left, outgoing right, contains/declares
+  // below, a 4th relation above); connectors are drawn afterwards from the
+  // *measured* card rectangles so every wire actually touches both cards.
+  const HUB = { height: 640, clusterW: 240, centerW: 224, margin: 14, stackMax: 190 };
 
+  // CSS positioning for a cluster card by zone. Centering uses translate() so a
+  // card keeps its zone regardless of its own (content-driven) height.
+  function zoneStyle(zone) {
+    const m = HUB.margin + "px";
+    const style = { width: HUB.clusterW + "px" };
+    if (zone === "left")  return Object.assign(style, { left: m,  top: "50%",   transform: "translateY(-50%)", maxHeight: (HUB.height - 32) + "px" });
+    if (zone === "right") return Object.assign(style, { right: m, top: "50%",   transform: "translateY(-50%)", maxHeight: (HUB.height - 32) + "px" });
+    if (zone === "top")   return Object.assign(style, { left: "50%", top: m,    transform: "translateX(-50%)", maxHeight: HUB.stackMax + "px" });
+    return                       Object.assign(style, { left: "50%", bottom: m, transform: "translateX(-50%)", maxHeight: HUB.stackMax + "px" });
+  }
+
+  function renderHub(node, clusters) {
     const wrap = h("div", { class: "hub-wrap" });
     const hub = h("div", { class: "hub" });
-    const wires = s("svg", { class: "wires", viewBox: "0 0 " + W + " " + H });
+    const wires = s("svg", { class: "wires" });
     hub.append(wires);
 
-    // Visible hub clusters (checked + at least one enabled type).
-    const visible = clusters.filter((c) => c.hub && enabledLtypes(c).length > 0);
-    const cols = { left: [], right: [], bottom: [] };
-    for (const c of visible) cols[c.col].push(c);
-
-    const placed = [];
-    // Left / right columns stack vertically.
-    layoutColumn(cols.left, 20, 250, "left", placed);
-    layoutColumn(cols.right, W - 20 - 250, 250, "right", placed);
-    // Bottom (at most one hub cluster) sits centered below the node card.
-    if (cols.bottom.length) {
-      placed.push({ cluster: cols.bottom[0], x: 330, y: 360, w: 240, hMax: 180, anchor: { x: 450, y: 360 }, side: "bottom" });
-    }
-
-    // Draw wires first (behind cards).
-    for (const p of placed) {
-      const lt = p.cluster.ltypes[0];
-      const st = EDGE_STYLE[lt];
-      let d, lx, ly;
-      if (p.side === "left") {
-        const ax = p.x + p.w, ay = p.anchor.y;
-        d = "M " + center.x + " " + cyMid + " C " + (center.x - 36) + " " + cyMid + ", " + (ax + 36) + " " + ay + ", " + ax + " " + ay;
-        lx = (center.x + ax) / 2; ly = (cyMid + ay) / 2 - 6;
-      } else if (p.side === "right") {
-        const ax = p.x, ay = p.anchor.y;
-        d = "M " + (center.x + center.w) + " " + cyMid + " C " + (center.x + center.w + 36) + " " + cyMid + ", " + (ax - 36) + " " + ay + ", " + ax + " " + ay;
-        lx = (center.x + center.w + ax) / 2; ly = (cyMid + ay) / 2 - 6;
-      } else {
-        const ax = p.anchor.x, ay = p.anchor.y;
-        d = "M " + cx + " " + cyBottom + " C " + cx + " " + (cyBottom + 18) + ", " + ax + " " + (ay - 18) + ", " + ax + " " + ay;
-        lx = cx + 10; ly = (cyBottom + ay) / 2;
-      }
-      const path = s("path", { d: d, fill: "none", stroke: st.color, "stroke-width": 2 });
-      const da = dashArray(st.style);
-      if (da) path.setAttribute("stroke-dasharray", da);
-      wires.append(path);
-      const label = s("text", { class: "wire-label", x: lx, y: ly, "text-anchor": "middle" });
-      label.textContent = (tt("edgeLabels")[lt].name || lt).toUpperCase();
-      wires.append(label);
-    }
-
-    // Center node card.
+    // Center node card, centered in the hub.
     const nc = h("div", {
       class: "node-card",
       style: {
-        left: center.x + "px", top: center.y + "px", width: center.w + "px", height: center.h + "px",
-        borderLeftColor: NODE_COLORS[node.type]
+        left: "50%", top: "50%", transform: "translate(-50%, -50%)",
+        width: HUB.centerW + "px", borderLeftColor: NODE_COLORS[node.type]
       }
     },
       h("div", { class: "nc-top" }, dot(node.type), typeBadge(node.type)),
@@ -1105,44 +1091,111 @@
       node.kind ? h("div", { class: "nc-kind", text: node.kind }) : null);
     hub.append(nc);
 
-    // Cluster cards.
-    for (const p of placed) hub.append(renderClusterCard(node, p));
+    // A hub cluster is drawn only when its edge type is enabled AND it has at
+    // least one neighbor — so there are never empty, dangling connectors.
+    const drawn = [];
+    for (const c of clusters) {
+      if (!c.hub) continue;
+      const ltypes = enabledLtypes(c);
+      if (ltypes.length === 0) continue;
+      const rows = neighbors(node.id, c.dir, ltypes, true);
+      if (rows.length === 0) continue;
+      const card = renderClusterCard(c, rows);
+      hub.append(card);
+      drawn.push({ cluster: c, card: card });
+    }
+
+    // Connectors need the real, laid-out geometry, so draw them once the cards
+    // are in the document, and keep them in sync on width / resize changes.
+    const draw = () => { if (hub.isConnected) drawWires(hub, wires, nc, drawn); };
+    redrawWires = draw;
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(draw);
+    else setTimeout(draw, 0);
 
     wrap.append(hub);
     return wrap;
   }
 
-  function layoutColumn(list, x, w, side, placed) {
-    const n = list.length;
-    if (n === 0) return;
-    const top = 20, bottom = 540, gap = 20;
-    const totalH = bottom - top;
-    const cardH = (totalH - gap * (n - 1)) / n;
-    for (let i = 0; i < n; i++) {
-      const y = top + i * (cardH + gap);
-      placed.push({
-        cluster: list[i], x: x, y: y, w: w, hMax: cardH,
-        anchor: { x: side === "left" ? x + w : x, y: y + cardH / 2 }, side: side
-      });
+  function renderClusterCard(cluster, rows) {
+    const card = h("div", { class: "cluster", style: zoneStyle(cluster.col) });
+    card.append(h("div", { class: "cluster-head" },
+      h("span", { class: "edge-swatch" }, edgeSwatch(cluster.ltypes[0])),
+      h("span", { text: tt("clusterTitles")[cluster.key] }),
+      h("span", { class: "ch-count", text: fmt(rows.length) })));
+    const body = h("div", { class: "cluster-body" });
+    for (const r of rows) body.append(focusRow(r.id, { count: r.count }));
+    card.append(body);
+    return card;
+  }
+
+  // Draw one curved connector per visible cluster, anchored on the *measured*
+  // edges of the center card and the cluster card (relative to the SVG's own
+  // rect), so each wire visibly connects the two. Label each at its midpoint.
+  function drawWires(hub, wires, centerEl, drawn) {
+    const hubRect = hub.getBoundingClientRect();
+    const W = Math.round(hubRect.width), H = Math.round(hubRect.height);
+    wires.setAttribute("width", W);
+    wires.setAttribute("height", H);
+    wires.setAttribute("viewBox", "0 0 " + W + " " + H);
+    wires.textContent = "";
+    if (!drawn.length || W === 0) return;
+
+    const rel = (el) => {
+      const r = el.getBoundingClientRect();
+      const left = r.left - hubRect.left, top = r.top - hubRect.top;
+      const right = r.right - hubRect.left, bottom = r.bottom - hubRect.top;
+      return { left: left, top: top, right: right, bottom: bottom, cx: (left + right) / 2, cy: (top + bottom) / 2 };
+    };
+    const C = rel(centerEl);
+
+    for (const item of drawn) {
+      const zone = item.cluster.col;
+      const R = rel(item.card);
+      const st = EDGE_STYLE[item.cluster.ltypes[0]];
+      let sx, sy, ex, ey, c1x, c1y, c2x, c2y;
+      if (zone === "left") {
+        sx = C.left;  sy = C.cy; ex = R.right; ey = R.cy;
+        const mx = (sx + ex) / 2; c1x = mx; c1y = sy; c2x = mx; c2y = ey;
+      } else if (zone === "right") {
+        sx = C.right; sy = C.cy; ex = R.left;  ey = R.cy;
+        const mx = (sx + ex) / 2; c1x = mx; c1y = sy; c2x = mx; c2y = ey;
+      } else if (zone === "top") {
+        sx = C.cx; sy = C.top;    ex = R.cx; ey = R.bottom;
+        const my = (sy + ey) / 2; c1x = sx; c1y = my; c2x = ex; c2y = my;
+      } else { // bottom
+        sx = C.cx; sy = C.bottom; ex = R.cx; ey = R.top;
+        const my = (sy + ey) / 2; c1x = sx; c1y = my; c2x = ex; c2y = my;
+      }
+      const d = "M " + sx + " " + sy + " C " + c1x + " " + c1y + ", " + c2x + " " + c2y + ", " + ex + " " + ey;
+      const path = s("path", { class: "wire-path", d: d, stroke: st.color, "stroke-width": 2 });
+      const da = dashArray(st.style);
+      if (da) path.setAttribute("stroke-dasharray", da);
+      wires.append(path);
+      // Endpoint caps make each join read as an intentional connection.
+      wires.append(s("circle", { cx: sx, cy: sy, r: 3, fill: st.color }));
+      wires.append(s("circle", { cx: ex, cy: ey, r: 3, fill: st.color }));
+      // Relation label at the curve midpoint — in the empty gap between the two
+      // cards, never over one. Incoming vs outgoing differ by the cluster key.
+      wireLabel(wires, (sx + ex) / 2, (sy + ey) / 2, tt("clusterTitles")[item.cluster.key]);
     }
   }
 
-  function renderClusterCard(node, p) {
-    const c = p.cluster;
-    const rows = neighbors(node.id, c.dir, enabledLtypes(c), true);
-    const card = h("div", {
-      class: "cluster",
-      style: { left: p.x + "px", top: p.y + "px", width: p.w + "px", maxHeight: p.hMax + "px" }
-    });
-    card.append(h("div", { class: "cluster-head" },
-      h("span", { class: "edge-swatch" }, edgeSwatch(c.ltypes[0])),
-      h("span", { text: tt("clusterTitles")[c.key] }),
-      h("span", { class: "ch-count", text: fmt(rows.length) })));
-    const body = h("div", { class: "cluster-body" });
-    if (rows.length === 0) body.append(h("div", { class: "cluster-empty", text: t("wordNone") }));
-    else for (const r of rows) body.append(focusRow(r.id, { count: r.count }));
-    card.append(body);
-    return card;
+  function wireLabel(wires, x, y, txt) {
+    const text = s("text", { class: "wire-label", x: x, y: y, "text-anchor": "middle", "dominant-baseline": "middle" });
+    text.textContent = String(txt || "").toUpperCase();
+    wires.append(text);
+    // A panel-colored pill behind the text keeps it legible over the wire.
+    let bb = null;
+    try { bb = text.getBBox(); } catch (e) { bb = null; }
+    if (bb && bb.width) {
+      const px = 6, py = 3;
+      wires.insertBefore(s("rect", {
+        class: "wire-label-bg",
+        x: bb.x - px, y: bb.y - py,
+        width: bb.width + px * 2, height: bb.height + py * 2,
+        rx: 6, ry: 6
+      }), text);
+    }
   }
 
   function renderLegend() {
@@ -1222,6 +1275,8 @@
   }
 
   document.documentElement.setAttribute("lang", lang);
+  // Keep the focus-hub connectors aligned with the cards as the layout changes.
+  window.addEventListener("resize", () => { if (redrawWires) redrawWires(); });
   fetch("graph-index.json")
     .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
     .then((data) => {
