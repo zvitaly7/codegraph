@@ -59,7 +59,9 @@ export function handleRequest(msg, graph) {
           return isNotification ? null : errorResponse(id, -32602, `Unknown tool: ${name}`);
         }
         const out = callTool(graph, name, args);
-        return successResponse(id, { content: [{ type: 'text', text: JSON.stringify(out, null, 2) }] });
+        // Compact, not pretty: the consumer is an agent paying per token, and
+        // indentation adds bytes no reader benefits from.
+        return successResponse(id, { content: [{ type: 'text', text: JSON.stringify(out) }] });
       }
 
       case 'ping':

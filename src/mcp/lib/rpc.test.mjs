@@ -40,6 +40,16 @@ describe('handleRequest — protocol methods', () => {
     expect(payload.results.map((n) => n.id)).toContain('file:src/run.mjs');
   });
 
+  it('tools/call serializes the payload compactly (no pretty-print padding)', () => {
+    const r = handleRequest({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'find_node', arguments: { query: 'run.mjs' } } }, g);
+    const text = r.result.content[0].text;
+    // Compact JSON has no newlines and no indent runs — every byte carries payload.
+    expect(text).not.toMatch(/\n/);
+    const payload = JSON.parse(text);
+    expect(text).toBe(JSON.stringify(payload));
+    expect(text.length).toBeLessThan(JSON.stringify(payload, null, 2).length);
+  });
+
   it('ping returns an empty result', () => {
     expect(handleRequest({ jsonrpc: '2.0', id: 4, method: 'ping' }, g).result).toEqual({});
   });
