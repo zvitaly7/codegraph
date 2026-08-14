@@ -3,8 +3,33 @@
   "version": "0.1.0",
   "description": "Deterministic, layered code knowledge graph for any JS/TS repo, with an MCP server for agents.",
   "type": "module",
+  "license": "MIT",
   "bin": { "loregraph": "bin/loregraph.mjs" },
   "engines": { "node": ">=18" },
+  "keywords": [
+    "knowledge-graph",
+    "code-analysis",
+    "mcp",
+    "dependency-graph",
+    "typescript",
+    "static-analysis",
+    "ai-agents"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zvitaly7/loregraph.git"
+  },
+  "homepage": "https://github.com/zvitaly7/loregraph#readme",
+  "bugs": { "url": "https://github.com/zvitaly7/loregraph/issues" },
+  "files": [
+    "bin/",
+    "src/",
+    "examples/",
+    "README.md",
+    "README.ru.md",
+    "LICENSE",
+    "!src/**/*.test.mjs"
+  ],
   "dependencies": {
     "ignore": "^5.3.2",
     "typescript": "^5.5.4"

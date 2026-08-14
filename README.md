@@ -374,4 +374,4 @@ The suite is **470 tests across 48 files**, all passing at the current revision.
 
 ## 📄 License
 
-Not yet declared — this repository does not currently ship a `LICENSE` file.
+[MIT](LICENSE) © 2026 Vitaly Zheltko.

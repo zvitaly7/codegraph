@@ -374,4 +374,4 @@ npm test        # vitest run
 
 ## 📄 Лицензия
 
-Пока не определена — в репозитории сейчас нет файла `LICENSE`.
+[MIT](LICENSE) © 2026 Vitaly Zheltko.
