@@ -11,6 +11,7 @@ const COMMANDS = {
   brief: () => import('../src/brief/run.mjs'),
   impact: () => import('../src/impact/run.mjs'),
   explorer: () => import('../src/explorer/run.mjs'),
+  docs: () => import('../src/docs/run.mjs'),
   mcp: () => import('../src/mcp/run.mjs'),
   regenerate: () => import('../src/orchestrate/regenerate.mjs'),
 };
@@ -28,6 +29,7 @@ Commands:
   brief        Context pack for a file / domain / symbol
   impact       Blast radius + likely tests for a diff
   explorer     Build (and optionally serve) the browser index
+  docs         Generate AGENTS.md + Markdown docs from the graph
   mcp          Start the stdio MCP server
 
 Global: --repo-root PATH  --out DIR  --config FILE  --help`;
