@@ -2,6 +2,7 @@
 import process from 'node:process';
 
 const COMMANDS = {
+  init: () => import('../src/init/run.mjs'),
   inventory: () => import('../src/inventory/run.mjs'),
   imports: () => import('../src/imports/run.mjs'),
   symbols: () => import('../src/symbols/run.mjs'),
@@ -19,6 +20,7 @@ const COMMANDS = {
 const USAGE = `loregraph <command> [options]
 
 Commands:
+  init         Set a project up: config, ignore rule, MCP entry, npm scripts
   regenerate   Build the whole graph in dependency order
   inventory    Layer 1: files + directories
   imports      Layer 2a: file → file/package imports

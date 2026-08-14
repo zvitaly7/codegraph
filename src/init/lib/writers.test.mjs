@@ -191,4 +191,12 @@ describe('renderConfigFile', () => {
     const mod = await import(`data:text/javascript,${encodeURIComponent(rendered)}`);
     expect(mod.default).toEqual({ srcRoots: ['app', 'packages'] });
   });
+
+  it('records a non-default cache dir instead of leaving it commented out', async () => {
+    const custom = renderConfigFile({ projectName: 'demo', srcRoots: ['src'], outDir: '.cache/graph' });
+    expect(custom).toContain("outDir: '.cache/graph',");
+    expect(custom).not.toContain("// outDir: '.kg-cache',");
+    const mod = await import(`data:text/javascript,${encodeURIComponent(custom)}`);
+    expect(mod.default).toEqual({ srcRoots: ['src'], outDir: '.cache/graph' });
+  });
 });
