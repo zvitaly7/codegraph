@@ -7,7 +7,7 @@
 <p><a href="README.md">English</a> · <b>Русский</b></p>
 
 <p>
-  <img alt="Node >= 18" src="https://img.shields.io/badge/node-%3E%3D18-339933?logo=nodedotjs&logoColor=white">
+  <img alt="Node &gt;= 18" src="https://img.shields.io/badge/node-%3E%3D18-339933?logo=nodedotjs&logoColor=white">
   <img alt="470 тестов проходят" src="https://img.shields.io/badge/tests-470%20passing-6E9F18?logo=vitest&logoColor=white">
   <img alt="Область анализа: JavaScript / TypeScript" src="https://img.shields.io/badge/analysis-JavaScript%20%2F%20TypeScript-3178C6?logo=typescript&logoColor=white">
   <img alt="Зависимости времени выполнения: typescript и ignore" src="https://img.shields.io/badge/runtime%20deps-typescript%20%2B%20ignore-8957E5">
