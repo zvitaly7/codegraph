@@ -1,10 +1,24 @@
-**English** · [Русский](README.ru.md)
+<div align="center">
 
-# codegraph
+<h1>codegraph</h1>
+
+<p><b>Deterministic, layered code knowledge graph for any JS/TS repo, with an MCP server for agents.</b></p>
+
+<p><b>English</b> · <a href="README.ru.md">Русский</a></p>
+
+<p>
+  <img alt="Node >= 18" src="https://img.shields.io/badge/node-%3E%3D18-339933?logo=nodedotjs&logoColor=white">
+  <img alt="470 tests passing" src="https://img.shields.io/badge/tests-470%20passing-6E9F18?logo=vitest&logoColor=white">
+  <img alt="Analysis scope: JavaScript / TypeScript" src="https://img.shields.io/badge/analysis-JavaScript%20%2F%20TypeScript-3178C6?logo=typescript&logoColor=white">
+  <img alt="Runtime dependencies: typescript and ignore" src="https://img.shields.io/badge/runtime%20deps-typescript%20%2B%20ignore-8957E5">
+  <img alt="MCP server: 13 tools" src="https://img.shields.io/badge/MCP-13%20tools-1F6FEB">
+</p>
+
+</div>
 
 Builds a deterministic map of a JavaScript/TypeScript codebase — files, symbols, imports, references, domains — then serves it to your browser and to AI agents over MCP.
 
-## What it does
+## ✨ What it does
 
 - **Maps the repo.** Catalogs every file, then resolves imports, top-level declarations, cross-file references and symbol-to-symbol usage into a layered graph.
 - **Groups code into domains.** A semantic overlay derived from the directory layout (configurable), plus weighted `DEPENDS_ON` edges between domains.
@@ -12,21 +26,27 @@ Builds a deterministic map of a JavaScript/TypeScript codebase — files, symbol
 - **Answers agent questions without opening files.** `brief` and `impact` pack the useful facts about a file, domain, symbol or diff into a few hundred bytes; an MCP server exposes the same queries as 13 tools.
 - **Stays honest about freshness.** Artifacts record the revision they were built from, and every consumer warns when the cache is behind the repo.
 
-Analysis scope: the inventory layer catalogs files in **any** language, but import, symbol, reference and usage analysis is **JavaScript/TypeScript only**.
+> [!NOTE]
+> Analysis scope: the inventory layer catalogs files in **any** language, but import, symbol, reference and usage analysis is **JavaScript/TypeScript only**.
 
-## Screenshots
+## 📸 Screenshots
 
-![codegraph explorer dashboard listing biggest domains, most-used symbols and dead exports](docs/images/explorer-dashboard.png)
+<div align="center">
+  <img src="docs/images/explorer-dashboard.png" alt="codegraph explorer dashboard listing biggest domains, most-used symbols and dead exports" width="820">
+  <br>
+  <sub><i>The landing dashboard — repo-wide insight cards computed from the graph.</i></sub>
+</div>
 
-*The landing dashboard — repo-wide insight cards computed from the graph.*
+<div align="center">
+  <img src="docs/images/explorer-focus.png" alt="codegraph explorer focus view for a single node showing dependents and dependencies" width="820">
+  <br>
+  <sub><i>The focus view — one node, what depends on it, and what it depends on.</i></sub>
+</div>
 
-![codegraph explorer focus view for a single node showing dependents and dependencies](docs/images/explorer-focus.png)
+## 🚀 Quick start
 
-*The focus view — one node, what depends on it, and what it depends on.*
-
-## Quick start
-
-The package is **not published to npm yet**. Use it from a clone.
+> [!NOTE]
+> The package is **not published to npm yet**. Use it from a clone.
 
 ```bash
 git clone <repo-url> codegraph
@@ -81,18 +101,19 @@ An MCP client entry looks like this:
 }
 ```
 
-Very large repos: the `references` and `usages` layers build a TypeScript program over the whole source set and run the type-checker. If Node runs out of heap, raise it:
+> [!WARNING]
+> Very large repos: the `references` and `usages` layers build a TypeScript program over the whole source set and run the type-checker. If Node runs out of heap, raise it:
 
 ```bash
 NODE_OPTIONS=--max-old-space-size=8192 codegraph regenerate
 ```
 
-## Commands
+## 🧩 Commands
 
 Global flags on every command: `--repo-root PATH`, `--out DIR`, `--config FILE`, `--help`.
 
 | Command | What it does | Key flags |
-| --- | --- | --- |
+| :--- | :--- | :--- |
 | `regenerate` | Runs every layer in dependency order against one repo snapshot. Fail-fast. | `--skip-heavy`, `--skip-explorer`, `--if-stale`, `--force`, `--incremental off\|incremental` |
 | `inventory` | Layer 1 — files and directories, with size, language, kind and SHA-256. | `--no-hash`, `--require-vcs`, `--require-clean`, `--project-name NAME` |
 | `imports` | Layer 2a — file → file/package `IMPORTS` edges. | `--inventory DIR`, `--require-resolution-rate N`, `--max-files N` |
@@ -108,9 +129,13 @@ Global flags on every command: `--repo-root PATH`, `--out DIR`, `--config FILE`,
 
 Exit codes: `0` success, `2` a usage error or a missing prerequisite (no cache, no upstream artifact), `1` anything else that failed — a write, a policy gate, a graph load, or a layer inside `regenerate`.
 
-## For AI agents (token savings)
+## 🤖 For AI agents (token savings)
 
-An agent asked "what is this file and what breaks if I change it?" normally opens the file, then its importers, then their importers. `brief` and `impact` answer from the graph instead.
+> [!TIP]
+> An agent asked "what is this file and what breaks if I change it?" normally opens the file, then its importers, then their importers. `brief` and `impact` answer from the graph instead.
+
+<details>
+<summary><b>Real captured output — <code>brief</code> and <code>impact</code> on codegraph's own repo</b></summary>
 
 `codegraph brief src/lib/graph_load.mjs` — real output, captured on codegraph's own repo:
 
@@ -143,12 +168,14 @@ risky exports (2):
 likely tests (11): src/brief/lib/brief.test.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.test.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs, src/impact/run.test.mjs, src/lib/graph_load.test.mjs, src/mcp/lib/rpc.test.mjs, src/mcp/lib/tools.test.mjs (+1 more)
 ```
 
+</details>
+
 ### Measured size comparison
 
 Measured in this repo, on codegraph's own source tree (107 files, 100 JS/TS sources), by byte count of the exact outputs above:
 
 | Question | codegraph output | Reading the files instead | Difference |
-| --- | --- | --- | --- |
+| :--- | :--- | :--- | :--- |
 | "What is `graph_load.mjs` and who uses it?" | `brief`, **874 B** | the file + its 11 direct importers = **86,233 B** | ~99% less |
 | "What breaks if I change it, and what should I run?" | `impact`, **1,001 B** | the file + its 18 blast-radius files = **136,384 B** | ~99% less |
 
@@ -158,8 +185,11 @@ This compares bytes, not tokens, and it assumes the agent would otherwise read t
 
 `codegraph mcp` speaks JSON-RPC 2.0 on stdin/stdout (protocol version `2024-11-05`) and exposes **13 tools**. stdout carries protocol traffic only; diagnostics go to stderr.
 
+<details>
+<summary><b>All 13 tools and their arguments</b></summary>
+
 | Tool | Arguments |
-| --- | --- |
+| :--- | :--- |
 | `find_node` | `query` (required), `limit` |
 | `node_info` | `id` (required) |
 | `imports_of` | `file` (required) |
@@ -174,14 +204,48 @@ This compares bytes, not tokens, and it assumes the agent would otherwise read t
 | `brief` | `target` (required), `limit` |
 | `impact` | `files`, `diff`, `limit`, `maxDepth` |
 
+</details>
+
 `brief` and `impact` are the token savers — they call the same pure functions the CLI does.
 
-## How it works
+## 🏗️ How it works
 
 `regenerate` runs the layers in order, each reading the previous ones from the same cache:
 
+```mermaid
+flowchart LR
+    inv["inventory<br/>files, languages, SHA-256"]
+    imp["imports<br/>IMPORTS edges"]
+    sym["symbols<br/>DECLARES edges"]
+    dom["domains<br/>BELONGS_TO, DEPENDS_ON"]
+    ref["references<br/>REFERENCES edges<br/>type-checked, heavy"]
+    use["usages<br/>USES edges<br/>type-checked, heavy"]
+    exp["explorer<br/>graph-index.json + SPA"]
+    con["consumers<br/>mcp, brief, impact, docs"]
+
+    inv --> imp
+    inv --> sym
+    imp --> dom
+    sym --> ref
+    sym --> use
+    dom --> exp
+    ref --> exp
+    use --> exp
+    dom --> con
+    ref --> con
+    use --> con
+
+    classDef light fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A;
+    classDef heavy fill:#FED7AA,stroke:#EA580C,color:#7C2D12;
+    classDef sink fill:#DCFCE7,stroke:#16A34A,color:#14532D;
+
+    class inv,imp,sym,dom light;
+    class ref,use heavy;
+    class exp,con sink;
+```
+
 | Layer | What it produces |
-| --- | --- |
+| :--- | :--- |
 | `inventory` | Every file and directory: path, size, language, kind, trust, SHA-256, plus the VCS revision of the snapshot. |
 | `imports` | `IMPORTS` edges from each source to the files and packages it imports, resolved through `tsconfig` `baseUrl`/`paths` when present. |
 | `symbols` | `DECLARES` edges from each source to its top-level declarations (parse-only, no type-checking). |
@@ -192,16 +256,21 @@ This compares bytes, not tokens, and it assumes the agent would otherwise read t
 
 Artifacts live under the cache dir (`.kg-cache` by default), one directory per layer holding `nodes.jsonl`, `edges.jsonl` and `manifest.json`. Every write is atomic (temp file → `fsync` → `rename`) and every row has recursively sorted keys, so the output is byte-for-byte reproducible: two full rebuilds of this repo produced identical artifacts across all twelve node/edge files.
 
-**No file contents are stored.** The graph holds metadata and relationships only — paths, sizes, hashes, languages, symbol names, line numbers, edges.
+> [!IMPORTANT]
+> **No file contents are stored.** The graph holds metadata and relationships only — paths, sizes, hashes, languages, symbol names, line numbers, edges.
 
-The domain layer is a **heuristic**, not ground truth: by default each first-level directory under a source root becomes a product domain and every other top-level directory becomes an infra bucket. Override it via the `domains` config key when the layout does not match how the team thinks about the code.
+> [!NOTE]
+> The domain layer is a **heuristic**, not ground truth: by default each first-level directory under a source root becomes a product domain and every other top-level directory becomes an infra bucket. Override it via the `domains` config key when the layout does not match how the team thinks about the code.
 
-## Configuration
+## ⚙️ Configuration
 
 Optional `codegraph.config.mjs` (default export) or `codegraph.config.json` at the repo root, or `--config FILE`.
 
+<details>
+<summary><b>All configuration keys and defaults</b></summary>
+
 | Key | Default | Meaning |
-| --- | --- | --- |
+| :--- | :--- | :--- |
 | `srcRoots` | `['src']` | Directories whose first-level subdirectories become product domains. |
 | `ignoreFile` | `'.gitignore'` | Ignore file to honor. `.kgignore` is also read when present. |
 | `tsconfig` | `null` | Path to a `tsconfig.json`. `null` auto-discovers the nearest one. |
@@ -209,6 +278,8 @@ Optional `codegraph.config.mjs` (default export) or `codegraph.config.json` at t
 | `outDir` | `'.kg-cache'` | Base cache directory for all artifacts. |
 | `domains` | `null` | `null` auto-derives the overlay. Otherwise an inline object or a path to a module exporting `CANONICAL_DOMAINS`, `ALIASES` and `AREA_BUCKETS`. |
 | `incremental` | `'off'` | `'off'` or `'incremental'` — rebuild mode for the heavy layers. |
+
+</details>
 
 `codegraph docs` additionally reads a `lang` key (`'en'` or `'ru'`, default `'en'`); `--lang` overrides it.
 
@@ -223,7 +294,7 @@ export default {
 };
 ```
 
-## Keeping it fresh
+## 🔄 Keeping it fresh
 
 Every artifact records the revision it was built from. Consumers compare it with the repo's current revision and say so:
 
@@ -261,12 +332,12 @@ usages: incremental — re-extracted 4 file(s), reused 256 cached edge(s)
 
 Wall clock on that repo was 0.59 s full vs 0.54 s incremental for `references` and 0.57 s vs 0.54 s for `usages` — **within noise at this size**, because building the TypeScript program dominates. The mode is aimed at repos where walking every file is the expensive part; it was not measured on one, so no speedup is claimed here.
 
-## Generated docs
+## 📝 Generated docs
 
 `codegraph docs` renders Markdown from the graph, so the numbers and links cannot drift from the code:
 
 | Output | Contents |
-| --- | --- |
+| :--- | :--- |
 | `<repo>/AGENTS.md` | Orientation page: file/symbol/domain counts, languages, most-used packages, test count, the domain table. |
 | `<out-docs>/README.md` | Index of the generated pages. |
 | `<out-docs>/domains/<domain>.md` | One page per domain. |
@@ -287,12 +358,12 @@ Hand-written content survives. Everything generated sits between two markers:
 - A target file with **no markers at all** is assumed hand-written and is skipped with a warning, so `codegraph docs` can never silently eat someone's `AGENTS.md`. `--force` opts into overwriting it.
 - Re-running with no code changes reports `unchanged` for every page and writes nothing.
 
-## Requirements
+## 📦 Requirements
 
 - Node.js **>= 18** (`engines.node` in `package.json`). Verified here on Node v22.17.0.
 - Runtime dependencies: `typescript` and `ignore`. Nothing else.
 
-## Development
+## 🧪 Development
 
 ```bash
 npm install
@@ -301,6 +372,6 @@ npm test        # vitest run
 
 The suite is **470 tests across 48 files**, all passing at the current revision. It includes the incremental equality gate, which asserts that incremental heavy-layer artifacts are byte-identical to a full rebuild.
 
-## License
+## 📄 License
 
 Not yet declared — this repository does not currently ship a `LICENSE` file.
