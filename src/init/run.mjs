@@ -219,7 +219,11 @@ export async function run(argv, io = {}) {
     if (project.hasConfigFile) {
       record(project.configFile, 'unchanged', 'already exists — left untouched');
     } else if (await prompt.confirm(`Write ${project.configFile}?`, true)) {
-      const answer = await prompt.text('  source roots to scan (comma-separated)', srcRoots.join(', '));
+      // When nothing familiar was found, offer the directories this repo does have.
+      const hint = project.usedFallbackSrcRoots && project.srcRootCandidates.length > 0
+        ? ` — found here: ${project.srcRootCandidates.join(', ')}`
+        : '';
+      const answer = await prompt.text(`  source roots to scan (comma-separated)${hint}`, srcRoots.join(', '));
       srcRoots = answer.split(',').map((s) => s.trim()).filter(Boolean);
       if (srcRoots.length === 0) srcRoots = [...DEFAULTS.srcRoots];
       put(join(repoRoot, project.configFile), renderConfigFile({
