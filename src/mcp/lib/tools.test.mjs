@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadGraph } from './graph.mjs';
+import { loadGraph } from '../../lib/graph_load.mjs';
 import {
   findNode, nodeInfo, importsOf, importedBy, impactOf, pathBetween,
   listSymbols, deadExports, domainOf, domainDependencies, domainCrossings,
@@ -171,12 +171,27 @@ describe('list_symbols', () => {
 });
 
 describe('dead_exports', () => {
-  it('returns all exported symbols and flags imprecision', () => {
+  it('without a references layer, returns every export and flags imprecision', () => {
     const r = deadExports(g);
     expect(r.precise).toBe(false);
-    expect(r.note).toMatch(/references\/usages/);
+    expect(r.note).toMatch(/no references layer/);
     expect(r.candidates.map((c) => c.name).sort()).toEqual(['format', 'pay', 'setup']);
     expect(r.total).toBe(3);
+  });
+
+  it('with the references layer, only unreferenced exports remain (same-file uses excluded)', () => {
+    // `setup` is used cross-file; `format` only within its own file; `pay` never.
+    writeLayer(g.cacheDir, 'references', {
+      edges: [
+        { id: 'r1', type: 'REFERENCES', from: 'file:src/ui/button.tsx', to: 'sym:src/core/index.ts#setup', properties: { sameFile: false } },
+        { id: 'r2', type: 'REFERENCES', from: 'file:src/core/util.ts', to: 'sym:src/core/util.ts#format', properties: { sameFile: true } },
+      ],
+    });
+    const r = deadExports(loadGraph(g.cacheDir));
+    expect(r.precise).toBe(true);
+    expect(r.note).not.toMatch(/Best-effort/);
+    expect(r.candidates.map((c) => c.name).sort()).toEqual(['format', 'pay']);
+    expect(r.exportedSymbols).toBe(3);
   });
 });
 

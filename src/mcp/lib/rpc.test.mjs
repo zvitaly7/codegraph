@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough, Writable } from 'node:stream';
-import { loadGraph } from './graph.mjs';
+import { loadGraph } from '../../lib/graph_load.mjs';
 import { handleRequest, serve } from './rpc.mjs';
 
 function tinyGraph() {

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadGraph } from './graph.mjs';
+import { loadGraph, GRAPH_LAYERS } from './graph_load.mjs';
 
 /** Write `<cache>/<layer>/{nodes,edges}.jsonl` from arrays of objects. */
 function writeLayer(cache, layer, { nodes = [], edges = [] } = {}) {
@@ -14,10 +14,16 @@ function writeLayer(cache, layer, { nodes = [], edges = [] } = {}) {
 
 let cache;
 beforeEach(() => {
-  cache = mkdtempSync(join(tmpdir(), 'cg-mcp-graph-'));
+  cache = mkdtempSync(join(tmpdir(), 'cg-graph-load-'));
 });
 
 describe('loadGraph — layer discovery', () => {
+  it('covers all six layers in dependency order', () => {
+    expect(GRAPH_LAYERS).toEqual([
+      'inventory', 'imports', 'symbols', 'references', 'usages', 'domains',
+    ]);
+  });
+
   it('loads present layers and reports missing ones', () => {
     writeLayer(cache, 'inventory', {
       nodes: [{ id: 'file:src/a.ts', labels: ['File'], properties: { path: 'src/a.ts', name: 'a.ts' } }],
@@ -28,8 +34,35 @@ describe('loadGraph — layer discovery', () => {
     });
     const g = loadGraph(cache);
     expect(g.loadedLayers).toEqual(['inventory', 'imports']);
-    expect(g.missingLayers).toEqual(['symbols', 'domains']);
+    expect(g.missingLayers).toEqual(['symbols', 'references', 'usages', 'domains']);
     expect(g.empty).toBe(false);
+  });
+
+  it('indexes the reference and usage layers too', () => {
+    writeLayer(cache, 'symbols', {
+      nodes: [{ id: 'sym:a#foo', labels: ['Symbol'], properties: { name: 'foo', exported: true } }],
+      edges: [{ id: 'e:d', type: 'DECLARES', from: 'file:a', to: 'sym:a#foo', properties: {} }],
+    });
+    writeLayer(cache, 'references', {
+      nodes: [{ id: 'sym:a#foo', labels: ['Symbol'], properties: { name: 'foo' } }],
+      edges: [{ id: 'e:r', type: 'REFERENCES', from: 'file:b', to: 'sym:a#foo', properties: { sameFile: false } }],
+    });
+    writeLayer(cache, 'usages', {
+      edges: [{ id: 'e:u', type: 'USES', from: 'sym:b#bar', to: 'sym:a#foo', properties: {} }],
+    });
+    const g = loadGraph(cache);
+    expect(g.loadedLayers).toEqual(['symbols', 'references', 'usages']);
+    expect(g.byType('REFERENCES')).toHaveLength(1);
+    expect(g.byType('USES')).toHaveLength(1);
+    expect(g.neighbors('sym:a#foo', { dir: 'in', type: 'REFERENCES' })).toHaveLength(1);
+  });
+
+  it('honors an explicit layer subset', () => {
+    writeLayer(cache, 'inventory', { nodes: [{ id: 'file:a', labels: ['File'] }] });
+    writeLayer(cache, 'imports', { nodes: [{ id: 'pkg:x', labels: ['Package'] }] });
+    const g = loadGraph(cache, { layers: ['inventory'] });
+    expect(g.loadedLayers).toEqual(['inventory']);
+    expect(g.nodesById.has('pkg:x')).toBe(false);
   });
 
   it('returns a valid empty graph for a missing/empty cache dir', () => {
@@ -39,6 +72,7 @@ describe('loadGraph — layer discovery', () => {
     expect(g.stats.nodes).toBe(0);
     expect(g.byLabel('File')).toEqual([]);
     expect(g.neighbors('anything')).toEqual([]);
+    expect(g.manifest).toBeNull();
   });
 });
 
@@ -81,9 +115,19 @@ describe('loadGraph — edges + adjacency + indices', () => {
   it('dedupes edges by id and builds out/in adjacency', () => {
     const g = loadGraph(cache);
     expect(g.edgesById.size).toBe(2);
+    expect(g.edges).toHaveLength(2);
     expect(g.outEdges.get('file:a').map((e) => e.to).sort()).toEqual(['file:b', 'pkg:x']);
     expect(g.inEdges.get('file:b').map((e) => e.from)).toEqual(['file:a']);
     expect(g.inEdges.get('pkg:x').map((e) => e.from)).toEqual(['file:a']);
+  });
+
+  it('keeps the FIRST occurrence of a duplicate edge id', () => {
+    writeLayer(cache, 'symbols', {
+      edges: [{ id: 'edge:file:a:IMPORTS:file:b', type: 'IMPORTS', from: 'file:a', to: 'file:b', properties: { kind: 'LATER' } }],
+    });
+    const g = loadGraph(cache);
+    expect(g.getNode('file:a')).toBeTruthy();
+    expect(g.edgesById.get('edge:file:a:IMPORTS:file:b').properties.kind).toBe('internal');
   });
 
   it('indexes nodes by label and edges by type', () => {
@@ -111,5 +155,24 @@ describe('loadGraph — partial layer files', () => {
     const g = loadGraph(cache);
     expect(g.loadedLayers).toEqual(['symbols']);
     expect(g.getNode('sym:a#foo').properties.name).toBe('foo');
+  });
+});
+
+describe('loadGraph — inventory manifest', () => {
+  it('reads the inventory manifest for project/snapshot identity', () => {
+    mkdirSync(join(cache, 'inventory'), { recursive: true });
+    writeFileSync(
+      join(cache, 'inventory', 'manifest.json'),
+      JSON.stringify({ projectId: 'project:x', snapshotId: 'snapshot:x:1' }),
+    );
+    writeLayer(cache, 'inventory', { nodes: [{ id: 'file:a', labels: ['File'], properties: { path: 'a', kind: 'code' } }] });
+    const g = loadGraph(cache);
+    expect(g.manifest).toMatchObject({ projectId: 'project:x' });
+  });
+
+  it('degrades a corrupt manifest to null instead of throwing', () => {
+    mkdirSync(join(cache, 'inventory'), { recursive: true });
+    writeFileSync(join(cache, 'inventory', 'manifest.json'), '{not json');
+    expect(loadGraph(cache).manifest).toBeNull();
   });
 });

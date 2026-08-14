@@ -226,21 +226,32 @@ export function listSymbols(graph, { file } = {}) {
   return { file: fileId, found, count: symbols.length, symbols };
 }
 
-/** Best-effort dead exports: exported symbols with no incoming reference edge. */
+/**
+ * Exported symbols nothing outside their own file references.
+ *
+ * With the references layer loaded this is PRECISE: a REFERENCES edge carries
+ * `sameFile`, so an export used only by its own module still counts as dead
+ * (nobody imports it). Without that layer we fall back to "no incoming edge
+ * other than DECLARES", which cannot see symbol-level usage at all.
+ */
 export function deadExports(graph, { limit = FIND_CAP } = {}) {
-  const note = 'Best-effort only: no references/usages layer is loaded, so symbol-level '
-    + 'usages are unknown and EVERY exported symbol is reported as a candidate. '
-    + 'Precision requires the (future) references/usages layers.';
+  const precise = graph.loadedLayers.includes('references');
   const exported = graph.byLabel('Symbol').filter((n) => n.properties?.exported === true);
-  // A reference edge would be any incoming edge other than the DECLARES from its file.
-  const candidates = exported.filter((n) =>
-    graph.neighbors(n.id, { dir: 'in' }).every((e) => e.type === 'DECLARES'));
+  const isDead = precise
+    ? (n) => graph.neighbors(n.id, { dir: 'in', type: 'REFERENCES' })
+      .every((e) => e.properties?.sameFile === true)
+    : (n) => graph.neighbors(n.id, { dir: 'in' }).every((e) => e.type === 'DECLARES');
+  const candidates = exported.filter(isDead);
   candidates.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const cap = Number.isInteger(limit) && limit > 0 ? limit : FIND_CAP;
-  const hasRefLayer = graph.loadedLayers.includes('references') || graph.loadedLayers.includes('usages');
   return {
-    note,
-    precise: hasRefLayer,
+    note: precise
+      ? 'Exported symbols with no cross-file REFERENCES edge (same-file uses excluded). '
+        + 'Dynamic/string-keyed access and non-TS entry points are still invisible.'
+      : 'Best-effort only: no references layer is loaded, so symbol-level usages are '
+        + 'unknown and EVERY exported symbol is reported as a candidate. '
+        + 'Run `codegraph references` for precision.',
+    precise,
     exportedSymbols: exported.length,
     total: candidates.length,
     returned: Math.min(candidates.length, cap),
@@ -385,7 +396,7 @@ export const TOOLS = [
   },
   {
     name: 'dead_exports',
-    description: 'Best-effort list of exported symbols with no known incoming reference (imprecise without a references/usages layer).',
+    description: 'Exported symbols nothing outside their own file references (precise when the references layer is loaded).',
     inputSchema: { type: 'object', properties: { limit: { type: 'integer', description: 'Max candidates (default 50).' } } },
   },
 ];

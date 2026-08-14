@@ -17,7 +17,7 @@ import process from 'node:process';
 import { resolveConfig } from '../config/load.mjs';
 import { checkStaleness } from '../lib/staleness.mjs';
 import { writeJsonAtomic, writeTextAtomic } from '../inventory/write.mjs';
-import { loadArtifacts } from './lib/load_artifacts.mjs';
+import { loadGraph } from '../lib/graph_load.mjs';
 import { buildIndex } from './lib/build_index.mjs';
 
 const DEFAULT_PORT = 8765;
@@ -126,8 +126,8 @@ export async function run(argv) {
     return 2;
   }
 
-  const graph = loadArtifacts(cache);
-  if (graph.layersPresent.length === 0) {
+  const graph = loadGraph(cache);
+  if (graph.loadedLayers.length === 0) {
     console.error(`explorer: no graph artifacts under ${cache} — run \`codegraph regenerate\` first`);
     return 2;
   }
@@ -152,7 +152,7 @@ export async function run(argv) {
   const { files, symbols, packages, domains, edges } = index.stats;
   console.log(
     `[codegraph] explorer files=${files} symbols=${symbols} packages=${packages} `
-    + `domains=${domains} edges=${edges} layers=${graph.layersPresent.join('+')} out=${outPath}`,
+    + `domains=${domains} edges=${edges} layers=${graph.loadedLayers.join('+')} out=${outPath}`,
   );
 
   if (flags.serve) {

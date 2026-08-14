@@ -90,7 +90,7 @@ function sampleGraph() {
   return {
     nodesById,
     edges,
-    layersPresent: ['inventory', 'imports', 'symbols', 'references', 'usages', 'domains'],
+    loadedLayers: ['inventory', 'imports', 'symbols', 'references', 'usages', 'domains'],
     manifest,
   };
 }
@@ -259,7 +259,7 @@ describe('buildIndex — determinism & graceful degradation', () => {
   it('emits layer-independent insights and empties dependent ones when layers are missing', () => {
     // Only inventory + imports + domains present: no references, no usages.
     const g = sampleGraph();
-    g.layersPresent = ['inventory', 'imports', 'domains'];
+    g.loadedLayers = ['inventory', 'imports', 'domains'];
     // Drop the reference/usage edges so the graph matches the declared layers.
     g.edges = g.edges.filter((e) => e.type !== 'REFERENCES' && e.type !== 'USES');
     const idx = buildIndex(g, FIXED);
@@ -284,7 +284,7 @@ describe('buildIndex — determinism & graceful degradation', () => {
   });
 
   it('empty graph yields zeroed stats and empty insights', () => {
-    const idx = buildIndex({ nodesById: new Map(), edges: [], layersPresent: [], manifest: null }, FIXED);
+    const idx = buildIndex({ nodesById: new Map(), edges: [], loadedLayers: [], manifest: null }, FIXED);
     expect(idx.stats).toEqual({ files: 0, symbols: 0, packages: 0, domains: 0, edges: 0 });
     expect(idx.nodes).toEqual([]);
     expect(idx.insights.deadExportsTotal).toBe(0);

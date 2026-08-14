@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { resolveConfig } from '../config/load.mjs';
 import { checkStaleness } from '../lib/staleness.mjs';
-import { loadGraph } from './lib/graph.mjs';
+import { loadGraph } from '../lib/graph_load.mjs';
 import { serve } from './lib/rpc.mjs';
 
 /**

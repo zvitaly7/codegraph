@@ -1,14 +1,16 @@
-// In-memory graph index for the MCP layer.
+// The one in-memory graph index every consumer reads (MCP, explorer, brief, impact).
 //
 // `loadGraph(cacheDir)` reads every present `<cacheDir>/<layer>/{nodes,edges}.jsonl`
-// (layers, in dependency order: inventory → imports → symbols → domains) and
-// merges them into a single queryable index:
+// for ALL SIX layers — inventory → imports → symbols → references → usages →
+// domains — and merges them into a single queryable index:
 //   - nodesById  Map<id, node>   deduped by id; a later layer merges its
 //                                properties over an earlier one and unions labels.
 //   - edgesById  Map<id, edge>   deduped by id (first occurrence wins).
+//   - edges      edge[]          the same edges as a plain array.
 //   - outEdges   Map<id, edge[]> adjacency keyed by edge.from.
 //   - inEdges    Map<id, edge[]> adjacency keyed by edge.to.
 //   - byLabel / byType indices, plus neighbors() / getNode() helpers.
+//   - manifest   the inventory manifest (project / snapshot identity), or null.
 //
 // A missing layer directory is skipped (the graph loads with whatever exists);
 // an empty or missing cache yields an empty—but valid—graph (`empty === true`).
@@ -16,8 +18,10 @@
 import { join } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 
-/** Layers merged into the index, in dependency order (later wins on property conflict). */
-export const LAYERS = ['inventory', 'imports', 'symbols', 'domains'];
+/** Every layer merged into the index, in dependency order (later wins on conflict). */
+export const GRAPH_LAYERS = [
+  'inventory', 'imports', 'symbols', 'references', 'usages', 'domains',
+];
 
 /** Read every row of a .jsonl file (blank lines skipped). */
 function readJsonl(path) {
@@ -54,9 +58,10 @@ function pushInto(map, key, value) {
 /**
  * Load and index the graph artifacts under `cacheDir`.
  * @param {string} cacheDir directory holding one subdir per layer.
+ * @param {{layers?: string[]}} [opts] restrict which layers are read.
  * @returns {object} the in-memory graph index (see module header).
  */
-export function loadGraph(cacheDir) {
+export function loadGraph(cacheDir, { layers = GRAPH_LAYERS } = {}) {
   const nodesById = new Map();
   const edgesById = new Map();
   const outEdges = new Map();
@@ -64,7 +69,7 @@ export function loadGraph(cacheDir) {
   const loadedLayers = [];
   const missingLayers = [];
 
-  for (const layer of LAYERS) {
+  for (const layer of layers) {
     const dir = join(cacheDir, layer);
     const nodesPath = join(dir, 'nodes.jsonl');
     const edgesPath = join(dir, 'edges.jsonl');
@@ -99,6 +104,17 @@ export function loadGraph(cacheDir) {
     pushInto(byTypeIndex, e.type, e);
   }
 
+  // The inventory manifest carries the project / snapshot identity.
+  let manifest = null;
+  const manifestPath = join(cacheDir, 'inventory', 'manifest.json');
+  if (existsSync(manifestPath)) {
+    try {
+      manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    } catch {
+      manifest = null; // a corrupt manifest is non-fatal — identity just goes null.
+    }
+  }
+
   /**
    * Edges incident to `id`, optionally filtered by edge `type` and direction.
    * @param {string} id node id.
@@ -124,8 +140,10 @@ export function loadGraph(cacheDir) {
     cacheDir,
     loadedLayers,
     missingLayers,
+    manifest,
     nodesById,
     edgesById,
+    edges: [...edgesById.values()],
     outEdges,
     inEdges,
     empty: nodesById.size === 0,
