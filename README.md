@@ -8,7 +8,7 @@
 
 <p>
   <img alt="Node &gt;= 18" src="https://img.shields.io/badge/node-%3E%3D18-339933?logo=nodedotjs&logoColor=white">
-  <img alt="470 tests passing" src="https://img.shields.io/badge/tests-470%20passing-6E9F18?logo=vitest&logoColor=white">
+  <img alt="537 tests passing" src="https://img.shields.io/badge/tests-537%20passing-6E9F18?logo=vitest&logoColor=white">
   <img alt="Analysis scope: JavaScript / TypeScript" src="https://img.shields.io/badge/analysis-JavaScript%20%2F%20TypeScript-3178C6?logo=typescript&logoColor=white">
   <img alt="Runtime dependencies: typescript and ignore" src="https://img.shields.io/badge/runtime%20deps-typescript%20%2B%20ignore-8957E5">
   <img alt="MCP server: 13 tools" src="https://img.shields.io/badge/MCP-13%20tools-1F6FEB">
@@ -42,6 +42,30 @@ Builds a deterministic map of a JavaScript/TypeScript codebase — files, symbol
   <br>
   <sub><i>The focus view — one node, what depends on it, and what it depends on.</i></sub>
 </div>
+
+## 🧰 Install & setup
+
+One command sets a project up:
+
+```bash
+npx loregraph init
+```
+
+It reports what it found in the project, then asks one question per step — Enter accepts the default, `--yes` accepts all of them (and so does a non-interactive shell, e.g. CI):
+
+| Step | What it configures |
+| :--- | :--- |
+| `loregraph.config.mjs` | The source roots it detected, with every other knob commented out at its real default. |
+| `.gitignore` | Ignores the `.kg-cache/` cache directory, unless something already covers it. |
+| MCP server | A `loregraph` entry in whichever agent config the project already uses — `.mcp.json` (Claude Code), `.cursor/mcp.json` (Cursor), `.vscode/mcp.json` (VS Code). Creates `.mcp.json` when there is none. |
+| npm scripts | `graph` → `loregraph regenerate`, `graph:explore` → `loregraph explorer --serve`. |
+| git hook (opt-in) | A `post-merge` hook running `loregraph regenerate --if-stale`, so the graph follows your `git pull`. |
+| First build | Offers to build the graph there and then. |
+
+> [!IMPORTANT]
+> `init` writes into a project it does not own, so it is non-destructive and idempotent: it never overwrites or truncates an existing file (JSON is merged, text is appended to), and a second run changes nothing. Anything that already exists with different content — your own `graph` script, your own `post-merge` hook — is left alone and reported, with the snippet you need printed for you. `--dry-run` shows the exact plan and writes nothing.
+
+Flags: `--yes`, `--dry-run`, `--repo-root PATH`, `--out DIR`, `--hook`, `--build`, `--no-build`.
 
 ## 🚀 Quick start
 
@@ -114,6 +138,7 @@ Global flags on every command: `--repo-root PATH`, `--out DIR`, `--config FILE`,
 
 | Command | What it does | Key flags |
 | :--- | :--- | :--- |
+| `init` | Sets a project up: config file, ignore rule, MCP entry, npm scripts, optional git hook. | `--yes`, `--dry-run`, `--hook`, `--build`, `--no-build` |
 | `regenerate` | Runs every layer in dependency order against one repo snapshot. Fail-fast. | `--skip-heavy`, `--skip-explorer`, `--if-stale`, `--force`, `--incremental off\|incremental` |
 | `inventory` | Layer 1 — files and directories, with size, language, kind and SHA-256. | `--no-hash`, `--require-vcs`, `--require-clean`, `--project-name NAME` |
 | `imports` | Layer 2a — file → file/package `IMPORTS` edges. | `--inventory DIR`, `--require-resolution-rate N`, `--max-files N` |
@@ -315,6 +340,8 @@ loregraph regenerate --force        # rebuild regardless
 graph up to date at 9a59c993a022a654d03189c2d29f452a30b72059 — skipping
 ```
 
+`loregraph init --hook` installs a `post-merge` hook that runs exactly that after every `git pull`.
+
 ### Incremental heavy layers (opt-in)
 
 `--incremental incremental` makes `references` and `usages` reuse cached edges for files whose edges cannot have changed, and re-extract only the affected set — the changed files plus everything that transitively imports them — against a whole-repo program.
@@ -370,7 +397,7 @@ npm install
 npm test        # vitest run
 ```
 
-The suite is **470 tests across 48 files**, all passing at the current revision. It includes the incremental equality gate, which asserts that incremental heavy-layer artifacts are byte-identical to a full rebuild.
+The suite is **537 tests across 51 files**, all passing at the current revision. It includes the incremental equality gate, which asserts that incremental heavy-layer artifacts are byte-identical to a full rebuild.
 
 ## 🚢 Publishing
 

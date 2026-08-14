@@ -8,7 +8,7 @@
 
 <p>
   <img alt="Node &gt;= 18" src="https://img.shields.io/badge/node-%3E%3D18-339933?logo=nodedotjs&logoColor=white">
-  <img alt="470 тестов проходят" src="https://img.shields.io/badge/tests-470%20passing-6E9F18?logo=vitest&logoColor=white">
+  <img alt="537 тестов проходят" src="https://img.shields.io/badge/tests-537%20passing-6E9F18?logo=vitest&logoColor=white">
   <img alt="Область анализа: JavaScript / TypeScript" src="https://img.shields.io/badge/analysis-JavaScript%20%2F%20TypeScript-3178C6?logo=typescript&logoColor=white">
   <img alt="Зависимости времени выполнения: typescript и ignore" src="https://img.shields.io/badge/runtime%20deps-typescript%20%2B%20ignore-8957E5">
   <img alt="MCP-сервер: 13 инструментов" src="https://img.shields.io/badge/MCP-13%20tools-1F6FEB">
@@ -42,6 +42,30 @@
   <br>
   <sub><i>Экран фокуса — один узел, кто зависит от него и от чего зависит он.</i></sub>
 </div>
+
+## 🧰 Установка и настройка
+
+Одна команда настраивает проект:
+
+```bash
+npx loregraph init
+```
+
+Сначала он сообщает, что нашёл в проекте, а затем задаёт по одному вопросу на шаг — Enter принимает значение по умолчанию, `--yes` принимает сразу все (так же ведёт себя неинтерактивная оболочка, например CI):
+
+| Шаг | Что настраивает |
+| :--- | :--- |
+| `loregraph.config.mjs` | Найденные корни исходников; остальные параметры закомментированы со своими реальными значениями по умолчанию. |
+| `.gitignore` | Игнорирует каталог кэша `.kg-cache/`, если он ещё не покрыт правилом. |
+| MCP-сервер | Запись `loregraph` в том конфиге агента, который уже есть в проекте, — `.mcp.json` (Claude Code), `.cursor/mcp.json` (Cursor), `.vscode/mcp.json` (VS Code). Если конфига нет, создаёт `.mcp.json`. |
+| npm-скрипты | `graph` → `loregraph regenerate`, `graph:explore` → `loregraph explorer --serve`. |
+| Git-хук (по желанию) | Хук `post-merge` с `loregraph regenerate --if-stale`, чтобы граф обновлялся после `git pull`. |
+| Первая сборка | Предлагает собрать граф сразу же. |
+
+> [!IMPORTANT]
+> `init` пишет в чужой проект, поэтому он безопасен и идемпотентен: он никогда не перезаписывает и не обрезает существующий файл (JSON — сливается, текст — дополняется), а второй запуск ничего не меняет. Всё, что уже есть с другим содержимым — ваш собственный скрипт `graph`, ваш собственный хук `post-merge`, — остаётся нетронутым, о нём сообщается, а нужный фрагмент печатается для ручной вставки. `--dry-run` показывает точный план и ничего не пишет.
+
+Флаги: `--yes`, `--dry-run`, `--repo-root PATH`, `--out DIR`, `--hook`, `--build`, `--no-build`.
 
 ## 🚀 Быстрый старт
 
@@ -114,6 +138,7 @@ NODE_OPTIONS=--max-old-space-size=8192 loregraph regenerate
 
 | Команда | Что делает | Ключевые флаги |
 | :--- | :--- | :--- |
+| `init` | Настраивает проект: файл конфигурации, правило игнорирования, запись MCP, npm-скрипты, git-хук по желанию. | `--yes`, `--dry-run`, `--hook`, `--build`, `--no-build` |
 | `regenerate` | Запускает все слои в порядке зависимостей на одном снимке репозитория. Останавливается на первой ошибке. | `--skip-heavy`, `--skip-explorer`, `--if-stale`, `--force`, `--incremental off\|incremental` |
 | `inventory` | Слой 1 — файлы и каталоги с размером, языком, видом и SHA-256. | `--no-hash`, `--require-vcs`, `--require-clean`, `--project-name NAME` |
 | `imports` | Слой 2a — рёбра `IMPORTS` вида «файл → файл/пакет». | `--inventory DIR`, `--require-resolution-rate N`, `--max-files N` |
@@ -315,6 +340,8 @@ loregraph regenerate --force        # пересобрать в любом сл�
 graph up to date at 9a59c993a022a654d03189c2d29f452a30b72059 — skipping
 ```
 
+`loregraph init --hook` ставит хук `post-merge`, который выполняет ровно это после каждого `git pull`.
+
 ### Инкрементальные тяжёлые слои (по желанию)
 
 `--incremental incremental` заставляет `references` и `usages` переиспользовать кэшированные рёбра для файлов, чьи рёбра измениться не могли, и заново извлекать только затронутое множество — изменённые файлы плюс всё, что транзитивно их импортирует, — на программе по всему репозиторию.
@@ -370,7 +397,7 @@ npm install
 npm test        # vitest run
 ```
 
-Набор тестов — **470 тестов в 48 файлах**, все проходят на текущей ревизии. В него входит и проверка равенства для инкрементального режима, которая утверждает, что артефакты тяжёлых слоёв побайтово совпадают с полной пересборкой.
+Набор тестов — **537 тестов в 51 файле**, все проходят на текущей ревизии. В него входит и проверка равенства для инкрементального режима, которая утверждает, что артефакты тяжёлых слоёв побайтово совпадают с полной пересборкой.
 
 ## 🚢 Публикация
 
