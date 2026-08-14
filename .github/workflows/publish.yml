@@ -1,0 +1,49 @@
+name: publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    name: npm publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+
+      # Tag-triggered runs must publish exactly the version they claim.
+      # Manual (workflow_dispatch) runs have no tag, so the check is skipped.
+      - name: Verify tag matches package.json version
+        if: github.event_name == 'push'
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          pkg_version="$(npm pkg get version | tr -d '"')"
+          if [ "$tag_version" != "$pkg_version" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match package.json version ${pkg_version}."
+            echo "Refusing to publish: tag ${GITHUB_REF_NAME} implies version ${tag_version}, but package.json says ${pkg_version}." >&2
+            echo "Fix: set package.json version to ${tag_version} (or delete the tag and re-tag as v${pkg_version}), then push again." >&2
+            exit 1
+          fi
+          echo "Tag ${GITHUB_REF_NAME} matches package.json version ${pkg_version}."
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

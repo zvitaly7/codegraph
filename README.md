@@ -46,7 +46,7 @@ Builds a deterministic map of a JavaScript/TypeScript codebase — files, symbol
 ## 🚀 Quick start
 
 > [!NOTE]
-> The package is **not published to npm yet**. Use it from a clone.
+> From the first tagged release onward the package is published to npm as **`loregraph`** (`npm i -g loregraph`). Until that release ships, use it from a clone.
 
 ```bash
 git clone <repo-url> loregraph
@@ -371,6 +371,19 @@ npm test        # vitest run
 ```
 
 The suite is **470 tests across 48 files**, all passing at the current revision. It includes the incremental equality gate, which asserts that incremental heavy-layer artifacts are byte-identical to a full rebuild.
+
+## 🚢 Publishing
+
+Releases are published by GitHub Actions from [`.github/workflows/publish.yml`](.github/workflows/publish.yml): pushing a `v*` tag installs, runs the suite and publishes to npm.
+
+```bash
+npm version patch                    # bumps package.json and creates the matching vX.Y.Z tag
+git push origin main --follow-tags   # or: git push origin vX.Y.Z
+```
+
+- The tag and `package.json` must agree — tag `v1.2.3` ⇔ version `1.2.3`. The workflow checks this first and fails loudly on a mismatch, so bump the version before tagging.
+- The repository needs an `NPM_TOKEN` secret (an npm **automation** token with publish rights) under *Settings → Secrets and variables → Actions*.
+- The workflow can also be started by hand from the Actions tab (`workflow_dispatch`); manual runs skip the tag check and publish whatever `package.json` says.
 
 ## 📄 License
 
