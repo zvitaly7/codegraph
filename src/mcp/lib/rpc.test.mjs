@@ -21,7 +21,7 @@ beforeEach(() => { g = tinyGraph(); });
 describe('handleRequest — protocol methods', () => {
   it('initialize returns serverInfo + tools capability', () => {
     const r = handleRequest({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } }, g);
-    expect(r.result.serverInfo).toEqual({ name: 'codegraph', version: '0.1.0' });
+    expect(r.result.serverInfo).toEqual({ name: 'loregraph', version: '0.1.0' });
     expect(r.result.capabilities).toEqual({ tools: {} });
     expect(r.result.protocolVersion).toBe('2025-06-18'); // echoes client's
   });

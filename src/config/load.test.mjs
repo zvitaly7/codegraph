@@ -36,13 +36,13 @@ describe('resolveConfig', () => {
     expect(cfg.outDir).toBe(join(dir, '.cli-cache')); // CLI --out still wins over the file
   });
 
-  it('zero-config lookup falls back to codegraph.config.json when .mjs is absent', async () => {
+  it('zero-config lookup falls back to loregraph.config.json when .mjs is absent', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'cg-load-json-zero-'));
-    writeFileSync(join(dir, 'codegraph.config.json'), JSON.stringify({ srcRoots: ['lib'] }), 'utf8');
+    writeFileSync(join(dir, 'loregraph.config.json'), JSON.stringify({ srcRoots: ['lib'] }), 'utf8');
 
     const cfg = await resolveConfig({ cwd: dir, argv: ['--repo-root', dir] });
 
-    expect(cfg.srcRoots).toEqual(['lib']); // auto-discovered codegraph.config.json
+    expect(cfg.srcRoots).toEqual(['lib']); // auto-discovered loregraph.config.json
   });
 
   it('defaults incremental to off', async () => {
@@ -61,7 +61,7 @@ describe('resolveConfig', () => {
 
   it('incremental flag overrides the config file, which overrides the default', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'cg-load-inc-'));
-    writeFileSync(join(dir, 'codegraph.config.json'), JSON.stringify({ incremental: 'incremental' }), 'utf8');
+    writeFileSync(join(dir, 'loregraph.config.json'), JSON.stringify({ incremental: 'incremental' }), 'utf8');
 
     // Config file wins over the default when no flag is given.
     const fromFile = await resolveConfig({ cwd: dir, argv: ['--repo-root', dir] });

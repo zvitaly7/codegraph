@@ -16,7 +16,7 @@ const COMMANDS = {
   regenerate: () => import('../src/orchestrate/regenerate.mjs'),
 };
 
-const USAGE = `codegraph <command> [options]
+const USAGE = `loregraph <command> [options]
 
 Commands:
   regenerate   Build the whole graph in dependency order

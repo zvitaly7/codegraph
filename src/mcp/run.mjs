@@ -5,7 +5,7 @@ import { loadGraph } from '../lib/graph_load.mjs';
 import { serve } from './lib/rpc.mjs';
 
 /**
- * `codegraph mcp` — start the stdio MCP server over the loaded graph.
+ * `loregraph mcp` — start the stdio MCP server over the loaded graph.
  *
  * Reads the graph artifacts under `--cache DIR` (default: the resolved
  * `outDir`), then serves JSON-RPC 2.0 on stdin/stdout. stdout carries ONLY
@@ -31,9 +31,9 @@ export async function run(argv) {
   const staleness = checkStaleness(cacheDir);
   if (staleness.stale === true && staleness.cacheRevision) {
     process.stderr.write(
-      `[codegraph] warning: graph cache is at ${staleness.cacheRevision}, `
+      `[loregraph] warning: graph cache is at ${staleness.cacheRevision}, `
       + `repo is at ${staleness.currentRevision} `
-      + '— run `codegraph regenerate` to refresh\n',
+      + '— run `loregraph regenerate` to refresh\n',
     );
   }
 
@@ -47,11 +47,11 @@ export async function run(argv) {
 
   const layers = graph.loadedLayers.length > 0 ? graph.loadedLayers.join(',') : 'none';
   process.stderr.write(
-    `[codegraph mcp] cache=${cacheDir} layers=${layers} `
+    `[loregraph mcp] cache=${cacheDir} layers=${layers} `
     + `nodes=${graph.stats.nodes} edges=${graph.stats.edges}\n`,
   );
   if (graph.empty) {
-    process.stderr.write('[codegraph mcp] graph empty — run `codegraph regenerate`\n');
+    process.stderr.write('[loregraph mcp] graph empty — run `loregraph regenerate`\n');
   }
 
   await serve(graph, { input: process.stdin, output: process.stdout });

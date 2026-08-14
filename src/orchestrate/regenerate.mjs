@@ -3,7 +3,7 @@ import { resolveConfig } from '../config/load.mjs';
 import { checkStaleness } from '../lib/staleness.mjs';
 
 /**
- * `codegraph regenerate` — the one-shot orchestrator. Runs every graph layer in
+ * `loregraph regenerate` — the one-shot orchestrator. Runs every graph layer in
  * dependency order against a SINGLE repo snapshot, all sharing one base cache, so
  * the resulting artifacts are mutually consistent. Fail-fast: the first layer to
  * return a non-zero exit code (or throw) aborts the whole pipeline with that same
@@ -24,7 +24,7 @@ import { checkStaleness } from '../lib/staleness.mjs';
  *
  * NOTE: references/usages build a TypeScript program over the whole repo and run
  * the type-checker, so on BIG repos the process may need a larger V8 heap — launch
- * it with `NODE_OPTIONS=--max-old-space-size=8192 codegraph regenerate ...`. This
+ * it with `NODE_OPTIONS=--max-old-space-size=8192 loregraph regenerate ...`. This
  * is documented, not forced, so small repos stay light.
  */
 
@@ -144,7 +144,7 @@ export async function run(argv) {
   emit(`✔ regenerate complete in ${total}`);
   emit(`  base cache: ${outDir}`);
   emit('Next:');
-  emit(`  Explore/query: codegraph mcp --cache ${outDir}`);
+  emit(`  Explore/query: loregraph mcp --cache ${outDir}`);
   if (!skipExplorer) {
     emit(`  Browser index: open ${outDir}/explorer/index.html`);
   }

@@ -18,13 +18,13 @@ export async function resolveConfig({ cwd, argv, extraOptions = {} }) {
 
   const repoRoot = resolve(cwd, values['repo-root'] ?? '.');
 
-  // Optional config file: explicit --config, else codegraph.config.{mjs,json}
+  // Optional config file: explicit --config, else loregraph.config.{mjs,json}
   // at repo root (checked in that order).
   let fileCfg = {};
   let configPath = values['config'] ? resolve(cwd, values['config']) : undefined;
   if (!configPath) {
-    const mjsPath = resolve(repoRoot, 'codegraph.config.mjs');
-    const jsonPath = resolve(repoRoot, 'codegraph.config.json');
+    const mjsPath = resolve(repoRoot, 'loregraph.config.mjs');
+    const jsonPath = resolve(repoRoot, 'loregraph.config.json');
     configPath = existsSync(mjsPath) ? mjsPath : jsonPath;
   }
   if (existsSync(configPath)) {
@@ -47,7 +47,7 @@ export async function resolveConfig({ cwd, argv, extraOptions = {} }) {
     // when a command declares `--incremental` in its extraOptions.
     incremental: values.incremental ?? fileCfg.incremental ?? DEFAULTS.incremental,
     _flags: values,
-    // Bare arguments, in order — e.g. the `<target>` of `codegraph brief`.
+    // Bare arguments, in order — e.g. the `<target>` of `loregraph brief`.
     _positionals: positionals,
   };
 }

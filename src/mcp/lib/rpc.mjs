@@ -11,7 +11,7 @@ import readline from 'node:readline';
 import { TOOLS, TOOL_NAMES, callTool } from './tools.mjs';
 
 const JSONRPC = '2.0';
-const SERVER_INFO = { name: 'codegraph', version: '0.1.0' };
+const SERVER_INFO = { name: 'loregraph', version: '0.1.0' };
 /** Protocol version echoed to a client that omits its own. */
 const DEFAULT_PROTOCOL_VERSION = '2024-11-05';
 

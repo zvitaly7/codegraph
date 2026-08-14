@@ -79,7 +79,7 @@ const CONFIG_FILENAMES = new Set([
   '.editorconfig', '.nvmrc', '.node-version',
   '.gitignore', '.gitattributes', '.dockerignore', '.npmignore', '.kgignore',
   'dockerfile', 'docker-compose.yml', 'docker-compose.yaml',
-  'makefile', 'codegraph.config.mjs', 'codegraph.config.json',
+  'makefile', 'loregraph.config.mjs', 'loregraph.config.json',
 ]);
 
 const CONFIG_EXTS = new Set([

@@ -1,4 +1,4 @@
-// `codegraph impact` — review context for a change: what it touches, what it
+// `loregraph impact` — review context for a change: what it touches, what it
 // might break, and which tests to run.
 //
 // The changed set comes from either `--files a.ts,b.ts` (explicit) or a VCS
@@ -64,13 +64,13 @@ export async function run(argv) {
 
   const cache = flags.cache ? resolve(cwd, flags.cache) : cfg.outDir;
   if (!existsSync(cache)) {
-    console.error(`impact: cache dir not found: ${cache} — run \`codegraph regenerate\` first`);
+    console.error(`impact: cache dir not found: ${cache} — run \`loregraph regenerate\` first`);
     return 2;
   }
 
   const graph = loadGraph(cache);
   if (graph.loadedLayers.length === 0) {
-    console.error(`impact: no graph artifacts under ${cache} — run \`codegraph regenerate\` first`);
+    console.error(`impact: no graph artifacts under ${cache} — run \`loregraph regenerate\` first`);
     return 2;
   }
 
@@ -100,8 +100,8 @@ export async function run(argv) {
   const staleness = checkStaleness(cache);
   if (staleness.stale === true && staleness.cacheRevision) {
     process.stderr.write(
-      `[codegraph] warning: cache is at ${staleness.cacheRevision}, repo is at `
-      + `${staleness.currentRevision} — impact may be stale, run \`codegraph regenerate\`\n`,
+      `[loregraph] warning: cache is at ${staleness.cacheRevision}, repo is at `
+      + `${staleness.currentRevision} — impact may be stale, run \`loregraph regenerate\`\n`,
     );
   }
 

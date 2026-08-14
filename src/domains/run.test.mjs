@@ -130,7 +130,7 @@ describe('domains run — config override mode', () => {
       export const ALIASES = { cart: 'cart', checkout: 'checkout' };
       export const AREA_BUCKETS = [];
     `);
-    writeFileSync(join(repoRoot, 'codegraph.config.mjs'),
+    writeFileSync(join(repoRoot, 'loregraph.config.mjs'),
       "export default { domains: './domains.config.mjs' };");
 
     const code = await run(['--repo-root', repoRoot, '--out', out]);

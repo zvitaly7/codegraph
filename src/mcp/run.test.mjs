@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, execFileSync } from 'node:child_process';
 
-const BIN = fileURLToPath(new URL('../../bin/codegraph.mjs', import.meta.url));
+const BIN = fileURLToPath(new URL('../../bin/loregraph.mjs', import.meta.url));
 
 /** A minimal two-layer cache: one File node + one IMPORTS edge. */
 function buildCache() {
@@ -65,7 +65,7 @@ function runMcp(cache, lines) {
 let cache;
 beforeEach(() => { cache = buildCache(); });
 
-describe('codegraph mcp (end-to-end CLI)', () => {
+describe('loregraph mcp (end-to-end CLI)', () => {
   it('serves tools/list and tools/call over stdio, then exits 0 on EOF', async () => {
     const { code, stdout, stderr } = await runMcp(cache, [
       '{"jsonrpc":"2.0","id":1,"method":"tools/list"}',
@@ -83,7 +83,7 @@ describe('codegraph mcp (end-to-end CLI)', () => {
     expect(payload.results.map((n) => n.id)).toContain('file:src/run.mjs');
 
     // Diagnostics go to stderr, never stdout.
-    expect(stderr).toContain('[codegraph mcp]');
+    expect(stderr).toContain('[loregraph mcp]');
     expect(stderr).toContain('layers=inventory,imports');
   }, 20000);
 
@@ -96,8 +96,8 @@ describe('codegraph mcp (end-to-end CLI)', () => {
       '{"jsonrpc":"2.0","id":1,"method":"tools/list"}',
     ]);
     expect(code).toBe(0);
-    expect(stderr).toContain('[codegraph] warning: graph cache is at deadbeefcafe');
-    expect(stderr).toContain('run `codegraph regenerate` to refresh');
+    expect(stderr).toContain('[loregraph] warning: graph cache is at deadbeefcafe');
+    expect(stderr).toContain('run `loregraph regenerate` to refresh');
     // The warning must never leak onto the protocol stream.
     expect(stdout).not.toContain('warning');
     // Serving is not blocked — tools/list still answered.

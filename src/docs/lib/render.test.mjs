@@ -137,7 +137,7 @@ describe('renderDocs — page set', () => {
       expect(p.content).toContain('abc123def');            // the rev from the manifest
       expect(p.content.toLowerCase()).toMatch(/auto-generated/);
       expect(p.content.toLowerCase()).toMatch(/structure/);
-      expect(p.content).toContain('codegraph:begin generated'); // where human notes must NOT go
+      expect(p.content).toContain('loregraph:begin generated'); // where human notes must NOT go
     }
   });
 
@@ -145,7 +145,7 @@ describe('renderDocs — page set', () => {
     // The header mentions the marker name in prose, but no page ships a real block —
     // wrapping is the merge step's job, so a body is never double-wrapped.
     for (const p of pages) {
-      expect(p.content).not.toContain('<!-- codegraph:begin generated -->');
+      expect(p.content).not.toContain('<!-- loregraph:begin generated -->');
     }
   });
 
@@ -195,8 +195,8 @@ describe('AGENTS.md', () => {
 
   it('tells the agent to prefer brief/impact/MCP over reading many files', () => {
     const c = page('agents').content;
-    expect(c).toContain('codegraph brief');
-    expect(c).toContain('codegraph impact');
+    expect(c).toContain('loregraph brief');
+    expect(c).toContain('loregraph impact');
     expect(c).toMatch(/MCP/);
     expect(c.toLowerCase()).toMatch(/token/);
   });
@@ -264,7 +264,7 @@ describe('i18n', () => {
     expect(ruAgents).not.toBe(enAgents);
     expect(ruAgents).toMatch(/[А-Яа-я]/);           // localized headings
     // identifiers and paths are untouched
-    for (const token of ['demo-shop', 'checkout', 'core', 'ui', 'react', 'src/', 'codegraph brief']) {
+    for (const token of ['demo-shop', 'checkout', 'core', 'ui', 'react', 'src/', 'loregraph brief']) {
       expect(ruAgents).toContain(token);
     }
     // the page set and file names are identical across languages

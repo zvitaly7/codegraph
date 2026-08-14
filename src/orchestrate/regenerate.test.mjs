@@ -90,7 +90,7 @@ describe('regenerate orchestrator — happy path', () => {
     for (const layer of [...LAYERS, 'references', 'usages', 'explorer']) {
       expect(err).toContain(`▶ ${layer}`); // "▶ <layer>"
     }
-    expect(err).toContain(`Explore/query: codegraph mcp --cache ${base}`);
+    expect(err).toContain(`Explore/query: loregraph mcp --cache ${base}`);
     expect(err).toContain('heavy layers mode=off'); // default mode
 
     // Orchestrator chatter must never touch stdout (would corrupt layer artifacts).
@@ -107,7 +107,7 @@ describe('regenerate orchestrator — happy path', () => {
     const code = await run(['--repo-root', repo, '--out', base, '--skip-explorer']);
     expect(code).toBe(0);
     const err = errLines.join('');
-    expect(err).toContain('Explore/query: codegraph mcp --cache');
+    expect(err).toContain('Explore/query: loregraph mcp --cache');
     expect(err).not.toContain('▶ explorer');
     expect(existsSync(join(base, 'explorer', 'graph-index.json'))).toBe(false);
     // Heavy layers still ran.

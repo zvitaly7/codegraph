@@ -1,4 +1,4 @@
-// `codegraph explorer` — build the browser index from cached graph artifacts,
+// `loregraph explorer` — build the browser index from cached graph artifacts,
 // and (optionally) serve the explorer directory over HTTP for local browsing.
 //
 // Reads every present layer under <cache> (default: the resolved outDir),
@@ -82,7 +82,7 @@ async function serveUntilSignal(dir, port) {
   const server = await startStaticServer(dir, port);
   const url = `http://localhost:${port}/`;
   // The URL goes to stderr so stdout stays a clean summary line.
-  process.stderr.write(`[codegraph] explorer serving ${dir} at ${url} (Ctrl+C to stop)\n`);
+  process.stderr.write(`[loregraph] explorer serving ${dir} at ${url} (Ctrl+C to stop)\n`);
   await new Promise((resolvePromise) => {
     const shutdown = () => server.close(() => resolvePromise());
     process.once('SIGINT', shutdown);
@@ -122,13 +122,13 @@ export async function run(argv) {
   }
 
   if (!existsSync(cache)) {
-    console.error(`explorer: cache dir not found: ${cache} — run \`codegraph regenerate\` first`);
+    console.error(`explorer: cache dir not found: ${cache} — run \`loregraph regenerate\` first`);
     return 2;
   }
 
   const graph = loadGraph(cache);
   if (graph.loadedLayers.length === 0) {
-    console.error(`explorer: no graph artifacts under ${cache} — run \`codegraph regenerate\` first`);
+    console.error(`explorer: no graph artifacts under ${cache} — run \`loregraph regenerate\` first`);
     return 2;
   }
 
@@ -151,7 +151,7 @@ export async function run(argv) {
 
   const { files, symbols, packages, domains, edges } = index.stats;
   console.log(
-    `[codegraph] explorer files=${files} symbols=${symbols} packages=${packages} `
+    `[loregraph] explorer files=${files} symbols=${symbols} packages=${packages} `
     + `domains=${domains} edges=${edges} layers=${graph.loadedLayers.join('+')} out=${outPath}`,
   );
 

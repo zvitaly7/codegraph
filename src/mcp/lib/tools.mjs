@@ -258,7 +258,7 @@ export function deadExports(graph, { limit = FIND_CAP } = {}) {
         + 'Dynamic/string-keyed access and non-TS entry points are still invisible.'
       : 'Best-effort only: no references layer is loaded, so symbol-level usages are '
         + 'unknown and EVERY exported symbol is reported as a candidate. '
-        + 'Run `codegraph references` for precision.',
+        + 'Run `loregraph references` for precision.',
     precise,
     exportedSymbols: exported.length,
     total: candidates.length,
@@ -500,7 +500,7 @@ export function callTool(graph, name, args = {}) {
   if (!fn) throw new Error(`Unknown tool: ${name}`);
   const result = fn(graph, args ?? {});
   if (graph.empty && result && typeof result === 'object' && !Array.isArray(result)) {
-    return { note: 'graph empty — run `codegraph regenerate`', ...result };
+    return { note: 'graph empty — run `loregraph regenerate`', ...result };
   }
   return result;
 }

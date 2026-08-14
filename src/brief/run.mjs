@@ -1,4 +1,4 @@
-// `codegraph brief <target>` — print the context pack for a file, domain or symbol.
+// `loregraph brief <target>` — print the context pack for a file, domain or symbol.
 //
 // Reads the cached graph under `--cache DIR` (default: the resolved outDir) and
 // prints a few dense lines to stdout — or the raw structured object with --json.
@@ -54,13 +54,13 @@ export async function run(argv) {
 
   const cache = flags.cache ? resolve(cwd, flags.cache) : cfg.outDir;
   if (!existsSync(cache)) {
-    console.error(`brief: cache dir not found: ${cache} — run \`codegraph regenerate\` first`);
+    console.error(`brief: cache dir not found: ${cache} — run \`loregraph regenerate\` first`);
     return 2;
   }
 
   const graph = loadGraph(cache);
   if (graph.loadedLayers.length === 0) {
-    console.error(`brief: no graph artifacts under ${cache} — run \`codegraph regenerate\` first`);
+    console.error(`brief: no graph artifacts under ${cache} — run \`loregraph regenerate\` first`);
     return 2;
   }
 
@@ -69,8 +69,8 @@ export async function run(argv) {
   const staleness = checkStaleness(cache);
   if (staleness.stale === true && staleness.cacheRevision) {
     process.stderr.write(
-      `[codegraph] warning: cache is at ${staleness.cacheRevision}, repo is at `
-      + `${staleness.currentRevision} — run \`codegraph regenerate\`\n`,
+      `[loregraph] warning: cache is at ${staleness.cacheRevision}, repo is at `
+      + `${staleness.currentRevision} — run \`loregraph regenerate\`\n`,
     );
   }
 

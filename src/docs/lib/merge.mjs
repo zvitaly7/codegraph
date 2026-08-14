@@ -2,21 +2,21 @@
 //
 // A generated page is one block delimited by HTML comments:
 //
-//   <!-- codegraph:begin generated -->
-//   ...everything here is owned by `codegraph docs` and rewritten on every run...
-//   <!-- codegraph:end generated -->
+//   <!-- loregraph:begin generated -->
+//   ...everything here is owned by `loregraph docs` and rewritten on every run...
+//   <!-- loregraph:end generated -->
 //
 // Anything OUTSIDE that block — a paragraph above it, team notes below it — is
 // carried over byte for byte. A target file that has no usable block is assumed
-// to be hand-authored and is skipped, so `codegraph docs` can never silently
+// to be hand-authored and is skipped, so `loregraph docs` can never silently
 // eat someone's `AGENTS.md`; `--force` opts into overwriting it.
 //
 // Pure string in, string out: no I/O lives here.
 
 /** Opening delimiter of the generated block. */
-export const BEGIN_MARKER = '<!-- codegraph:begin generated -->';
+export const BEGIN_MARKER = '<!-- loregraph:begin generated -->';
 /** Closing delimiter of the generated block. */
-export const END_MARKER = '<!-- codegraph:end generated -->';
+export const END_MARKER = '<!-- loregraph:end generated -->';
 
 /**
  * Locate the generated block in `text`.

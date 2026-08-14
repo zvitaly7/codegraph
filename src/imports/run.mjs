@@ -56,7 +56,7 @@ export async function run(argv) {
 
   const inventoryDir = flags.inventory ? resolve(cwd, flags.inventory) : join(outDir, 'inventory');
   if (!existsSync(join(inventoryDir, 'manifest.json'))) {
-    console.error(`imports: no inventory found at ${inventoryDir} — run \`codegraph inventory\` first`);
+    console.error(`imports: no inventory found at ${inventoryDir} — run \`loregraph inventory\` first`);
     return 2;
   }
 
@@ -113,7 +113,7 @@ export async function run(argv) {
   }
 
   console.log(
-    `[codegraph] sources=${counts.files} internal=${counts.internal} external=${counts.external} `
+    `[loregraph] sources=${counts.files} internal=${counts.internal} external=${counts.external} `
     + `unresolved=${counts.unresolved} rate=${resolutionRate.toFixed(4)} out=${outBase}`,
   );
 

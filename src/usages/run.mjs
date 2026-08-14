@@ -19,7 +19,7 @@ const SCHEMA_VERSION = 1;
 // NOTE: this layer builds a TypeScript `Program` over the whole source set and
 // runs the type-checker to resolve uses. On large repos that can exceed Node's
 // default heap — if you hit "JS heap out of memory", raise it with
-//   NODE_OPTIONS=--max-old-space-size=8192 codegraph usages ...
+//   NODE_OPTIONS=--max-old-space-size=8192 loregraph usages ...
 // (documented, not forced, so small repos stay light).
 
 /** Read every row of a .jsonl file (blank lines skipped). */
@@ -169,13 +169,13 @@ export async function run(argv) {
 
   const inventoryDir = flags.inventory ? resolve(cwd, flags.inventory) : join(outDir, 'inventory');
   if (!existsSync(join(inventoryDir, 'manifest.json'))) {
-    console.error(`usages: no inventory found at ${inventoryDir} — run \`codegraph inventory\` first`);
+    console.error(`usages: no inventory found at ${inventoryDir} — run \`loregraph inventory\` first`);
     return 2;
   }
 
   const symbolsDir = flags.symbols ? resolve(cwd, flags.symbols) : join(outDir, 'symbols');
   if (!existsSync(join(symbolsDir, 'manifest.json'))) {
-    console.error(`usages: no symbols found at ${symbolsDir} — run \`codegraph symbols\` first`);
+    console.error(`usages: no symbols found at ${symbolsDir} — run \`loregraph symbols\` first`);
     return 2;
   }
 
@@ -234,7 +234,7 @@ export async function run(argv) {
   }
 
   console.log(
-    `[codegraph] usesSymbols=${counts.symbols} edges=${counts.edges} out=${outBase}`,
+    `[loregraph] usesSymbols=${counts.symbols} edges=${counts.edges} out=${outBase}`,
   );
 
   return 0;

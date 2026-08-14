@@ -1,12 +1,12 @@
-// Example domains overlay override for codegraph — a small, generic sample.
+// Example domains overlay override for loregraph — a small, generic sample.
 //
-// By default codegraph auto-derives the domain tables from your file tree
+// By default loregraph auto-derives the domain tables from your file tree
 // (each first-level directory under a src root becomes a product domain; every
 // other top-level directory becomes an infra "area bucket"). Supply this file
 // only when you want to name domains explicitly, merge several directories into
 // one domain, or alias differently-named folders together.
 //
-// Wire it up from codegraph.config.mjs, e.g.:
+// Wire it up from loregraph.config.mjs, e.g.:
 //
 //   export default { domains: './examples/example.domains.config.mjs' };
 //

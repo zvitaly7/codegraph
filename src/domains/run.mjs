@@ -48,7 +48,7 @@ export async function run(argv) {
 
   const inventoryDir = flags.inventory ? resolve(cwd, flags.inventory) : join(outDir, 'inventory');
   if (!existsSync(join(inventoryDir, 'manifest.json'))) {
-    console.error(`domains: no inventory found at ${inventoryDir} — run \`codegraph inventory\` first`);
+    console.error(`domains: no inventory found at ${inventoryDir} — run \`loregraph inventory\` first`);
     return 2;
   }
 
@@ -115,11 +115,11 @@ export async function run(argv) {
   }
 
   console.log(
-    `[codegraph] mode=${domainsConfig.mode} domains=${counts.domains} files=${counts.files} `
+    `[loregraph] mode=${domainsConfig.mode} domains=${counts.domains} files=${counts.files} `
     + `belongsTo=${counts.belongsTo} dependsOn=${counts.dependsOn} out=${outBase}`,
   );
   if (!hasImports) {
-    console.log('[codegraph] no imports artifact found — emitted Domain + BELONGS_TO only (no DEPENDS_ON)');
+    console.log('[loregraph] no imports artifact found — emitted Domain + BELONGS_TO only (no DEPENDS_ON)');
   }
 
   return 0;

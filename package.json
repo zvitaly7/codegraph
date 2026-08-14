@@ -1,9 +1,9 @@
 {
-  "name": "codegraph",
+  "name": "loregraph",
   "version": "0.1.0",
   "description": "Deterministic, layered code knowledge graph for any JS/TS repo, with an MCP server for agents.",
   "type": "module",
-  "bin": { "codegraph": "bin/codegraph.mjs" },
+  "bin": { "loregraph": "bin/loregraph.mjs" },
   "engines": { "node": ">=18" },
   "dependencies": {
     "ignore": "^5.3.2",

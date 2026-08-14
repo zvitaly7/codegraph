@@ -1,6 +1,6 @@
 <div align="center">
 
-<h1>codegraph</h1>
+<h1>loregraph</h1>
 
 <p><b>Deterministic, layered code knowledge graph for any JS/TS repo, with an MCP server for agents.</b></p>
 
@@ -32,13 +32,13 @@ Builds a deterministic map of a JavaScript/TypeScript codebase — files, symbol
 ## 📸 Screenshots
 
 <div align="center">
-  <img src="docs/images/explorer-dashboard.png" alt="codegraph explorer dashboard listing biggest domains, most-used symbols and dead exports" width="820">
+  <img src="docs/images/explorer-dashboard.png" alt="loregraph explorer dashboard listing biggest domains, most-used symbols and dead exports" width="820">
   <br>
   <sub><i>The landing dashboard — repo-wide insight cards computed from the graph.</i></sub>
 </div>
 
 <div align="center">
-  <img src="docs/images/explorer-focus.png" alt="codegraph explorer focus view for a single node showing dependents and dependencies" width="820">
+  <img src="docs/images/explorer-focus.png" alt="loregraph explorer focus view for a single node showing dependents and dependencies" width="820">
   <br>
   <sub><i>The focus view — one node, what depends on it, and what it depends on.</i></sub>
 </div>
@@ -49,43 +49,43 @@ Builds a deterministic map of a JavaScript/TypeScript codebase — files, symbol
 > The package is **not published to npm yet**. Use it from a clone.
 
 ```bash
-git clone <repo-url> codegraph
-cd codegraph
+git clone <repo-url> loregraph
+cd loregraph
 npm install
 ```
 
 Run it directly:
 
 ```bash
-node bin/codegraph.mjs regenerate --repo-root /path/to/your-repo --out /path/to/your-repo/.kg-cache
+node bin/loregraph.mjs regenerate --repo-root /path/to/your-repo --out /path/to/your-repo/.kg-cache
 ```
 
-Or link it once to get a global `codegraph` binary:
+Or link it once to get a global `loregraph` binary:
 
 ```bash
-npm link          # in the codegraph clone
-codegraph regenerate --repo-root /path/to/your-repo
+npm link          # in the loregraph clone
+loregraph regenerate --repo-root /path/to/your-repo
 ```
 
 Build the whole graph, then browse it:
 
 ```bash
 cd /path/to/your-repo
-codegraph regenerate
-codegraph explorer --serve      # http://localhost:8765/
+loregraph regenerate
+loregraph explorer --serve      # http://localhost:8765/
 ```
 
 Ask it things from the terminal:
 
 ```bash
-codegraph brief src/checkout/Cart.tsx    # a path, a path suffix, a domain or a symbol name
-codegraph impact --diff main             # what this branch touches, and which tests to run
+loregraph brief src/checkout/Cart.tsx    # a path, a path suffix, a domain or a symbol name
+loregraph impact --diff main             # what this branch touches, and which tests to run
 ```
 
 Serve it to an agent over MCP (stdio JSON-RPC 2.0):
 
 ```bash
-codegraph mcp --cache /path/to/your-repo/.kg-cache
+loregraph mcp --cache /path/to/your-repo/.kg-cache
 ```
 
 An MCP client entry looks like this:
@@ -93,8 +93,8 @@ An MCP client entry looks like this:
 ```json
 {
   "mcpServers": {
-    "codegraph": {
-      "command": "codegraph",
+    "loregraph": {
+      "command": "loregraph",
       "args": ["mcp", "--cache", "/path/to/your-repo/.kg-cache"]
     }
   }
@@ -105,7 +105,7 @@ An MCP client entry looks like this:
 > Very large repos: the `references` and `usages` layers build a TypeScript program over the whole source set and run the type-checker. If Node runs out of heap, raise it:
 
 ```bash
-NODE_OPTIONS=--max-old-space-size=8192 codegraph regenerate
+NODE_OPTIONS=--max-old-space-size=8192 loregraph regenerate
 ```
 
 ## 🧩 Commands
@@ -135,9 +135,9 @@ Exit codes: `0` success, `2` a usage error or a missing prerequisite (no cache, 
 > An agent asked "what is this file and what breaks if I change it?" normally opens the file, then its importers, then their importers. `brief` and `impact` answer from the graph instead.
 
 <details>
-<summary><b>Real captured output — <code>brief</code> and <code>impact</code> on codegraph's own repo</b></summary>
+<summary><b>Real captured output — <code>brief</code> and <code>impact</code> on loregraph's own repo</b></summary>
 
-`codegraph brief src/lib/graph_load.mjs` — real output, captured on codegraph's own repo:
+`loregraph brief src/lib/graph_load.mjs` — real output, captured on loregraph's own repo:
 
 ```
 FILE src/lib/graph_load.mjs  (JavaScript, code, 5.4 KB)
@@ -145,7 +145,7 @@ domain: lib
 imports (0 internal): —
 packages (2): node:fs, node:path
 imported by (11): src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/explorer/run.mjs, src/impact/lib/impact.test.mjs, src/impact/run.mjs, src/lib/graph_load.test.mjs, src/mcp/lib/rpc.test.mjs, src/mcp/lib/tools.test.mjs (+1 more)
-blast radius (18): bin/codegraph.mjs, src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/docs/run.test.mjs, src/explorer/run.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs (+8 more)
+blast radius (18): bin/loregraph.mjs, src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/docs/run.test.mjs, src/explorer/run.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs (+8 more)
 symbols (5):
   GRAPH_LAYERS variable exported L22 refs=1
   readJsonl function L27 refs=0
@@ -154,13 +154,13 @@ symbols (5):
   loadGraph function exported L64 refs=11
 ```
 
-`codegraph impact --files src/lib/graph_load.mjs` — same repo:
+`loregraph impact --files src/lib/graph_load.mjs` — same repo:
 
 ```
 IMPACT  1 changed file(s)  (files)
 changed by domain:
   lib (1): src/lib/graph_load.mjs
-blast radius (18): bin/codegraph.mjs, src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/docs/run.test.mjs, src/explorer/run.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs (+8 more)
+blast radius (18): bin/loregraph.mjs, src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/docs/run.test.mjs, src/explorer/run.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs (+8 more)
 affected domains (8): brief(3), docs(3), impact(3), mcp(3), explorer(2), lib(2), orchestrate(2), bin(1)
 risky exports (2):
   loadGraph src/lib/graph_load.mjs:64 refs=11 <- src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/docs/lib/render.test.mjs (+8 more)
@@ -172,9 +172,9 @@ likely tests (11): src/brief/lib/brief.test.mjs, src/brief/run.test.mjs, src/doc
 
 ### Measured size comparison
 
-Measured in this repo, on codegraph's own source tree (107 files, 100 JS/TS sources), by byte count of the exact outputs above:
+Measured in this repo, on loregraph's own source tree (107 files, 100 JS/TS sources), by byte count of the exact outputs above:
 
-| Question | codegraph output | Reading the files instead | Difference |
+| Question | loregraph output | Reading the files instead | Difference |
 | :--- | :--- | :--- | :--- |
 | "What is `graph_load.mjs` and who uses it?" | `brief`, **874 B** | the file + its 11 direct importers = **86,233 B** | ~99% less |
 | "What breaks if I change it, and what should I run?" | `impact`, **1,001 B** | the file + its 18 blast-radius files = **136,384 B** | ~99% less |
@@ -183,7 +183,7 @@ This compares bytes, not tokens, and it assumes the agent would otherwise read t
 
 ### MCP server
 
-`codegraph mcp` speaks JSON-RPC 2.0 on stdin/stdout (protocol version `2024-11-05`) and exposes **13 tools**. stdout carries protocol traffic only; diagnostics go to stderr.
+`loregraph mcp` speaks JSON-RPC 2.0 on stdin/stdout (protocol version `2024-11-05`) and exposes **13 tools**. stdout carries protocol traffic only; diagnostics go to stderr.
 
 <details>
 <summary><b>All 13 tools and their arguments</b></summary>
@@ -264,7 +264,7 @@ Artifacts live under the cache dir (`.kg-cache` by default), one directory per l
 
 ## ⚙️ Configuration
 
-Optional `codegraph.config.mjs` (default export) or `codegraph.config.json` at the repo root, or `--config FILE`.
+Optional `loregraph.config.mjs` (default export) or `loregraph.config.json` at the repo root, or `--config FILE`.
 
 <details>
 <summary><b>All configuration keys and defaults</b></summary>
@@ -281,16 +281,16 @@ Optional `codegraph.config.mjs` (default export) or `codegraph.config.json` at t
 
 </details>
 
-`codegraph docs` additionally reads a `lang` key (`'en'` or `'ru'`, default `'en'`); `--lang` overrides it.
+`loregraph docs` additionally reads a `lang` key (`'en'` or `'ru'`, default `'en'`); `--lang` overrides it.
 
 Precedence is flag → config file → default. See [`examples/example.domains.config.mjs`](examples/example.domains.config.mjs) for a commented domains override.
 
 ```js
-// codegraph.config.mjs
+// loregraph.config.mjs
 export default {
   srcRoots: ['src', 'app/src'],
   outDir: '.kg-cache',
-  domains: './codegraph.domains.mjs',
+  domains: './loregraph.domains.mjs',
 };
 ```
 
@@ -299,7 +299,7 @@ export default {
 Every artifact records the revision it was built from. Consumers compare it with the repo's current revision and say so:
 
 ```
-[codegraph] warning: cache is at 669e8c97d6d6df8e2607d3e4ea867cc497dcbe11, repo is at b4f9bdef9f467cc90ad2a4de9652d7de05f0b4d7 — run `codegraph regenerate`
+[loregraph] warning: cache is at 669e8c97d6d6df8e2607d3e4ea867cc497dcbe11, repo is at b4f9bdef9f467cc90ad2a4de9652d7de05f0b4d7 — run `loregraph regenerate`
 ```
 
 `brief`, `impact`, `docs` and `mcp` warn and keep going — a stale answer beats no answer, as long as you know. `explorer` embeds the same signal in its index so the SPA can flag it.
@@ -307,8 +307,8 @@ Every artifact records the revision it was built from. Consumers compare it with
 Rebuild only when it matters:
 
 ```bash
-codegraph regenerate --if-stale     # skips entirely when the cache matches HEAD
-codegraph regenerate --force        # rebuild regardless
+loregraph regenerate --if-stale     # skips entirely when the cache matches HEAD
+loregraph regenerate --force        # rebuild regardless
 ```
 
 ```
@@ -334,7 +334,7 @@ Wall clock on that repo was 0.59 s full vs 0.54 s incremental for `references` a
 
 ## 📝 Generated docs
 
-`codegraph docs` renders Markdown from the graph, so the numbers and links cannot drift from the code:
+`loregraph docs` renders Markdown from the graph, so the numbers and links cannot drift from the code:
 
 | Output | Contents |
 | :--- | :--- |
@@ -344,18 +344,18 @@ Wall clock on that repo was 0.59 s full vs 0.54 s incremental for `references` a
 | `<out-docs>/dependencies.md` | Cross-domain map, external packages, biggest importers. |
 | `<out-docs>/health.md` | Dead exports and orphan candidates. |
 
-Default locations are `<repo>/AGENTS.md` and `<repo>/docs/codegraph/`; `--agents-out` and `--out-docs` move them. On this repo the run produced 21 pages (`AGENTS.md`, three top-level pages, 17 domain pages).
+Default locations are `<repo>/AGENTS.md` and `<repo>/docs/loregraph/`; `--agents-out` and `--out-docs` move them. On this repo the run produced 21 pages (`AGENTS.md`, three top-level pages, 17 domain pages).
 
 Hand-written content survives. Everything generated sits between two markers:
 
 ```markdown
-<!-- codegraph:begin generated -->
+<!-- loregraph:begin generated -->
 ...rewritten on every run...
-<!-- codegraph:end generated -->
+<!-- loregraph:end generated -->
 ```
 
 - Text **outside** the markers is carried over byte for byte — a paragraph above the block and a section below it both survive regeneration.
-- A target file with **no markers at all** is assumed hand-written and is skipped with a warning, so `codegraph docs` can never silently eat someone's `AGENTS.md`. `--force` opts into overwriting it.
+- A target file with **no markers at all** is assumed hand-written and is skipped with a warning, so `loregraph docs` can never silently eat someone's `AGENTS.md`. `--force` opts into overwriting it.
 - Re-running with no code changes reports `unchanged` for every page and writes nothing.
 
 ## 📦 Requirements

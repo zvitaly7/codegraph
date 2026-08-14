@@ -78,13 +78,13 @@ afterEach(() => vi.restoreAllMocks());
 const stdout = () => out.join('\n');
 const stderr = () => [...err, ...warnings].join('\n');
 const read = (...p) => readFileSync(join(...p), 'utf8');
-const docsDir = () => join(repo, 'docs', 'codegraph');
+const docsDir = () => join(repo, 'docs', 'loregraph');
 
 describe('docs CLI — preconditions', () => {
   it('exits 2 and points at regenerate when the cache dir does not exist', async () => {
     const code = await run(['--repo-root', repo, '--cache', join(repo, 'nope')]);
     expect(code).toBe(2);
-    expect(stderr()).toContain('codegraph regenerate');
+    expect(stderr()).toContain('loregraph regenerate');
     expect(existsSync(join(repo, 'AGENTS.md'))).toBe(false);
   });
 
@@ -92,7 +92,7 @@ describe('docs CLI — preconditions', () => {
     const emptyCache = mkdtempSync(join(tmpdir(), 'cg-docs-empty-'));
     const code = await run(['--repo-root', repo, '--cache', emptyCache]);
     expect(code).toBe(2);
-    expect(stderr()).toContain('codegraph regenerate');
+    expect(stderr()).toContain('loregraph regenerate');
   });
 
   it('warns on stderr but still generates from a stale cache', async () => {
@@ -111,7 +111,7 @@ describe('docs CLI — preconditions', () => {
 });
 
 describe('docs CLI — the generated set', () => {
-  it('writes AGENTS.md at the repo root and the pages under docs/codegraph', async () => {
+  it('writes AGENTS.md at the repo root and the pages under docs/loregraph', async () => {
     const code = await run(['--repo-root', repo, '--cache', cache]);
     expect(code).toBe(0);
 
@@ -120,7 +120,7 @@ describe('docs CLI — the generated set', () => {
     }
     const agents = read(repo, 'AGENTS.md');
     expect(agents).toContain('demo');
-    expect(agents).toContain('codegraph brief');
+    expect(agents).toContain('loregraph brief');
     expect(agents).toContain(BEGIN_MARKER);
     expect(agents).toContain(END_MARKER);
     expect(stdout()).toContain('AGENTS.md');
@@ -218,7 +218,7 @@ describe('docs CLI — i18n', () => {
     const agents = read(repo, 'AGENTS.md');
     expect(agents).toMatch(/[А-Яа-я]/);
     expect(agents).toContain('demo');
-    expect(agents).toContain('codegraph brief');
+    expect(agents).toContain('loregraph brief');
     expect(agents).toContain('src/');
     expect(existsSync(join(docsDir(), 'domains', 'core.md'))).toBe(true); // file names unchanged
   });
@@ -230,10 +230,10 @@ describe('docs CLI — i18n', () => {
   });
 
   it('reads the language from the project config when no flag is given', async () => {
-    writeFileSync(join(repo, 'codegraph.config.json'), JSON.stringify({ lang: 'ru' }));
+    writeFileSync(join(repo, 'loregraph.config.json'), JSON.stringify({ lang: 'ru' }));
     await run(['--repo-root', repo, '--cache', cache]);
     expect(read(repo, 'AGENTS.md')).toMatch(/[А-Яа-я]/);
-    rmSync(join(repo, 'codegraph.config.json'));
+    rmSync(join(repo, 'loregraph.config.json'));
   });
 });
 

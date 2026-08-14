@@ -495,7 +495,7 @@
       detailType: "Type",
 
       loadErrorTitle: "Could not load the graph",
-      loadErrorBody: "Failed to fetch {file}. Serve this folder over HTTP (for example with codegraph explorer --serve) and reload."
+      loadErrorBody: "Failed to fetch {file}. Serve this folder over HTTP (for example with loregraph explorer --serve) and reload."
     },
 
     ru: {
@@ -579,7 +579,7 @@
       detailType: "Тип",
 
       loadErrorTitle: "Не удалось загрузить граф",
-      loadErrorBody: "Не удалось получить {file}. Отдавайте эту папку по HTTP (например, командой codegraph explorer --serve) и перезагрузите страницу."
+      loadErrorBody: "Не удалось получить {file}. Отдавайте эту папку по HTTP (например, командой loregraph explorer --serve) и перезагрузите страницу."
     }
   };
 
@@ -609,7 +609,7 @@
   }
 
   /* ---------------------------- state ---------------------------- */
-  let lang = localStorage.getItem("codegraph.lang") || "en";
+  let lang = localStorage.getItem("loregraph.lang") || "en";
   if (!translations[lang]) lang = "en";
 
   const state = {
@@ -1273,7 +1273,7 @@
   function setLang(code) {
     if (!translations[code]) return;
     lang = code;
-    try { localStorage.setItem("codegraph.lang", code); } catch (e) {}
+    try { localStorage.setItem("loregraph.lang", code); } catch (e) {}
     document.documentElement.setAttribute("lang", code);
     renderAll();
   }

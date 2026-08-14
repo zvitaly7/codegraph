@@ -1,4 +1,4 @@
-// `codegraph docs` — generate the agent-facing Markdown docs from the graph.
+// `loregraph docs` — generate the agent-facing Markdown docs from the graph.
 //
 // Teams hand-write an `AGENTS.md` plus a few topic pages and then watch them
 // drift. These are rendered from the computed graph instead, so they cannot:
@@ -6,7 +6,7 @@
 //
 // Layout:
 //   <repoRoot>/AGENTS.md          entry point for agents (--agents-out moves it)
-//   <out-docs>/README.md          index                  (default <repoRoot>/docs/codegraph)
+//   <out-docs>/README.md          index                  (default <repoRoot>/docs/loregraph)
 //   <out-docs>/domains/<d>.md     one page per domain
 //   <out-docs>/dependencies.md    cross-domain map, packages, importers
 //   <out-docs>/health.md          dead exports + orphan candidates
@@ -29,7 +29,7 @@ import { renderDocs, STRINGS, DEFAULT_LANG } from './lib/render.mjs';
 import { mergeGenerated } from './lib/merge.mjs';
 
 /** Where the docs go when `--out-docs` is not given. */
-const DEFAULT_DOCS_SUBDIR = join('docs', 'codegraph');
+const DEFAULT_DOCS_SUBDIR = join('docs', 'loregraph');
 
 /**
  * A POSIX markdown link from one directory to another. A relative link that
@@ -43,7 +43,7 @@ function linkPath(from, to) {
 }
 
 function warn(message) {
-  process.stderr.write(`[codegraph] ${message}\n`);
+  process.stderr.write(`[loregraph] ${message}\n`);
 }
 
 export async function run(argv) {
@@ -87,12 +87,12 @@ export async function run(argv) {
 
   // --- The graph ------------------------------------------------------------
   if (!existsSync(cache)) {
-    console.error(`docs: cache dir not found: ${cache} — run \`codegraph regenerate\` first`);
+    console.error(`docs: cache dir not found: ${cache} — run \`loregraph regenerate\` first`);
     return 2;
   }
   const graph = loadGraph(cache);
   if (graph.loadedLayers.length === 0) {
-    console.error(`docs: no graph artifacts under ${cache} — run \`codegraph regenerate\` first`);
+    console.error(`docs: no graph artifacts under ${cache} — run \`loregraph regenerate\` first`);
     return 2;
   }
 
@@ -100,7 +100,7 @@ export async function run(argv) {
   const staleness = checkStaleness(cache);
   if (staleness.stale === true && staleness.reason === 'revision-changed') {
     warn(`warning: cache is stale — built at ${staleness.cacheRevision}, repo is at `
-      + `${staleness.currentRevision}. Run \`codegraph regenerate\` for current docs.`);
+      + `${staleness.currentRevision}. Run \`loregraph regenerate\` for current docs.`);
   }
 
   // --- Render + merge + write ----------------------------------------------
@@ -120,7 +120,7 @@ export async function run(argv) {
 
     if (result.action === 'skipped') {
       tally.skipped += 1;
-      warn(`skipped ${target} — it has no codegraph markers, so it looks hand-written. `
+      warn(`skipped ${target} — it has no loregraph markers, so it looks hand-written. `
         + 'Add the markers where the generated block should go, or pass --force to overwrite.');
       continue;
     }
@@ -136,7 +136,7 @@ export async function run(argv) {
     .filter(([, n]) => n > 0)
     .map(([k, n]) => `${k}=${n}`)
     .join(' ') || 'nothing to do';
-  console.log(`[codegraph] docs lang=${lang} pages=${pages.length} ${counts}`);
+  console.log(`[loregraph] docs lang=${lang} pages=${pages.length} ${counts}`);
   console.log(`  AGENTS.md: ${agentsOut}`);
   console.log(`  pages:     ${outDocs}`);
   return 0;
