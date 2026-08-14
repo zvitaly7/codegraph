@@ -8,6 +8,7 @@ const COMMANDS = {
   references: () => import('../src/references/run.mjs'),
   usages: () => import('../src/usages/run.mjs'),
   domains: () => import('../src/domains/run.mjs'),
+  brief: () => import('../src/brief/run.mjs'),
   explorer: () => import('../src/explorer/run.mjs'),
   mcp: () => import('../src/mcp/run.mjs'),
   regenerate: () => import('../src/orchestrate/regenerate.mjs'),
@@ -23,6 +24,7 @@ Commands:
   references   Layer 2c: file → symbol
   usages       Layer 2d: symbol → symbol
   domains      Layer 3: semantic domain overlay
+  brief        Context pack for a file / domain / symbol
   explorer     Build (and optionally serve) the browser index
   mcp          Start the stdio MCP server
 

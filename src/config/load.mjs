@@ -11,7 +11,7 @@ const OPTIONS = {
 };
 
 export async function resolveConfig({ cwd, argv, extraOptions = {} }) {
-  const { values } = parseArgs({
+  const { values, positionals } = parseArgs({
     args: argv, allowPositionals: true, strict: false,
     options: { ...OPTIONS, ...extraOptions },
   });
@@ -47,5 +47,7 @@ export async function resolveConfig({ cwd, argv, extraOptions = {} }) {
     // when a command declares `--incremental` in its extraOptions.
     incremental: values.incremental ?? fileCfg.incremental ?? DEFAULTS.incremental,
     _flags: values,
+    // Bare arguments, in order — e.g. the `<target>` of `codegraph brief`.
+    _positionals: positionals,
   };
 }

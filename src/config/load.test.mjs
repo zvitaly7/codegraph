@@ -75,4 +75,14 @@ describe('resolveConfig', () => {
     });
     expect(fromFlag.incremental).toBe('off');
   });
+
+  it('exposes bare arguments as _positionals, in order and free of flags', async () => {
+    const cfg = await resolveConfig({
+      cwd: '/tmp/x',
+      argv: ['Cart.tsx', '--cache', '/tmp/c', 'second'],
+      extraOptions: { cache: { type: 'string' } },
+    });
+    expect(cfg._positionals).toEqual(['Cart.tsx', 'second']);
+    expect(cfg._flags.cache).toBe('/tmp/c');
+  });
 });

@@ -1,0 +1,105 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { run } from './run.mjs';
+
+function writeLayer(cache, layer, { nodes = [], edges = [] } = {}) {
+  const dir = join(cache, layer);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'nodes.jsonl'), nodes.map((n) => JSON.stringify(n)).join('\n'));
+  writeFileSync(join(dir, 'edges.jsonl'), edges.map((e) => JSON.stringify(e)).join('\n'));
+}
+
+const file = (path) => ({ id: `file:${path}`, labels: ['File'], properties: { path, name: path.split('/').pop(), language: 'TypeScript', kind: 'code', sizeBytes: 42 } });
+const edge = (type, from, to, properties = {}) => ({ id: `edge:${from}:${type}:${to}`, type, from, to, properties });
+
+/** Two files named Cart.tsx (ambiguous) plus a uniquely named one. */
+function seedCache() {
+  const cache = mkdtempSync(join(tmpdir(), 'cg-brief-cli-'));
+  writeLayer(cache, 'inventory', {
+    nodes: [file('src/ui/Cart.tsx'), file('src/checkout/Cart.tsx'), file('src/core/util.ts')],
+  });
+  writeLayer(cache, 'imports', {
+    edges: [edge('IMPORTS', 'file:src/ui/Cart.tsx', 'file:src/core/util.ts', { kind: 'internal' })],
+  });
+  writeLayer(cache, 'domains', {
+    nodes: [{ id: 'domain:core', labels: ['Domain'], properties: { name: 'core', kind: 'platform' } }],
+    edges: [edge('BELONGS_TO', 'file:src/core/util.ts', 'domain:core')],
+  });
+  return cache;
+}
+
+let cache;
+let out;
+let err;
+beforeEach(() => {
+  cache = seedCache();
+  out = [];
+  err = [];
+  vi.spyOn(console, 'log').mockImplementation((s) => out.push(String(s)));
+  vi.spyOn(console, 'error').mockImplementation((s) => err.push(String(s)));
+});
+afterEach(() => vi.restoreAllMocks());
+
+const stdout = () => out.join('\n');
+
+describe('brief CLI', () => {
+  it('prints a compact text brief for a file and exits 0', async () => {
+    const code = await run(['src/core/util.ts', '--cache', cache]);
+    expect(code).toBe(0);
+    expect(stdout()).toContain('FILE src/core/util.ts');
+    expect(stdout()).toContain('domain: core');
+    expect(stdout().split('\n').length).toBeLessThan(60);
+  });
+
+  it('resolves a bare basename', async () => {
+    expect(await run(['util.ts', '--cache', cache])).toBe(0);
+    expect(stdout()).toContain('FILE src/core/util.ts');
+  });
+
+  it('--json emits the structured object', async () => {
+    const code = await run(['src/core/util.ts', '--cache', cache, '--json']);
+    expect(code).toBe(0);
+    const parsed = JSON.parse(stdout());
+    expect(parsed).toMatchObject({ kind: 'file', path: 'src/core/util.ts', domain: 'core' });
+    expect(parsed.importedBy.count).toBe(1);
+  });
+
+  it('lists candidates and still exits 0 on an ambiguous target', async () => {
+    const code = await run(['Cart.tsx', '--cache', cache]);
+    expect(code).toBe(0);
+    expect(stdout()).toMatch(/ambiguous/i);
+    expect(stdout()).toContain('file:src/ui/Cart.tsx');
+    expect(stdout()).toContain('file:src/checkout/Cart.tsx');
+  });
+
+  it('reports a miss without failing the run', async () => {
+    const code = await run(['definitely-not-here', '--cache', cache]);
+    expect(code).toBe(0);
+    expect(stdout()).toMatch(/no match/i);
+  });
+
+  it('honors --limit', async () => {
+    const code = await run(['Cart.tsx', '--cache', cache, '--limit', '1', '--json']);
+    expect(code).toBe(0);
+    const parsed = JSON.parse(stdout());
+    expect(parsed.total).toBe(2);
+    expect(parsed.candidates).toHaveLength(1);
+  });
+
+  it('exits 2 without a target', async () => {
+    expect(await run(['--cache', cache])).toBe(2);
+    expect(err.join('\n')).toMatch(/target/);
+  });
+
+  it('exits 2 on a bad --limit', async () => {
+    expect(await run(['util.ts', '--cache', cache, '--limit', 'lots'])).toBe(2);
+  });
+
+  it('exits 2 when the cache holds no graph artifacts', async () => {
+    const empty = mkdtempSync(join(tmpdir(), 'cg-brief-empty-'));
+    expect(await run(['util.ts', '--cache', empty])).toBe(2);
+    expect(err.join('\n')).toMatch(/regenerate/);
+  });
+});
