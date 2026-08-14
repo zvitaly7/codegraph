@@ -288,14 +288,18 @@ function formatFile(b) {
 
 function formatDomain(b) {
   const pair = (d) => `${d.domain}(${d.weight})`;
-  return [
+  const lines = [
     `DOMAIN ${b.name}${b.domainKind ? `  (${b.domainKind})` : ''}`,
     `files: ${b.files.count}`,
     `depends on: ${list(b.dependsOn.map(pair))}`,
     `depended on by: ${list(b.dependedOnBy.map(pair))}`,
-    `top files: ${list(b.topFiles.map((f) => `${f.path}(<-${f.importedBy})`))}`,
     `packages: ${list(b.packages.map((p) => `${p.name}(${p.files})`))}`,
-  ].join('\n');
+    `top files (by importers):`,
+  ];
+  // One per line: each carries a metric, so an inline list would run very wide.
+  for (const f of b.topFiles) lines.push(`  <-${f.importedBy}  ${f.path}`);
+  if (b.topFiles.length === 0) lines.push('  —');
+  return lines.join('\n');
 }
 
 function formatSymbol(b) {

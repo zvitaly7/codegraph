@@ -9,6 +9,7 @@ const COMMANDS = {
   usages: () => import('../src/usages/run.mjs'),
   domains: () => import('../src/domains/run.mjs'),
   brief: () => import('../src/brief/run.mjs'),
+  impact: () => import('../src/impact/run.mjs'),
   explorer: () => import('../src/explorer/run.mjs'),
   mcp: () => import('../src/mcp/run.mjs'),
   regenerate: () => import('../src/orchestrate/regenerate.mjs'),
@@ -25,6 +26,7 @@ Commands:
   usages       Layer 2d: symbol → symbol
   domains      Layer 3: semantic domain overlay
   brief        Context pack for a file / domain / symbol
+  impact       Blast radius + likely tests for a diff
   explorer     Build (and optionally serve) the browser index
   mcp          Start the stdio MCP server
 
