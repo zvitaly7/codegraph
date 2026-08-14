@@ -169,6 +169,8 @@ export async function run(argv, io = {}) {
   // Every touched file lands here: { path, action, detail }.
   const actions = [];
   const record = (path, action, detail) => actions.push({ path, action, detail });
+  // Anything the user has to do by hand, printed after the summary.
+  const notes = [];
 
   /** Write unless this is a dry run; a failed write is recorded, never thrown. */
   const put = (absPath, content, { mode, action, detail } = {}) => {
@@ -336,12 +338,9 @@ export async function run(argv, io = {}) {
       if (plan.status === 'unchanged') {
         record(hookRel, 'unchanged', 'our block is already installed');
       } else if (plan.status === 'conflict') {
-        record(hookRel, 'skipped', 'a post-merge hook already exists — add this yourself:');
-        say();
-        say(`  ${hookRel} already exists and was NOT modified. Add these lines to it:`);
-        say();
-        for (const line of plan.snippet.trimEnd().split('\n')) say(`    ${line}`);
-        say();
+        record(hookRel, 'skipped', 'a post-merge hook already exists — left untouched');
+        notes.push(`${hookRel} already exists and was NOT modified. Add these lines to it yourself:`);
+        notes.push(...plan.snippet.trimEnd().split('\n').map((line) => `    ${line}`));
       } else {
         put(hookPath, plan.content, { mode: 0o755, action: 'created', detail: 'refreshes the graph after `git pull`' });
       }
@@ -356,9 +355,14 @@ export async function run(argv, io = {}) {
     }
     const tally = (name) => actions.filter((a) => a.action === name).length;
     say();
-    say(`Summary: created ${tally('created')} · updated ${tally('updated')} · `
+    say(`Summary${dryRun ? ' (planned)' : ''}: created ${tally('created')} · updated ${tally('updated')} · `
       + `unchanged ${tally('unchanged')} · skipped ${tally('skipped')}`
       + (tally('failed') > 0 ? ` · failed ${tally('failed')}` : ''));
+
+    if (notes.length > 0) {
+      say();
+      for (const note of notes) say(`  ${note}`);
+    }
 
     // --- Step 7: build the graph now ----------------------------------------
     let buildCode = 0;
