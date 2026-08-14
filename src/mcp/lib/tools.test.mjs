@@ -6,7 +6,7 @@ import { loadGraph } from '../../lib/graph_load.mjs';
 import {
   findNode, nodeInfo, importsOf, importedBy, impactOf, pathBetween,
   listSymbols, deadExports, domainOf, domainDependencies, domainCrossings,
-  callTool, TOOLS, TOOL_NAMES,
+  brief, impact, callTool, TOOLS, TOOL_NAMES,
 } from './tools.mjs';
 
 function writeLayer(cache, layer, { nodes = [], edges = [] }) {
@@ -212,6 +212,48 @@ describe('domain tools', () => {
     expect(r.pairs).toBe(2);
     expect(r.totalWeight).toBe(2);
     expect(r.crossings.every((c) => c.to === 'domain:core')).toBe(true);
+  });
+});
+
+describe('brief tool', () => {
+  it('returns the structured file brief', () => {
+    const r = brief(g, { target: 'src/core/index.ts' });
+    expect(r).toMatchObject({ kind: 'file', path: 'src/core/index.ts', domain: 'core' });
+    expect(r.importedBy.count).toBe(2);
+    expect(r.blastRadius.count).toBe(2);
+  });
+
+  it('resolves a bare basename and a domain name', () => {
+    expect(brief(g, { target: 'button.tsx' }).path).toBe('src/ui/button.tsx');
+    expect(brief(g, { target: 'checkout' }).kind).toBe('domain');
+  });
+
+  it('honors limit and reports a missing/invalid target in the payload', () => {
+    expect(brief(g, { target: 'src/core/index.ts', limit: 1 }).importedBy.files).toHaveLength(1);
+    expect(brief(g, {}).error).toMatch(/target/);
+    expect(brief(g, { target: 'nowhere' }).kind).toBe('not-found');
+  });
+});
+
+describe('impact tool', () => {
+  it('reports blast radius, domains, risky exports and tests for explicit files', () => {
+    const r = impact(g, { files: ['src/core/index.ts'] });
+    expect(r.source).toBe('files');
+    expect(r.changed.byDomain).toEqual([{ domain: 'core', files: ['src/core/index.ts'] }]);
+    expect(r.blastRadius.files).toEqual(['src/checkout/pay.ts', 'src/ui/button.tsx']);
+    expect(r.domains).toEqual([{ domain: 'checkout', files: 1 }, { domain: 'core', files: 1 }, { domain: 'ui', files: 1 }]);
+    expect(r.tests.count).toBe(0);
+  });
+
+  it('treats an explicit empty file list as an empty change set', () => {
+    expect(impact(g, { files: [] }).note).toMatch(/no changed files/i);
+  });
+
+  it('reports (never throws) when a diff cannot be resolved', () => {
+    // The fixture cache carries no manifest, so there is no repo root to diff in.
+    const r = impact(g, { diff: 'main' });
+    expect(r.source).toBe('diff main');
+    expect(r.error).toMatch(/files/);
   });
 });
 

@@ -1,11 +1,19 @@
-// Pure query functions over a loaded graph (see ./graph.mjs).
+// Query functions over a loaded graph (see ../../lib/graph_load.mjs).
 //
-// Every tool takes `(graph, args)` and returns plain JSON (no I/O, no throwing
-// for ordinary "not found" cases — those are reported in the payload). The
-// `TOOLS` array carries a JSON-schema-ish input spec per tool for `tools/list`,
-// and `callTool(graph, name, args)` dispatches by name.
+// Every tool takes `(graph, args)` and returns plain JSON (no throwing for
+// ordinary "not found" cases — those are reported in the payload). All of them
+// are pure reads of the graph except `impact` in diff mode, which asks the VCS
+// which files changed. The `TOOLS` array carries a JSON-schema-ish input spec
+// per tool for `tools/list`, and `callTool(graph, name, args)` dispatches by name.
+//
+// `brief` and `impact` are the token-saving pair: they call the very same pure
+// functions the CLI does, so an agent gets one dense digest instead of reading
+// a pile of files.
 
 import { normPosix } from '../../inventory/schema.mjs';
+import { changedFilesSince } from '../../lib/changed_files.mjs';
+import { buildBrief } from '../../brief/lib/brief.mjs';
+import { buildImpact } from '../../impact/lib/impact.mjs';
 
 /** Default caps — keep payloads bounded for an agent context window. */
 const FIND_CAP = 50;
@@ -318,6 +326,39 @@ export function domainCrossings(graph) {
   return result;
 }
 
+// ---- context packs (the token savers) -----------------------------------
+
+/** Everything worth knowing about a file / domain / symbol, in one payload. */
+export function brief(graph, { target, limit } = {}) {
+  if (typeof target !== 'string' || target.length === 0) {
+    return { kind: 'not-found', target: target ?? null, error: 'target must be a non-empty string', candidates: [] };
+  }
+  return buildBrief(graph, target, { limit });
+}
+
+/**
+ * Review context for a change: blast radius, affected domains, risky exports,
+ * likely tests. Pass `files` explicitly, or let it diff the working tree against
+ * `diff` (default HEAD) using the repo root recorded in the inventory manifest.
+ */
+export function impact(graph, { files, diff, limit, maxDepth } = {}) {
+  if (Array.isArray(files)) {
+    return buildImpact(graph, files.map(String), { limit, maxDepth, source: 'files' });
+  }
+  const ref = typeof diff === 'string' && diff.length > 0 ? diff : 'HEAD';
+  const source = `diff ${ref}`;
+  const repoRoot = graph.manifest?.repoRoot;
+  if (!repoRoot) {
+    return { source, error: 'no repoRoot in the cache manifest — pass `files` explicitly' };
+  }
+  const delta = changedFilesSince(repoRoot, ref);
+  if (!delta.ok) {
+    return { source, error: `could not determine changes vs ${ref} in ${repoRoot} — pass \`files\` explicitly` };
+  }
+  const changed = [...delta.added, ...delta.modified, ...delta.deleted];
+  return buildImpact(graph, changed, { limit, maxDepth, source });
+}
+
 // ---- registry + dispatch ------------------------------------------------
 
 const strProp = (description) => ({ type: 'string', description });
@@ -399,6 +440,35 @@ export const TOOLS = [
     description: 'Exported symbols nothing outside their own file references (precise when the references layer is loaded).',
     inputSchema: { type: 'object', properties: { limit: { type: 'integer', description: 'Max candidates (default 50).' } } },
   },
+  {
+    name: 'brief',
+    description: 'Context pack for a file, domain or symbol in ONE call — domain, imports, importers, '
+      + 'declared symbols with reference counts, blast radius. Read this instead of opening the files. '
+      + 'Ambiguous targets come back as a candidate list.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target: strProp('File path or path suffix (Cart.tsx), domain name, symbol name, or a node id.'),
+        limit: { type: 'integer', description: 'Max items per list (default 10).' },
+      },
+      required: ['target'],
+    },
+  },
+  {
+    name: 'impact',
+    description: 'Review context for a change: the changed files by domain, the transitive blast radius, '
+      + 'the affected domains, the exported symbols other files depend on (risky surface), and the '
+      + 'test files that reach the change. Defaults to the uncommitted working-tree diff.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        files: { type: 'array', items: { type: 'string' }, description: 'Explicit changed paths; omit to use a VCS diff.' },
+        diff: strProp('Revision to compare the working tree against (default HEAD; e.g. main, HEAD~1).'),
+        limit: { type: 'integer', description: 'Max items per list (default 10).' },
+        maxDepth: { type: 'integer', description: 'Blast-radius BFS depth cap (default 25).' },
+      },
+    },
+  },
 ];
 
 /** name → pure function. */
@@ -414,6 +484,8 @@ const DISPATCH = {
   domain_dependencies: domainDependencies,
   domain_crossings: domainCrossings,
   dead_exports: deadExports,
+  brief,
+  impact,
 };
 
 /** Set of valid tool names (for tools/call validation). */
