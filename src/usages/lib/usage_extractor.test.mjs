@@ -50,7 +50,7 @@ describe('extractUsages — enclosing-symbol attribution', () => {
     expect(uses).toEqual([{ fromSymId: 'sym:f.ts#a', toSymId: 'sym:f.ts#b' }]);
   });
 
-  it('never treats a NESTED declaration as the enclosing symbol', () => {
+  it('never mistakes a NESTED declaration for the enclosing symbol', () => {
     // A nested `function x` shadows the top-level symbol `x`. A use of z inside
     // it must be attributed to the top-level enclosing symbol y, not to x.
     const f = src(

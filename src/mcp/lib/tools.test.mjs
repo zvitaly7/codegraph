@@ -245,7 +245,7 @@ describe('impact tool', () => {
     expect(r.tests.count).toBe(0);
   });
 
-  it('treats an explicit empty file list as an empty change set', () => {
+  it('reads an explicit empty file list as an empty change set', () => {
     expect(impact(g, { files: [] }).note).toMatch(/no changed files/i);
   });
 
