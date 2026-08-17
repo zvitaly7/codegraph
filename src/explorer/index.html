@@ -378,6 +378,17 @@
     padding: 6px 8px; word-break: break-all; margin-top: 6px;
   }
   .det-empty { color: var(--ink-mute); font-size: 13px; padding: 18px; line-height: 1.6; }
+  /* Model-written description. Deliberately set apart from the proven facts
+     around it: dashed border, italic text, and a label naming the model. */
+  .det-desc {
+    margin: 0 18px 10px; padding: 9px 11px;
+    background: var(--bg); border: 1px dashed var(--line-strong); border-radius: 6px;
+  }
+  .det-desc .dd-label {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--ink-mute); margin-bottom: 5px;
+  }
+  .det-desc .dd-text { font-size: 12.5px; line-height: 1.55; color: var(--ink-soft); font-style: italic; }
   .det-sec { padding: 12px 12px 6px; border-top: 1px solid var(--line); }
   .det-sec h4 {
     margin: 0 0 6px; padding: 0 6px;
@@ -493,6 +504,7 @@
       detailsTitle: "Details",
       detailsEmpty: "No node focused. Pick an insight or search on the left.",
       detailType: "Type",
+      descLabel: "Description — written by {model} via {provider} on {date}, not proven by the graph",
 
       loadErrorTitle: "Could not load the graph",
       loadErrorBody: "Failed to fetch {file}. Serve this folder over HTTP (for example with loregraph explorer --serve) and reload."
@@ -577,6 +589,7 @@
       detailsTitle: "Детали",
       detailsEmpty: "Узел не выбран. Выберите инсайт или воспользуйтесь поиском слева.",
       detailType: "Тип",
+      descLabel: "Описание — написано моделью {model} через {provider} {date}, графом не доказано",
 
       loadErrorTitle: "Не удалось загрузить граф",
       loadErrorBody: "Не удалось получить {file}. Отдавайте эту папку по HTTP (например, командой loregraph explorer --serve) и перезагрузите страницу."
@@ -1248,6 +1261,23 @@
       h("span", { class: "dn-name", text: node.name }), typeBadge(node.type)));
     if (node.kind) head.append(h("div", { class: "row-sub", text: t("detailType") + ": " + node.kind }));
     head.append(h("div", { class: "det-id", text: node.id }));
+
+    // A MODEL-WRITTEN description, when `loregraph describe` produced one. It
+    // comes from its own map (never from the node), and the label always names
+    // the model, so it cannot be read as something the graph established.
+    const desc = (state.data.descriptions || {})[node.id];
+    if (desc && desc.text) {
+      panel.append(h("div", { class: "det-desc" },
+        h("div", {
+          class: "dd-label",
+          text: t("descLabel", {
+            model: desc.model || "?",
+            provider: desc.provider || "?",
+            date: (desc.generatedAt || "?").slice(0, 10)
+          })
+        }),
+        h("div", { class: "dd-text", text: desc.text })));
+    }
 
     for (const c of clustersFor(node)) {
       const ltypes = enabledLtypes(c);

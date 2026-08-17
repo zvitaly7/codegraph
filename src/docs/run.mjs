@@ -25,6 +25,7 @@ import { resolveConfig } from '../config/load.mjs';
 import { checkStaleness } from '../lib/staleness.mjs';
 import { loadGraph } from '../lib/graph_load.mjs';
 import { writeTextAtomic } from '../inventory/write.mjs';
+import { loadDescriptions } from '../describe/lib/store.mjs';
 import { renderDocs, STRINGS, DEFAULT_LANG } from './lib/render.mjs';
 import { mergeGenerated } from './lib/merge.mjs';
 
@@ -104,10 +105,15 @@ export async function run(argv) {
   }
 
   // --- Render + merge + write ----------------------------------------------
+  // Model-written descriptions, when `loregraph describe` has produced any. The
+  // pages stay byte-deterministic: same cache in, same Markdown out.
+  const descriptions = loadDescriptions(cache);
+
   const pages = renderDocs(graph, {
     lang,
     docsPath: linkPath(dirname(agentsOut), outDocs),
     agentsLink: linkPath(outDocs, agentsOut),
+    descriptions,
   });
 
   const force = flags.force === true;

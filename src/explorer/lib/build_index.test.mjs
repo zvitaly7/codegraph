@@ -256,6 +256,33 @@ describe('buildIndex — determinism & graceful degradation', () => {
     expect(a).toBe(b);
   });
 
+  it('carries model-written descriptions in their own map, never inside nodes', () => {
+    const rows = {
+      'domain:core': {
+        kind: 'domain',
+        text: 'Shared primitives.',
+        model: 'fake-model',
+        provider: 'command',
+        generatedAt: '2026-08-17T09:00:00.000Z',
+      },
+    };
+    const idx = buildIndex(sampleGraph(), { ...FIXED, descriptions: { get: (id) => rows[id] } });
+    expect(idx.descriptions['domain:core']).toEqual({
+      generated: true,
+      text: 'Shared primitives.',
+      model: 'fake-model',
+      provider: 'command',
+      generatedAt: '2026-08-17T09:00:00.000Z',
+    });
+    // The node itself stays exactly what the graph proved.
+    expect(idx.nodes.find((n) => n.id === 'domain:core').description).toBeUndefined();
+    expect(JSON.stringify(idx.nodes)).not.toContain('Shared primitives');
+  });
+
+  it('emits an empty descriptions map when none were generated', () => {
+    expect(buildIndex(sampleGraph(), FIXED).descriptions).toEqual({});
+  });
+
   it('emits layer-independent insights and empties dependent ones when layers are missing', () => {
     // Only inventory + imports + domains present: no references, no usages.
     const g = sampleGraph();

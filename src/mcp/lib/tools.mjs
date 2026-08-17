@@ -11,13 +11,19 @@
 // `brief`, `impact`, `outline` and `show` are the token savers: they call the
 // very same pure functions the CLI does, so an agent gets one dense answer
 // instead of reading a pile of files.
+//
+// `describe` is the one exception to "everything here is proven": it returns
+// MODEL-GENERATED text. It is LOOKUP ONLY — it reads `<cache>/descriptions/`
+// and can never make a paid model call — and every result it returns is
+// labelled with the model, provider and date behind it.
 
 import { normPosix } from '../../inventory/schema.mjs';
 import { changedFilesSince } from '../../lib/changed_files.mjs';
-import { buildBrief } from '../../brief/lib/brief.mjs';
+import { buildBrief, resolveTarget } from '../../brief/lib/brief.mjs';
 import { buildImpact } from '../../impact/lib/impact.mjs';
 import { outlineTarget } from '../../outline/lib/lookup.mjs';
 import { lookupSymbol } from '../../show/lib/lookup.mjs';
+import { loadDescriptions, generatedLabel } from '../../describe/lib/store.mjs';
 
 /** Default caps — keep payloads bounded for an agent context window. */
 const FIND_CAP = 50;
@@ -337,7 +343,60 @@ export function brief(graph, { target, limit } = {}) {
   if (typeof target !== 'string' || target.length === 0) {
     return { kind: 'not-found', target: target ?? null, error: 'target must be a non-empty string', candidates: [] };
   }
-  return buildBrief(graph, target, { limit });
+  return buildBrief(graph, target, { limit, descriptions: loadDescriptions(graph.cacheDir) });
+}
+
+// ---- generated descriptions (LOOKUP ONLY) -------------------------------
+
+/** The note attached to every `describe` result, so a model reading it cannot forget. */
+const GENERATED_NOTE = 'MODEL-GENERATED text, not a fact the graph proved. It reflects the '
+  + 'code as of `generatedAt` and may be wrong or stale. Verify before relying on it.';
+
+/**
+ * Return the CACHED description of a target, if `loregraph describe` has
+ * written one.
+ *
+ * This tool never generates anything: an MCP tool that could spend the user's
+ * money on its own is not a tool anyone should have to trust. A missing
+ * description is an ordinary answer, with the command to run for it.
+ */
+export function describe(graph, { target } = {}) {
+  if (typeof target !== 'string' || target.length === 0) {
+    return { target: target ?? null, found: false, error: 'target must be a non-empty string', candidates: [] };
+  }
+  const matches = resolveTarget(graph, target);
+  if (matches.length === 0) {
+    return { target, found: false, reason: 'no such file, domain or symbol in the graph', candidates: [] };
+  }
+  if (matches.length > 1) {
+    return { target, found: false, reason: 'ambiguous target', candidates: matches.slice(0, FIND_CAP) };
+  }
+
+  const targetId = matches[0];
+  const row = loadDescriptions(graph.cacheDir).get(targetId);
+  if (!row) {
+    return {
+      target,
+      targetId,
+      found: false,
+      reason: 'no cached description for this target',
+      hint: 'Run `loregraph describe` in a terminal to generate one — it makes paid model calls, '
+        + 'so this tool will never do it for you.',
+    };
+  }
+  return {
+    target,
+    targetId,
+    kind: row.kind ?? null,
+    found: true,
+    generated: true,
+    description: row.text,
+    model: row.model ?? null,
+    provider: row.provider ?? null,
+    generatedAt: row.generatedAt ?? null,
+    label: generatedLabel(row),
+    note: GENERATED_NOTE,
+  };
 }
 
 /**
@@ -546,6 +605,21 @@ export const TOOLS = [
       required: ['symbol'],
     },
   },
+  {
+    name: 'describe',
+    description: 'The cached one-or-two-sentence description of what a file, domain or symbol IS and '
+      + 'WHY it exists — the intent the graph cannot prove. LOOKUP ONLY: it returns what '
+      + '`loregraph describe` previously generated and never makes a model call itself. The text is '
+      + 'MODEL-GENERATED and comes back with the model, provider and date that produced it — present '
+      + 'it as generated, never as a proven fact.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target: strProp('File path or path suffix (Cart.tsx), domain name, symbol name, or a node id.'),
+      },
+      required: ['target'],
+    },
+  },
 ];
 
 /** name → pure function. */
@@ -565,6 +639,7 @@ const DISPATCH = {
   impact,
   outline,
   show,
+  describe,
 };
 
 /** Set of valid tool names (for tools/call validation). */

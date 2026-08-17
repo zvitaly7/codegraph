@@ -16,6 +16,7 @@
 // Nothing matched → `not-found`, with substring near-misses as suggestions.
 
 import { exactPathMatch, suffixPathMatches } from '../../lib/path_match.mjs';
+import { generatedLabel } from '../../describe/lib/store.mjs';
 import {
   toFileId, fileIdToPath, domainOfFile, symbolsOfFile, referencingFiles,
   directImporters, transitiveImporters, importsOfFile, filesOfDomain, capped,
@@ -57,8 +58,13 @@ function filePathsOf(graph) {
     .filter((p) => typeof p === 'string');
 }
 
-/** Ordered resolution tiers; the first non-empty one decides. @returns {string[]} ids */
-function resolveTarget(graph, target) {
+/**
+ * Ordered resolution tiers; the first non-empty one decides. Exported because
+ * the MCP `describe` tool must resolve a target EXACTLY the way `brief` does —
+ * two different answers to "which node did you mean" would be a bug.
+ * @returns {string[]} matching node ids (empty = no match, >1 = ambiguous).
+ */
+export function resolveTarget(graph, target) {
   if (graph.nodesById.has(target)) return [target];
 
   // Tiers 2 and 4 are the FILE tiers, and `outline` / `show` must match a file
@@ -215,10 +221,30 @@ function symbolBrief(graph, id, { limit }) {
 }
 
 /**
+ * The cached, MODEL-GENERATED description of a node — as its own field, never
+ * merged into `properties`. `generated: true` and the label travel with the
+ * text so no consumer can mistake it for something the graph proved.
+ */
+function describedBy(descriptions, id) {
+  const row = descriptions?.get?.(id);
+  if (!row) return null;
+  return {
+    generated: true,
+    text: row.text,
+    model: row.model ?? null,
+    provider: row.provider ?? null,
+    generatedAt: row.generatedAt ?? null,
+    label: generatedLabel(row),
+  };
+}
+
+/**
  * Build the context pack for `target`.
  * @param {object} graph a loaded graph (see lib/graph_load.mjs).
  * @param {string} target file path / path suffix, domain name, symbol name, or node id.
- * @param {{limit?: number, maxDepth?: number}} [opts]
+ * @param {{limit?: number, maxDepth?: number, descriptions?: object}} [opts]
+ *   `descriptions` is a store from describe/lib/store.mjs; when given, the brief
+ *   carries the target's generated description in a clearly-labelled field.
  * @returns {object} one of the `file` / `domain` / `symbol` / `ambiguous` / `not-found` shapes.
  */
 export function buildBrief(graph, target, opts = {}) {
@@ -247,7 +273,9 @@ export function buildBrief(graph, target, opts = {}) {
     : kindOfId(id) === 'symbol' ? symbolBrief(graph, id, settings)
       : kindOfId(id) === 'file' ? fileBrief(graph, id, settings)
         : { kind: 'node', id, node: graph.getNode(id) };
-  return { target, ...brief };
+
+  const description = describedBy(opts.descriptions, id);
+  return { target, ...brief, ...(description ? { description } : {}) };
 }
 
 // ---- formatting ---------------------------------------------------------
@@ -320,13 +348,26 @@ function formatSymbol(b) {
   ].join('\n');
 }
 
+/**
+ * The one line a generated description is ever printed on. It names the model
+ * every single time — an unlabelled hallucination would poison the one thing
+ * this tool is for, which is not guessing.
+ */
+function formatDescription(d) {
+  return d ? `description (${d.label}): ${d.text}` : null;
+}
+
 /** Render a brief as compact human-readable text. */
 export function formatBrief(b) {
   if (!b) return '';
+  const withDescription = (text) => {
+    const line = formatDescription(b.description);
+    return line ? `${text}\n${line}` : text;
+  };
   switch (b.kind) {
-    case 'file': return formatFile(b);
-    case 'domain': return formatDomain(b);
-    case 'symbol': return formatSymbol(b);
+    case 'file': return withDescription(formatFile(b));
+    case 'domain': return withDescription(formatDomain(b));
+    case 'symbol': return withDescription(formatSymbol(b));
     case 'ambiguous':
       return [`ambiguous target "${b.target}" — ${b.total} candidates:`]
         .concat(b.candidates.map((c) => `  ${c.id}`))

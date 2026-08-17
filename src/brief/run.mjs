@@ -15,6 +15,7 @@ import process from 'node:process';
 import { resolveConfig } from '../config/load.mjs';
 import { checkStaleness } from '../lib/staleness.mjs';
 import { loadGraph } from '../lib/graph_load.mjs';
+import { loadDescriptions } from '../describe/lib/store.mjs';
 import { buildBrief, formatBrief, DEFAULT_LIMIT } from './lib/brief.mjs';
 
 export async function run(argv) {
@@ -74,7 +75,11 @@ export async function run(argv) {
     );
   }
 
-  const brief = buildBrief(graph, target, { limit });
+  // Cached, model-written descriptions when `loregraph describe` has been run.
+  // They are additive and always labelled; a cache without any simply has none.
+  const descriptions = loadDescriptions(cache);
+
+  const brief = buildBrief(graph, target, { limit, descriptions });
   console.log(flags.json ? JSON.stringify(brief, null, 2) : formatBrief(brief));
   return 0;
 }

@@ -18,6 +18,7 @@ import { resolveConfig } from '../config/load.mjs';
 import { checkStaleness } from '../lib/staleness.mjs';
 import { writeJsonAtomic, writeTextAtomic } from '../inventory/write.mjs';
 import { loadGraph } from '../lib/graph_load.mjs';
+import { loadDescriptions } from '../describe/lib/store.mjs';
 import { buildIndex } from './lib/build_index.mjs';
 
 const DEFAULT_PORT = 8765;
@@ -134,7 +135,10 @@ export async function run(argv) {
 
   // Embed a cache-freshness signal so the SPA can flag a stale index.
   const staleness = checkStaleness(cache);
-  const index = buildIndex(graph, { generatedAt: new Date().toISOString(), staleness });
+  // Model-written descriptions, when `loregraph describe` has produced any. They
+  // ride in their own map in the index and the SPA labels every one it shows.
+  const descriptions = loadDescriptions(cache);
+  const index = buildIndex(graph, { generatedAt: new Date().toISOString(), staleness, descriptions });
 
   const explorerDir = join(cache, 'explorer');
   const outPath = join(explorerDir, 'graph-index.json');
