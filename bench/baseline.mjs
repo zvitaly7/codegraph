@@ -313,12 +313,47 @@ export function readAll(corpus) {
   };
 }
 
+/**
+ * "What does this file declare?" — the agent already has the path, so there is
+ * no search step: it opens the file. This is the smallest, most charitable
+ * baseline in the set — one file, no grep, nothing extra charged.
+ */
+export function readFile(corpus, { target }) {
+  return {
+    steps: [`read ${target}`],
+    toolOutput: '',
+    readFiles: [target],
+  };
+}
+
+/**
+ * "Show me the implementation of X" — grep the repo for the name, then open the
+ * ONE file that really declares it.
+ *
+ * Deliberately charitable: a real agent does not know in advance which of the
+ * grep hits is the declaration, and would often open several files. Charging
+ * only the declaring file makes the baseline cheaper than reality.
+ */
+export function findSymbolSource(corpus, { symbol, declaredIn }) {
+  const { hits } = grep(corpus, { needle: symbol });
+  return {
+    steps: [
+      `grep -rn '\\b${symbol}\\b' → ${hits.length} hit(s)`,
+      `read ${declaredIn} (the one file that declares it)`,
+    ],
+    toolOutput: renderHits(hits),
+    readFiles: [declaredIn],
+  };
+}
+
 export const PROCEDURES = {
   'importer-closure': importerClosure,
   'grep-then-read': grepThenRead,
   'file-orientation': fileOrientation,
   'read-dir': readDir,
   'read-all': readAll,
+  'read-file': readFile,
+  'find-symbol-source': findSymbolSource,
 };
 
 /** Run a baseline descriptor from `questions.mjs` against a corpus. */

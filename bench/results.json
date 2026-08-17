@@ -1,17 +1,17 @@
 {
   "tokenizer": "gpt-tokenizer / o200k_base (GPT-4o, GPT-5 family)",
-  "timestamp": "2026-08-17T05:47:22.445Z",
+  "timestamp": "2026-08-17T06:33:45.009Z",
   "timestampSource": "clock",
   "repo": {
     "root": "/Users/vzheltko/UK Talent/projects/codegraph",
-    "indexedFiles": 129,
-    "symbols": 598,
-    "exportedSymbols": 172,
-    "benchSourceFiles": 110
+    "indexedFiles": 145,
+    "symbols": 682,
+    "exportedSymbols": 202,
+    "benchSourceFiles": 126
   },
   "build": {
     "command": "loregraph regenerate",
-    "wallClockMs": 1923,
+    "wallClockMs": 2881,
     "contextTokens": 0,
     "note": "The build runs as a normal process, outside any model context, so it costs zero tokens — but it is not free. Amortised across every question afterwards."
   },
@@ -21,13 +21,13 @@
     "note": "Each baseline is an explicit file-reading procedure (see bench/README.md). \"tokens\" charges every opened file in full; \"skimTokens\" charges only the first 40 lines of each — a floor, not a realistic way to answer."
   },
   "totals": {
-    "graphTokens": 2099,
-    "baselineTokens": 265088,
-    "baselineSkimTokens": 73710,
-    "ratio": 126.3,
-    "savedPct": 99.2,
-    "skimRatio": 35.1,
-    "skimSavedPct": 97.2
+    "graphTokens": 4424,
+    "baselineTokens": 303124,
+    "baselineSkimTokens": 83157,
+    "ratio": 68.5,
+    "savedPct": 98.5,
+    "skimRatio": 18.8,
+    "skimSavedPct": 94.7
   },
   "questions": [
     {
@@ -36,16 +36,16 @@
       "comparability": "Same question, same shape of answer. The graph also names the likely test files; the baseline gets those for free because test files are importers too.",
       "graph": {
         "command": "loregraph impact --files src/lib/graph_load.mjs --limit 200",
-        "tokens": 424,
-        "chars": 1305
+        "tokens": 448,
+        "chars": 1379
       },
       "baseline": {
         "procedure": "importer-closure",
         "summary": "Grep the repo for `graph_load` on import-looking lines, resolve the relative specifiers, open every real importer in full — then repeat for each file just found, until the frontier is empty.",
         "steps": [
-          "grep -rn '\\bgraph_load\\b' (import lines) → 11 hit(s)",
+          "grep -rn '\\bgraph_load\\b' (import lines) → 12 hit(s)",
           "grep -rn '\\bbrief.test\\b' (import lines) → 0 hit(s)",
-          "grep -rn '\\brun\\b' (import lines) → 43 hit(s)",
+          "grep -rn '\\brun\\b' (import lines) → 47 hit(s)",
           "grep -rn '\\brender.test\\b' (import lines) → 0 hit(s)",
           "grep -rn '\\brun\\b' — already in context, not charged again",
           "grep -rn '\\brun\\b' — already in context, not charged again",
@@ -55,11 +55,13 @@
           "grep -rn '\\brpc.test\\b' (import lines) → 0 hit(s)",
           "grep -rn '\\btools.test\\b' (import lines) → 0 hit(s)",
           "grep -rn '\\brun\\b' — already in context, not charged again",
+          "grep -rn '\\brun\\b' — already in context, not charged again",
           "grep -rn '\\bloregraph\\b' (import lines) → 10 hit(s)",
           "grep -rn '\\brun.test\\b' (import lines) → 0 hit(s)",
           "grep -rn '\\brun.test\\b' — already in context, not charged again",
           "grep -rn '\\brun.test\\b' — already in context, not charged again",
           "grep -rn '\\bregenerate\\b' (import lines) → 3 hit(s)",
+          "grep -rn '\\brun.test\\b' — already in context, not charged again",
           "grep -rn '\\brun.test\\b' — already in context, not charged again",
           "grep -rn '\\bloregraph.test\\b' (import lines) → 0 hit(s)",
           "grep -rn '\\brun.test\\b' — already in context, not charged again",
@@ -67,19 +69,19 @@
           "grep -rn '\\bregenerate.test\\b' (import lines) → 0 hit(s)",
           "grep -rn '\\brun.test\\b' — already in context, not charged again"
         ],
-        "filesRead": 22,
-        "bytesRead": 176014,
-        "toolOutputTokens": 1749,
-        "fileTokens": 47859,
-        "tokens": 49608,
-        "skimTokens": 13338
+        "filesRead": 24,
+        "bytesRead": 187349,
+        "toolOutputTokens": 1852,
+        "fileTokens": 50895,
+        "tokens": 52747,
+        "skimTokens": 14162
       },
-      "graphTokens": 424,
-      "baselineTokens": 49608,
-      "baselineSkimTokens": 13338,
-      "filesRead": 22,
-      "ratio": 117,
-      "savedPct": 99.1,
+      "graphTokens": 448,
+      "baselineTokens": 52747,
+      "baselineSkimTokens": 14162,
+      "filesRead": 24,
+      "ratio": 117.7,
+      "savedPct": 99.2,
       "graphWins": true
     },
     {
@@ -88,27 +90,27 @@
       "comparability": "The graph additionally names the *enclosing function* of each use (`run@src/brief/run.mjs`), which the baseline would have to work out from the file text it just read. Leans slightly in the graph’s favour.",
       "graph": {
         "command": "loregraph brief loadGraph --limit 200",
-        "tokens": 281,
-        "chars": 852
+        "tokens": 308,
+        "chars": 935
       },
       "baseline": {
         "procedure": "grep-then-read",
         "summary": "grep -rl for the symbol across all source files, then read the full text of every file that matched.",
         "steps": [
-          "grep -rl '\\bloadGraph\\b' → 12 file(s)"
+          "grep -rl '\\bloadGraph\\b' → 13 file(s)"
         ],
-        "filesRead": 12,
-        "bytesRead": 86233,
-        "toolOutputTokens": 97,
-        "fileTokens": 23667,
-        "tokens": 23764,
-        "skimTokens": 6427
+        "filesRead": 13,
+        "bytesRead": 92444,
+        "toolOutputTokens": 103,
+        "fileTokens": 25310,
+        "tokens": 25413,
+        "skimTokens": 6806
       },
-      "graphTokens": 281,
-      "baselineTokens": 23764,
-      "baselineSkimTokens": 6427,
-      "filesRead": 12,
-      "ratio": 84.6,
+      "graphTokens": 308,
+      "baselineTokens": 25413,
+      "baselineSkimTokens": 6806,
+      "filesRead": 13,
+      "ratio": 82.5,
       "savedPct": 98.8,
       "graphWins": true
     },
@@ -118,8 +120,8 @@
       "comparability": "NOT the same answer. The graph brief also carries the transitive blast radius and a per-symbol reference count; the baseline stops at direct importers. The baseline is therefore an under-estimate of what the file-reading path would really cost here.",
       "graph": {
         "command": "loregraph brief src/mcp/lib/tools.mjs --limit 200",
-        "tokens": 413,
-        "chars": 1388
+        "tokens": 450,
+        "chars": 1518
       },
       "baseline": {
         "procedure": "file-orientation",
@@ -129,18 +131,18 @@
           "grep -rn '\\btools\\b' (import lines) → 2 hit(s), 2 real importer(s)"
         ],
         "filesRead": 3,
-        "bytesRead": 37474,
+        "bytesRead": 44009,
         "toolOutputTokens": 46,
-        "fileTokens": 10103,
-        "tokens": 10149,
-        "skimTokens": 1662
+        "fileTokens": 11790,
+        "tokens": 11836,
+        "skimTokens": 1678
       },
-      "graphTokens": 413,
-      "baselineTokens": 10149,
-      "baselineSkimTokens": 1662,
+      "graphTokens": 450,
+      "baselineTokens": 11836,
+      "baselineSkimTokens": 1678,
       "filesRead": 3,
-      "ratio": 24.6,
-      "savedPct": 95.9,
+      "ratio": 26.3,
+      "savedPct": 96.2,
       "graphWins": true
     },
     {
@@ -149,8 +151,8 @@
       "comparability": "NOT the same answer. Reading src/mcp/ shows what the module imports but not who imports it — the graph’s \"depended on by\" line would need a second, repo-wide pass the baseline is not charged for. Under-estimate, again in the baseline’s favour.",
       "graph": {
         "command": "loregraph brief mcp --limit 200",
-        "tokens": 175,
-        "chars": 446
+        "tokens": 183,
+        "chars": 467
       },
       "baseline": {
         "procedure": "read-dir",
@@ -160,18 +162,79 @@
           "read all 6"
         ],
         "filesRead": 6,
-        "bytesRead": 50673,
+        "bytesRead": 57208,
         "toolOutputTokens": 50,
-        "fileTokens": 13842,
-        "tokens": 13892,
-        "skimTokens": 3255
+        "fileTokens": 15529,
+        "tokens": 15579,
+        "skimTokens": 3271
       },
-      "graphTokens": 175,
-      "baselineTokens": 13892,
-      "baselineSkimTokens": 3255,
+      "graphTokens": 183,
+      "baselineTokens": 15579,
+      "baselineSkimTokens": 3271,
       "filesRead": 6,
-      "ratio": 79.4,
-      "savedPct": 98.7,
+      "ratio": 85.1,
+      "savedPct": 98.8,
+      "graphWins": true
+    },
+    {
+      "id": "file-declarations",
+      "question": "What does src/mcp/lib/tools.mjs declare?",
+      "comparability": "NOT the same answer, and here the BASELINE is the bigger one: the file text contains everything the outline contains plus every function body. The outline answers \"what does this file declare\" exactly — kind, name, export status, line range, signature — and does NOT answer \"what does this code do\". That is what `show` is for.",
+      "graph": {
+        "command": "loregraph outline src/mcp/lib/tools.mjs --limit 200",
+        "tokens": 900,
+        "chars": 3369
+      },
+      "baseline": {
+        "procedure": "read-file",
+        "summary": "The path is already known, so there is nothing to search for: open the file and read it. One file, no grep — the cheapest baseline in this set.",
+        "steps": [
+          "read src/mcp/lib/tools.mjs"
+        ],
+        "filesRead": 1,
+        "bytesRead": 23635,
+        "toolOutputTokens": 0,
+        "fileTokens": 6191,
+        "tokens": 6191,
+        "skimTokens": 445
+      },
+      "graphTokens": 900,
+      "baselineTokens": 6191,
+      "baselineSkimTokens": 445,
+      "filesRead": 1,
+      "ratio": 6.9,
+      "savedPct": 85.5,
+      "graphWins": true
+    },
+    {
+      "id": "symbol-source",
+      "question": "Show me the implementation of `loadGraph`.",
+      "comparability": "Same answer for what was asked: `show` prints the declaration verbatim, JSDoc included, so the implementation itself is byte-identical text. The baseline additionally carries the rest of the declaring file — not asked for, but an agent may well use it next. Both sides pay for locating the symbol: the graph in its own output, the baseline in grep hits.",
+      "graph": {
+        "command": "loregraph show loadGraph",
+        "tokens": 1131,
+        "chars": 3828
+      },
+      "baseline": {
+        "procedure": "find-symbol-source",
+        "summary": "grep -rn for the symbol as a whole word — the hit lines enter the context — then read in full the one file that declares it. Charitable: a real agent does not know which hit is the declaration and would often open more than one file.",
+        "steps": [
+          "grep -rn '\\bloadGraph\\b' → 46 hit(s)",
+          "read src/lib/graph_load.mjs (the one file that declares it)"
+        ],
+        "filesRead": 1,
+        "bytesRead": 5490,
+        "toolOutputTokens": 972,
+        "fileTokens": 1427,
+        "tokens": 2399,
+        "skimTokens": 1433
+      },
+      "graphTokens": 1131,
+      "baselineTokens": 2399,
+      "baselineSkimTokens": 1433,
+      "filesRead": 1,
+      "ratio": 2.1,
+      "savedPct": 52.9,
       "graphWins": true
     },
     {
@@ -180,28 +243,28 @@
       "comparability": "This is the weakest baseline in the set, and it flatters the graph. A capable agent may skip reading altogether and write a script (the manual A/B in the README records exactly that happening). Treat this row as an upper bound on the naive path, not as a claim about good agents. The two paths also use different definitions of \"dead\" — see the README.",
       "graph": {
         "command": "mcp tools/call dead_exports",
-        "tokens": 806,
-        "chars": 2855
+        "tokens": 1004,
+        "chars": 3536
       },
       "baseline": {
         "procedure": "read-all",
         "summary": "A repo-wide question needs a repo-wide read: list every source file, then read all of them — you cannot know what a file exports, or whether anything uses it, without its text.",
         "steps": [
-          "find . → 110 source file(s)",
-          "read all 110"
+          "find . → 126 source file(s)",
+          "read all 126"
         ],
-        "filesRead": 110,
-        "bytesRead": 617449,
-        "toolOutputTokens": 959,
-        "fileTokens": 166716,
-        "tokens": 167675,
-        "skimTokens": 49028
+        "filesRead": 126,
+        "bytesRead": 698502,
+        "toolOutputTokens": 1083,
+        "fileTokens": 187876,
+        "tokens": 188959,
+        "skimTokens": 55362
       },
-      "graphTokens": 806,
-      "baselineTokens": 167675,
-      "baselineSkimTokens": 49028,
-      "filesRead": 110,
-      "ratio": 208,
+      "graphTokens": 1004,
+      "baselineTokens": 188959,
+      "baselineSkimTokens": 55362,
+      "filesRead": 126,
+      "ratio": 188.2,
       "savedPct": 99.5,
       "graphWins": true
     }

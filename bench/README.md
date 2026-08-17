@@ -87,7 +87,20 @@ would search; it is implemented in Node so the benchmark runs anywhere.
 - **Baseline:** list every source file under `src/mcp/` and read all of them — a
   file's dependencies are only visible in its text.
 
-### 5. `dead-exports` — "which exports are never used outside their own file?"
+### 5. `file-declarations` — "what does `src/mcp/lib/tools.mjs` declare?"
+
+- **Graph:** `loregraph outline src/mcp/lib/tools.mjs --limit 200`
+- **Baseline:** the path is already known, so there is nothing to search for:
+  open the file and read it. One file, no grep — the cheapest baseline in the set.
+
+### 6. `symbol-source` — "show me the implementation of `loadGraph`"
+
+- **Graph:** `loregraph show loadGraph`
+- **Baseline:** `grep -rn` for the symbol as a whole word; the hit lines enter the
+  context, then the full text of the ONE file that declares it. Charitable: a real
+  agent cannot tell which hit is the declaration and would often open more files.
+
+### 7. `dead-exports` — "which exports are never used outside their own file?"
 
 - **Graph:** MCP `tools/call dead_exports` with `limit: 200`
 - **Baseline:** list every source file and read all of them. You cannot know what
@@ -109,7 +122,18 @@ Read these before quoting any number from this page.
   `domain-deps`: reading `src/mcp/` shows what the module imports but not who
   imports it, which the graph's "depended on by" line does. In both cases the
   file-reading path would really cost more than the table says.
-- **`dead-exports` is the weakest row and it flatters the graph.** "Read all 110
+- **`file-declarations` is the one row where the BASELINE answers more.** The file
+  text contains everything `outline` reports plus every function body. `outline`
+  answers "what does this file declare" exactly — kind, name, export status, line
+  range, signature, first doc line, class members — and does not answer "what does
+  this code do". Reach for `show` (or the file) when the body is the point. Its
+  6.9x is therefore a claim about navigation, not about understanding.
+- **`symbol-source` is the strictest row in the set, and the narrowest.** Both
+  sides end up with the same text for the thing asked: `show` prints the
+  declaration verbatim, JSDoc included. The baseline additionally carries the rest
+  of the declaring file — not asked for, but often useful next. 2.1x is what
+  honest looks like when the two answers really are comparable.
+- **`dead-exports` is the weakest row and it flatters the graph.** "Read all 126
   files" is what a naive agent does; a capable one writes a script instead and
   pays almost nothing (that is exactly what happened in the manual A/B below).
   Treat it as an upper bound on the naive path, not as a claim about good agents.
@@ -117,14 +141,14 @@ Read these before quoting any number from this page.
   with no cross-file `REFERENCES` edge, which misses dynamic and string-keyed
   access and any non-TS entry point.
 - **The graph is not a superset of the baseline's answer.** On `blast-radius` the
-  procedure opened 22 files where `impact` names 20, and the two extra —
+  procedure opens more files than `impact` names, and the extra ones —
   `bin/loregraph.test.mjs` and `src/mcp/run.test.mjs` — are genuine dependents
   that launch the CLI as a subprocess. loregraph models `import`, not `spawn`, so
   it does not see them. That is a real limitation, not a rounding error.
 - **The "skim floor" column is not a realistic way to answer anything.** It
   charges only the first 40 lines of each opened file. It is there as a hard
   lower bound: even if an agent could answer these questions from file headers
-  alone, the graph would still be ~35x cheaper on this repo.
+  alone, the graph would still be ~19x cheaper on this repo.
 - **This repo is comment-dense.** loregraph's own source carries long explanatory
   headers, so a file costs more tokens here than in a leaner codebase. A repo with
   terser source would show smaller ratios.
@@ -139,24 +163,26 @@ Read these before quoting any number from this page.
 
 ## Results on this repo
 
-`node bench/run.mjs`, loregraph at 129 indexed files / 598 symbols / 172 exported
-symbols; 110 JS/TS files in the grep universe. Tokenizer: `gpt-tokenizer`,
-`o200k_base`. Graph build: **1.92 s wall clock, 0 tokens**, reported separately.
+`node bench/run.mjs`, loregraph at 145 indexed files / 682 symbols / 202 exported
+symbols; 126 JS/TS files in the grep universe. Tokenizer: `gpt-tokenizer`,
+`o200k_base`. Graph build: **2.88 s wall clock, 0 tokens**, reported separately.
 
 | question | graph tokens | baseline tokens | baseline, skim floor | files read | ratio | saved |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `blast-radius` | 424 | 49608 | 13338 | 22 | 117x | 99.1% |
-| `symbol-usage` | 281 | 23764 | 6427 | 12 | 84.6x | 98.8% |
-| `file-orientation` | 413 | 10149 | 1662 | 3 | 24.6x | 95.9% |
-| `domain-deps` | 175 | 13892 | 3255 | 6 | 79.4x | 98.7% |
-| `dead-exports` | 806 | 167675 | 49028 | 110 | 208x | 99.5% |
-| **total** | **2099** | **265088** | **73710** | — | **126.3x** | **99.2%** |
+| `blast-radius` | 448 | 52747 | 14162 | 24 | 117.7x | 99.2% |
+| `symbol-usage` | 308 | 25413 | 6806 | 13 | 82.5x | 98.8% |
+| `file-orientation` | 450 | 11836 | 1678 | 3 | 26.3x | 96.2% |
+| `domain-deps` | 183 | 15579 | 3271 | 6 | 85.1x | 98.8% |
+| `file-declarations` | 900 | 6191 | 445 | 1 | 6.9x | 85.5% |
+| `symbol-source` | 1131 | 2399 | 1433 | 1 | 2.1x | 52.9% |
+| `dead-exports` | 1004 | 188959 | 55362 | 126 | 188.2x | 99.5% |
+| **total** | **4424** | **303124** | **83157** | — | **68.5x** | **98.5%** |
 
-Against the skim floor the total is **35.1x** (97.2% saved).
+Against the skim floor the total is **18.8x** (94.7% saved).
 
-The graph won every question. The narrowest margin is `file-orientation` at
-24.6x, and that is the row to trust most: it is the smallest, most ordinary
-question, and its baseline reads only three files.
+The graph won every question. The narrowest margin is `symbol-source` at 2.1x,
+and that is the row to trust most: it is the only one where both sides produce
+the same text for what was asked, and its baseline opens a single file.
 
 ---
 
@@ -182,6 +208,8 @@ Caveats, which matter as much as the number:
 - On the dead-exports question the two answers used different definitions of
   "dead" (18 vs 44 symbols), and **the no-graph answer was the more nuanced one**.
 
-The gap between −47% here and the ~99% in the table above is the honest measure of
-how much a modelled baseline flatters the graph. A real agent is far more frugal
-than "read every file that matched".
+The gap between −47% here and the 98.5% in the table above is the honest measure
+of how much a modelled baseline flatters the graph. A real agent is far more
+frugal than "read every file that matched" — which is exactly why the two
+smallest rows, `file-declarations` and `symbol-source`, are worth more than the
+big ones: their baselines open one file, so there is nothing left to flatter.

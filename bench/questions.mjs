@@ -102,6 +102,53 @@ export const QUESTIONS = [
   },
 
   {
+    id: 'file-declarations',
+    question: 'What does src/mcp/lib/tools.mjs declare?',
+    requires: ['src/mcp/lib/tools.mjs'],
+    graph: {
+      kind: 'cli',
+      argv: ['outline', 'src/mcp/lib/tools.mjs', ...LIMIT],
+    },
+    baseline: {
+      kind: 'read-file',
+      target: 'src/mcp/lib/tools.mjs',
+      summary:
+        'The path is already known, so there is nothing to search for: open the file and read '
+        + 'it. One file, no grep — the cheapest baseline in this set.',
+    },
+    comparability:
+      'NOT the same answer, and here the BASELINE is the bigger one: the file text contains '
+      + 'everything the outline contains plus every function body. The outline answers "what '
+      + 'does this file declare" exactly — kind, name, export status, line range, signature — '
+      + 'and does NOT answer "what does this code do". That is what `show` is for.',
+  },
+
+  {
+    id: 'symbol-source',
+    question: 'Show me the implementation of `loadGraph`.',
+    requires: ['src/lib/graph_load.mjs'],
+    graph: {
+      kind: 'cli',
+      argv: ['show', 'loadGraph'],
+    },
+    baseline: {
+      kind: 'find-symbol-source',
+      symbol: 'loadGraph',
+      declaredIn: 'src/lib/graph_load.mjs',
+      summary:
+        'grep -rn for the symbol as a whole word — the hit lines enter the context — then read '
+        + 'in full the one file that declares it. Charitable: a real agent does not know which '
+        + 'hit is the declaration and would often open more than one file.',
+    },
+    comparability:
+      'Same answer for what was asked: `show` prints the declaration verbatim, JSDoc included, '
+      + 'so the implementation itself is byte-identical text. The baseline additionally carries '
+      + 'the rest of the declaring file — not asked for, but an agent may well use it next. '
+      + 'Both sides pay for locating the symbol: the graph in its own output, the baseline in '
+      + 'grep hits.',
+  },
+
+  {
     id: 'dead-exports',
     question: 'Which exported symbols are never referenced from outside their own file?',
     requires: [],

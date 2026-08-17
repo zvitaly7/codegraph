@@ -12,7 +12,7 @@ import {
   listSourceFiles, grep, renderHits, renderList,
   resolveRelativeSpecifier, importersFromHits,
   importerClosure, grepThenRead, fileOrientation, readDir, readAll,
-  priceContext, runProcedure,
+  readFile, findSymbolSource, priceContext, runProcedure,
 } from './baseline.mjs';
 
 /** Character-count stand-in for a tokenizer — deterministic and easy to assert on. */
@@ -162,6 +162,21 @@ describe('the other procedures', () => {
   it('readAll takes the whole source universe', () => {
     const c = Corpus.from(repo);
     expect(readAll(c).readFiles).toEqual(c.files);
+  });
+
+  it('readFile opens exactly one known file and greps for nothing', () => {
+    const c = Corpus.from(repo);
+    const r = readFile(c, { target: 'src/mod/a.mjs' });
+    expect(r.readFiles).toEqual(['src/mod/a.mjs']);
+    expect(r.toolOutput).toBe('');
+  });
+
+  it('findSymbolSource charges the grep hits plus only the declaring file', () => {
+    const c = Corpus.from(repo);
+    const r = findSymbolSource(c, { symbol: 'a', declaredIn: 'src/mod/a.mjs' });
+    expect(r.readFiles).toEqual(['src/mod/a.mjs']);
+    expect(r.toolOutput).toContain('src/outside.mjs:1:');
+    expect(r.toolOutput).toContain('src/mod/a.mjs:2:');
   });
 
   it('runProcedure dispatches by kind and rejects unknown ones', () => {
