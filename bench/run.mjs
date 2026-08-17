@@ -67,7 +67,20 @@ function runMcp({ tool, arguments: args = {} }, { repoRoot, cache }) {
   return { text: msg.result.content[0].text, command: `mcp tools/call ${tool}` };
 }
 
-const runGraphPath = (spec, ctx) => (spec.kind === 'mcp' ? runMcp(spec, ctx) : runCli(spec.argv, ctx));
+/**
+ * Run a question's graph command, optionally with path-prefix compression on.
+ *
+ * Both variants are measured for EVERY question, including the ones with no
+ * path lists to factor — a row where compression changes nothing, or makes
+ * things worse, is exactly the row worth reporting.
+ */
+function runGraphPath(spec, ctx, { compress = false } = {}) {
+  if (spec.kind === 'mcp') {
+    const args = compress ? { ...(spec.arguments ?? {}), compressPaths: true } : (spec.arguments ?? {});
+    return runMcp({ ...spec, arguments: args }, ctx);
+  }
+  return runCli(compress ? [...spec.argv, '--compress-paths'] : spec.argv, ctx);
+}
 
 // ---- target-repo facts --------------------------------------------------
 
@@ -111,6 +124,29 @@ function markdownTable(rows) {
     : `| \`${r.id}\` | ${r.graphTokens} | ${r.baselineTokens} | ${r.baselineSkimTokens} `
       + `| ${r.filesRead} | ${r.ratio}x | ${r.savedPct}% |`));
   return [...head, ...body].join('\n');
+}
+
+/** The compression A/B: the same question answered plain and prefix-factored. */
+function compressionMarkdownTable(rows) {
+  const head = [
+    '| question | plain | prefix-compressed | saved | verdict |',
+    '| --- | ---: | ---: | ---: | --- |',
+  ];
+  const body = rows.filter((r) => !r.skipped).map((r) => `| \`${r.id}\` | ${r.graphTokens} `
+    + `| ${r.compressed.tokens} | ${r.compressed.savedPct}% | ${r.compressed.verdict} |`);
+  return [...head, ...body].join('\n');
+}
+
+function compressionTextTable(rows) {
+  const cols = ['question', 'plain', 'compressed', 'saved', 'verdict'];
+  const data = rows.filter((r) => !r.skipped).map((r) => [
+    r.id, `${r.graphTokens}`, `${r.compressed.tokens}`, `${r.compressed.savedPct}%`, r.compressed.verdict,
+  ]);
+  const widths = cols.map((c, i) => Math.max(c.length, ...data.map((d) => d[i].length)));
+  const line = (cells) => cells
+    .map((c, i) => (i === 0 || i === cols.length - 1 ? c.padEnd(widths[i]) : c.padStart(widths[i])))
+    .join('  ');
+  return [line(cols), widths.map((w) => '-'.repeat(w)).join('  '), ...data.map(line)].join('\n');
 }
 
 function textTable(rows) {
@@ -196,6 +232,21 @@ export async function main(argv = process.argv.slice(2)) {
       const graph = runGraphPath(q.graph, { repoRoot, cache });
       const graphTokens = countTokens(graph.text);
 
+      // The same question again, with path-prefix compression on. Measured for
+      // every question so the decision to default it on or leave it opt-in
+      // rests on numbers rather than on the fact that it was built.
+      const packed = runGraphPath(q.graph, { repoRoot, cache }, { compress: true });
+      const packedTokens = countTokens(packed.text);
+      const compressed = {
+        tokens: packedTokens,
+        chars: packed.text.length,
+        savedPct: pct(packedTokens, graphTokens),
+        identical: packed.text === graph.text,
+        verdict: packed.text === graph.text ? 'no path list to factor'
+          : packedTokens < graphTokens ? 'smaller'
+            : packedTokens > graphTokens ? 'WORSE' : 'no change',
+      };
+
       const procedure = runProcedure(corpus, q.baseline);
       const priced = priceContext(corpus, procedure, countTokens);
 
@@ -215,6 +266,7 @@ export async function main(argv = process.argv.slice(2)) {
           tokens: priced.full,
           skimTokens: priced.skim,
         },
+        compressed,
         graphTokens,
         baselineTokens: priced.full,
         baselineSkimTokens: priced.skim,
@@ -236,6 +288,9 @@ export async function main(argv = process.argv.slice(2)) {
     totals.savedPct = pct(totals.graphTokens, totals.baselineTokens);
     totals.skimRatio = ratio(totals.graphTokens, totals.baselineSkimTokens);
     totals.skimSavedPct = pct(totals.graphTokens, totals.baselineSkimTokens);
+    totals.compressedGraphTokens = scored.reduce((a, r) => a + r.compressed.tokens, 0);
+    totals.compressedSavedPct = pct(totals.compressedGraphTokens, totals.graphTokens);
+    totals.compressedRatio = ratio(totals.compressedGraphTokens, totals.baselineTokens);
 
     const results = {
       tokenizer: TOKENIZER,
@@ -254,6 +309,16 @@ export async function main(argv = process.argv.slice(2)) {
         contextTokens: 0,
         note: 'The build runs as a normal process, outside any model context, so it costs '
           + 'zero tokens — but it is not free. Amortised across every question afterwards.',
+      },
+      pathCompression: {
+        flag: '--compress-paths (CLI) / compressPaths: true (MCP)',
+        note: 'Lossless prefix factoring: a text line reads `under <prefix>: <suffix>, …` '
+          + 'and --json carries pathGroups: [{ pathPrefix, paths }], so every full path is '
+          + 'pathPrefix + paths[i]. Measured on every question; rows with no path list to '
+          + 'factor come back byte-identical.',
+        totalPlainTokens: totals.graphTokens,
+        totalCompressedTokens: totals.compressedGraphTokens,
+        totalSavedPct: totals.compressedSavedPct,
       },
       baselineModel: {
         kind: 'model of agent behaviour, not a measured agent',
@@ -277,6 +342,13 @@ export async function main(argv = process.argv.slice(2)) {
     console.log('');
     console.log(textTable(rows));
     console.log('');
+    console.log('Path-prefix compression (--compress-paths), same questions:');
+    console.log('');
+    console.log(compressionTextTable(rows));
+    console.log('');
+    console.log(`            total ${totals.graphTokens} plain vs ${totals.compressedGraphTokens} `
+      + `compressed → ${totals.compressedSavedPct}% saved`);
+    console.log('');
     console.log(`TOTAL       graph ${totals.graphTokens} vs baseline ${totals.baselineTokens} `
       + `→ ${totals.ratio}x, ${totals.savedPct}% saved`);
     console.log(`            against the skim floor: ${totals.baselineSkimTokens} `
@@ -293,6 +365,8 @@ export async function main(argv = process.argv.slice(2)) {
 
     console.log('\nMarkdown:\n');
     console.log(markdownTable(rows));
+    console.log('');
+    console.log(compressionMarkdownTable(rows));
     return 0;
   } finally {
     if (!values['keep-cache']) rmSync(cache, { recursive: true, force: true });

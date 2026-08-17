@@ -200,6 +200,8 @@ const KNOB_COMMENTS = {
   outDir: 'Where the graph artifacts are written.',
   domains: 'Domain overlay (null → auto-derive from the directory tree).',
   incremental: 'Rebuild mode for the heavy type-checking layers.',
+  compressPaths: 'Factor shared directory prefixes out of the path lists brief/impact print '
+    + '(lossless; worth ~26-57% on a deep monorepo, ~2-10% on a shallow tree).',
 };
 
 /**

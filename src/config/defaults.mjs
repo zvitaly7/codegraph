@@ -6,4 +6,5 @@ export const DEFAULTS = {
   outDir: '.kg-cache',
   domains: null,       // null → auto-derive
   incremental: 'off',  // 'off' | 'incremental' — heavy-layer rebuild mode
+  compressPaths: false, // factor shared directory prefixes out of path lists
 };

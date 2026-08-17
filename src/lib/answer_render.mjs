@@ -77,10 +77,18 @@ export function fitAnswer(payload, {
 // ---- CLI flag plumbing --------------------------------------------------
 
 /**
- * Whether path compression is on unless a caller says otherwise.
+ * Whether path compression is on unless a caller says otherwise: OFF.
  *
- * Measured, not assumed: see the "Path prefix compression" section of
- * bench/README.md for the numbers this value comes from.
+ * Measured, not assumed. On loregraph's own tree — where the shared prefix is
+ * `src/`, four characters — `npm run bench` puts the win at 10.3% / 4.9% / 2.2%
+ * on the three path-heavy questions and 1.6% over the whole set. Two of the
+ * three come in under 5%, and every compressed list costs the reader an extra
+ * line to interpret, so it is not worth turning on for everyone.
+ *
+ * On a deep monorepo it is a different story — 26–57% on the same commands
+ * against a `scenarios/6-mf-ssr/apps/shell/src/…` layout. Such a repo should set
+ * `compressPaths: true` in loregraph.config.mjs once and forget about it. Both
+ * measurements are written out in bench/README.md.
  */
 export const COMPRESS_PATHS_DEFAULT = false;
 
