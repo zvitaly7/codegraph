@@ -6,7 +6,7 @@ import { loadGraph } from '../../lib/graph_load.mjs';
 import {
   findNode, nodeInfo, importsOf, importedBy, impactOf, pathBetween,
   listSymbols, deadExports, domainOf, domainDependencies, domainCrossings,
-  brief, impact, callTool, TOOLS, TOOL_NAMES,
+  brief, impact, outline, show, callTool, TOOLS, TOOL_NAMES,
 } from './tools.mjs';
 
 function writeLayer(cache, layer, { nodes = [], edges = [] }) {
@@ -257,7 +257,87 @@ describe('impact tool', () => {
   });
 });
 
+// ---- precise reading ----------------------------------------------------
+
+const CART = `import { store } from './store';
+
+/** Load one cart. */
+export async function loadCart(id: string): Promise<Cart> {
+  return store.get(id);
+}
+
+export const CART_KEY = 'cart';
+`;
+
+/**
+ * A cache whose manifest points at a REAL little repo on disk, with a symbols
+ * layer that deliberately records the wrong line (`sym()` says line 1, the
+ * declaration is on line 4) — `show` must ignore it and re-parse.
+ */
+function buildRepoGraph() {
+  const repo = mkdtempSync(join(tmpdir(), 'cg-mcp-repo-'));
+  mkdirSync(join(repo, 'src'), { recursive: true });
+  writeFileSync(join(repo, 'src', 'cart.ts'), CART);
+
+  const cache = mkdtempSync(join(tmpdir(), 'cg-mcp-repo-cache-'));
+  mkdirSync(join(cache, 'inventory'), { recursive: true });
+  writeFileSync(join(cache, 'inventory', 'manifest.json'), JSON.stringify({ repoRoot: repo }));
+  writeLayer(cache, 'inventory', { nodes: [fileNode('src/cart.ts', { language: 'TypeScript' })] });
+  writeLayer(cache, 'symbols', { nodes: [sym('src/cart.ts', 'loadCart', true)] });
+  return loadGraph(cache);
+}
+
+describe('outline tool', () => {
+  it('returns the file skeleton without any bodies', () => {
+    const r = outline(buildRepoGraph(), { target: 'cart.ts' });
+    expect(r.kind).toBe('outline');
+    expect(r.path).toBe('src/cart.ts');
+    expect(r.imports.list).toEqual(['./store']);
+    expect(r.declarations.list.map((d) => d.name)).toEqual(['loadCart', 'CART_KEY']);
+    expect(JSON.stringify(r)).not.toContain('store.get(id)');
+  });
+
+  it('honors limit and reports a bad or unmatched target in the payload', () => {
+    const g2 = buildRepoGraph();
+    expect(outline(g2, { target: 'cart.ts', limit: 1 }).declarations.truncated).toBe(true);
+    expect(outline(g2, {}).error).toMatch(/target/);
+    expect(outline(g2, { target: 'nowhere.ts' }).kind).toBe('not-found');
+  });
+
+  it('says so when the cache has no repo root to read from', () => {
+    expect(outline(g, { target: 'src/core/index.ts' }).error).toMatch(/repoRoot/);
+  });
+});
+
+describe('show tool', () => {
+  it('prints the real range even though the cached line number is wrong', () => {
+    const r = show(buildRepoGraph(), { symbol: 'loadCart' });
+    expect(r.kind).toBe('symbol');
+    expect(r.lookup).toBe('graph');
+    expect(r.declarationLine).toBe(4);
+    expect(r.startLine).toBe(3); // the JSDoc line, not the cached `line: 1`
+    expect(r.source).toContain('export async function loadCart(id: string): Promise<Cart> {');
+    expect(r.source).not.toContain('CART_KEY');
+  });
+
+  it('adds context lines and reports a miss in the payload', () => {
+    const g2 = buildRepoGraph();
+    expect(show(g2, { symbol: 'src/cart.ts#CART_KEY', context: 1 }).context).toBe(1);
+    expect(show(g2, { symbol: 'nope' }).kind).toBe('not-found');
+    expect(show(g2, {}).error).toMatch(/symbol/);
+  });
+
+  it('says so when the cache has no repo root to read from', () => {
+    expect(show(g, { symbol: 'setup' }).error).toMatch(/repoRoot/);
+  });
+});
+
 describe('callTool + registry', () => {
+  it('exposes exactly 15 tools', () => {
+    expect(TOOLS).toHaveLength(15);
+    expect(TOOL_NAMES.has('outline')).toBe(true);
+    expect(TOOL_NAMES.has('show')).toBe(true);
+  });
   it('every TOOLS spec has a matching dispatch entry and vice versa', () => {
     expect(TOOLS.map((t) => t.name).sort()).toEqual([...TOOL_NAMES].sort());
     for (const t of TOOLS) {

@@ -1,19 +1,23 @@
 // Query functions over a loaded graph (see ../../lib/graph_load.mjs).
 //
 // Every tool takes `(graph, args)` and returns plain JSON (no throwing for
-// ordinary "not found" cases — those are reported in the payload). All of them
-// are pure reads of the graph except `impact` in diff mode, which asks the VCS
-// which files changed. The `TOOLS` array carries a JSON-schema-ish input spec
-// per tool for `tools/list`, and `callTool(graph, name, args)` dispatches by name.
+// ordinary "not found" cases — those are reported in the payload). Most are
+// pure reads of the graph; the exceptions read the working tree: `impact` in
+// diff mode asks the VCS what changed, and `outline` / `show` parse the file
+// they are asked about (using the repo root recorded in the cache manifest).
+// The `TOOLS` array carries a JSON-schema-ish input spec per tool for
+// `tools/list`, and `callTool(graph, name, args)` dispatches by name.
 //
-// `brief` and `impact` are the token-saving pair: they call the very same pure
-// functions the CLI does, so an agent gets one dense digest instead of reading
-// a pile of files.
+// `brief`, `impact`, `outline` and `show` are the token savers: they call the
+// very same pure functions the CLI does, so an agent gets one dense answer
+// instead of reading a pile of files.
 
 import { normPosix } from '../../inventory/schema.mjs';
 import { changedFilesSince } from '../../lib/changed_files.mjs';
 import { buildBrief } from '../../brief/lib/brief.mjs';
 import { buildImpact } from '../../impact/lib/impact.mjs';
+import { outlineTarget } from '../../outline/lib/lookup.mjs';
+import { lookupSymbol } from '../../show/lib/lookup.mjs';
 
 /** Default caps — keep payloads bounded for an agent context window. */
 const FIND_CAP = 50;
@@ -359,6 +363,50 @@ export function impact(graph, { files, diff, limit, maxDepth } = {}) {
   return buildImpact(graph, changed, { limit, maxDepth, source });
 }
 
+// ---- precise reading (the file, without the file) -----------------------
+
+/**
+ * A file's skeleton — imports, declarations, signatures, class members — read
+ * from the FILE, not from the graph, so it is never stale. The repo root comes
+ * from the inventory manifest; without one there is nothing to resolve against.
+ */
+export function outline(graph, { target, limit } = {}) {
+  if (typeof target !== 'string' || target.length === 0) {
+    return { kind: 'not-found', target: target ?? null, error: 'target must be a non-empty string', candidates: [] };
+  }
+  const repoRoot = graph.manifest?.repoRoot;
+  if (!repoRoot) {
+    return {
+      kind: 'not-found',
+      target,
+      error: 'no repoRoot in the cache manifest — run `loregraph regenerate` so the inventory layer records it',
+      candidates: [],
+    };
+  }
+  return outlineTarget({ repoRoot, target, limit });
+}
+
+/**
+ * The source of exactly one symbol. The graph narrows down which files to open;
+ * the line range is re-parsed from the file at call time, so a stale cache
+ * cannot make this print the wrong lines.
+ */
+export function show(graph, { symbol, context } = {}) {
+  if (typeof symbol !== 'string' || symbol.length === 0) {
+    return { kind: 'not-found', symbol: symbol ?? null, error: 'symbol must be a non-empty string', candidates: [] };
+  }
+  const repoRoot = graph.manifest?.repoRoot;
+  if (!repoRoot) {
+    return {
+      kind: 'not-found',
+      symbol,
+      error: 'no repoRoot in the cache manifest — run `loregraph regenerate` so the inventory layer records it',
+      candidates: [],
+    };
+  }
+  return lookupSymbol({ repoRoot, ref: symbol, graph, context });
+}
+
 // ---- registry + dispatch ------------------------------------------------
 
 const strProp = (description) => ({ type: 'string', description });
@@ -469,6 +517,35 @@ export const TOOLS = [
       },
     },
   },
+  {
+    name: 'outline',
+    description: 'A file\'s skeleton in ONE call: its imports, every top-level declaration with kind, '
+      + 'line range and signature, and a class\'s public members — WITHOUT the bodies. Read this '
+      + 'instead of opening a file you only need to navigate. Parsed from the file itself, so it is '
+      + 'correct even when the graph cache is stale.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target: strProp('File path or path suffix (Cart.tsx). Ambiguous suffixes come back as candidates.'),
+        limit: { type: 'integer', description: 'Max declarations / class members (default 100).' },
+      },
+      required: ['target'],
+    },
+  },
+  {
+    name: 'show',
+    description: 'The source of exactly ONE symbol, numbered, with its JSDoc — instead of reading the '
+      + 'whole file that declares it. The line range is re-parsed from the file at call time, so a '
+      + 'stale cache can never make it print the wrong lines. Ambiguous names come back as candidates.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        symbol: strProp('Symbol name (useCart), path#name (src/a.ts#useCart), or a full sym: id.'),
+        context: { type: 'integer', description: 'Lines of surrounding context (default 0).' },
+      },
+      required: ['symbol'],
+    },
+  },
 ];
 
 /** name → pure function. */
@@ -486,6 +563,8 @@ const DISPATCH = {
   dead_exports: deadExports,
   brief,
   impact,
+  outline,
+  show,
 };
 
 /** Set of valid tool names (for tools/call validation). */
