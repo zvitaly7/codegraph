@@ -7,8 +7,9 @@
 <p><a href="README.md">English</a> · <b>Русский</b></p>
 
 <p>
+  <img alt="Версия в npm" src="https://img.shields.io/npm/v/loregraph?logo=npm&logoColor=white&color=CB3837">
   <img alt="Node &gt;= 18" src="https://img.shields.io/badge/node-%3E%3D18-339933?logo=nodedotjs&logoColor=white">
-  <img alt="537 тестов проходят" src="https://img.shields.io/badge/tests-537%20passing-6E9F18?logo=vitest&logoColor=white">
+  <img alt="589 тестов проходят" src="https://img.shields.io/badge/tests-589%20passing-6E9F18?logo=vitest&logoColor=white">
   <img alt="Область анализа: JavaScript / TypeScript" src="https://img.shields.io/badge/analysis-JavaScript%20%2F%20TypeScript-3178C6?logo=typescript&logoColor=white">
   <img alt="Зависимости времени выполнения: typescript и ignore" src="https://img.shields.io/badge/runtime%20deps-typescript%20%2B%20ignore-8957E5">
   <img alt="MCP-сервер: 13 инструментов" src="https://img.shields.io/badge/MCP-13%20tools-1F6FEB">
@@ -69,26 +70,12 @@ npx loregraph init
 
 ## 🚀 Быстрый старт
 
-> [!NOTE]
-> Начиная с первого релиза по тегу пакет публикуется в npm под именем **`loregraph`** (`npm i -g loregraph`). Пока этот релиз не вышел, используйте его из клона.
+Опубликован в npm под именем [`loregraph`](https://www.npmjs.com/package/loregraph):
 
 ```bash
-git clone <repo-url> loregraph
-cd loregraph
-npm install
-```
-
-Запуск напрямую:
-
-```bash
-node bin/loregraph.mjs regenerate --repo-root /path/to/your-repo --out /path/to/your-repo/.kg-cache
-```
-
-Либо один раз слинковать, чтобы получить глобальный бинарник `loregraph`:
-
-```bash
-npm link          # в клоне loregraph
-loregraph regenerate --repo-root /path/to/your-repo
+npx loregraph init      # настроить проект, ничего предварительно не устанавливая
+npm i -D loregraph      # либо добавить в проект
+npm i -g loregraph      # либо поставить CLI глобально
 ```
 
 Собрать весь граф и открыть его:
@@ -98,6 +85,15 @@ cd /path/to/your-repo
 loregraph regenerate
 loregraph explorer --serve      # http://localhost:8765/
 ```
+
+Либо направить его на другой чекаут, не уходя из своего:
+
+```bash
+loregraph regenerate --repo-root /path/to/your-repo
+```
+
+> [!NOTE]
+> Дорабатываете сам loregraph? Склонируйте репозиторий, выполните `npm install` и запускайте `node bin/loregraph.mjs <command>` — либо один раз сделайте `npm link`, чтобы глобальный `loregraph` указывал на ваш чекаут.
 
 Спросить что-нибудь из терминала:
 
@@ -170,7 +166,7 @@ domain: lib
 imports (0 internal): —
 packages (2): node:fs, node:path
 imported by (11): src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/explorer/run.mjs, src/impact/lib/impact.test.mjs, src/impact/run.mjs, src/lib/graph_load.test.mjs, src/mcp/lib/rpc.test.mjs, src/mcp/lib/tools.test.mjs (+1 more)
-blast radius (18): bin/loregraph.mjs, src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/docs/run.test.mjs, src/explorer/run.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs (+8 more)
+blast radius (20): bin/loregraph.mjs, src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/docs/run.test.mjs, src/explorer/run.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs (+10 more)
 symbols (5):
   GRAPH_LAYERS variable exported L22 refs=1
   readJsonl function L27 refs=0
@@ -185,26 +181,41 @@ symbols (5):
 IMPACT  1 changed file(s)  (files)
 changed by domain:
   lib (1): src/lib/graph_load.mjs
-blast radius (18): bin/loregraph.mjs, src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/docs/run.test.mjs, src/explorer/run.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs (+8 more)
-affected domains (8): brief(3), docs(3), impact(3), mcp(3), explorer(2), lib(2), orchestrate(2), bin(1)
+blast radius (20): bin/loregraph.mjs, src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/docs/run.test.mjs, src/explorer/run.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs (+10 more)
+affected domains (9): brief(3), docs(3), impact(3), mcp(3), explorer(2), init(2), lib(2), orchestrate(2), bin(1)
 risky exports (2):
   loadGraph src/lib/graph_load.mjs:64 refs=11 <- src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/docs/lib/render.test.mjs (+8 more)
   GRAPH_LAYERS src/lib/graph_load.mjs:22 refs=1 <- src/lib/graph_load.test.mjs
-likely tests (11): src/brief/lib/brief.test.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.test.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs, src/impact/run.test.mjs, src/lib/graph_load.test.mjs, src/mcp/lib/rpc.test.mjs, src/mcp/lib/tools.test.mjs (+1 more)
+likely tests (12): src/brief/lib/brief.test.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.test.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs, src/impact/run.test.mjs, src/init/run.test.mjs, src/lib/graph_load.test.mjs, src/mcp/lib/rpc.test.mjs (+2 more)
 ```
 
 </details>
 
-### Измеренное сравнение объёма
+### Экономия токенов
 
-Измерено в этом репозитории, на собственном дереве исходников loregraph (107 файлов, 100 JS/TS-исходников), по количеству байт ровно тех выводов, что приведены выше:
+В каталоге [`bench/`](bench/README.md) лежит воспроизводимый бенчмарк. Ему не нужны ни модель, ни API-ключ, ни сеть:
 
-| Вопрос | Вывод loregraph | Чтение файлов вместо этого | Разница |
-| :--- | :--- | :--- | :--- |
-| «Что такое `graph_load.mjs` и кто его использует?» | `brief`, **874 Б** | сам файл и 11 его прямых импортёров = **86 233 Б** | примерно на 99 % меньше |
-| «Что сломается, если я его изменю, и что запускать?» | `impact`, **1001 Б** | сам файл и 18 файлов радиуса поражения = **136 384 Б** | примерно на 99 % меньше |
+```bash
+npm run bench
+```
 
-Сравниваются байты, а не токены, и предполагается, что иначе агент прочитал бы эти файлы целиком. Это одно измерение на одном репозитории — воспринимайте его как порядок величины, а не как бенчмарк.
+Он собирает граф во временный кеш, а затем на пяти реальных вопросах сравнивает количество токенов в ответе loregraph с количеством токенов явной, описанной в документации процедуры чтения файлов — считает **`gpt-tokenizer`** (`o200k_base`), devDependency только для бенчмарка. Не байты и не `chars / 4`: на этих файлах `chars / 4` занижает реальное число токенов на 7–9 %.
+
+На этом репозитории (129 проиндексированных файлов, 598 символов, 110 JS/TS-файлов во «вселенной grep»). Сборка графа — **1,92 с реального времени и 0 токенов**, потому что происходит вне контекста модели, и она намеренно не размазана по вопросам:
+
+| Вопрос | Граф | Базовая линия с чтением файлов | Нижняя граница | Отношение |
+| :--- | ---: | ---: | ---: | ---: |
+| Радиус поражения файла | 424 | 49 608 | 13 338 | 117x |
+| Кто ссылается на экспорт | 281 | 23 764 | 6 427 | 84,6x |
+| С чем связан этот файл | 413 | 10 149 | 1 662 | 24,6x |
+| От чего зависит модуль | 175 | 13 892 | 3 255 | 79,4x |
+| Мёртвые экспорты по всему репозиторию | 806 | 167 675 | 49 028 | 208x |
+| **Итого** | **2 099** | **265 088** | **73 710** | **126,3x** |
+
+> [!IMPORTANT]
+> **Базовая линия — это модель того, что читал бы агент, работающий с файлами, а не измерение реального агента.** Ничей контекст не наблюдался. Две строки из пяти сравнивают не полностью совпадающие ответы, и в обоих случаях базовая линия занижена. Строка про мёртвые экспорты предполагает агента, который читает все файлы, а не пишет скрипт, — считайте её верхней оценкой наивного пути. Колонка «нижняя граница» учитывает только первые 40 строк каждого файла: так на эти вопросы не отвечают, но это жёсткая нижняя оценка — даже там граф дешевле в 35,1 раза. Все процедуры расписаны в [`bench/README.md`](bench/README.md), так что с ними можно спорить.
+
+Отдельно, и **не** этим скриптом: разовый ручной A/B-эксперимент дал двум AI-агентам одни и те же три вопроса по демо-проекту из 217 файлов — одному с графом, другому без. Оба ответили на вопросы про радиус поражения и использование символа одинаково и правильно, ценой **51 802 токенов с графом против 97 464 без него (−47 %)**. n = 1; агент без графа оказался необычно экономным (вместо grep он написал скрипт на компиляторе TypeScript), так что типичный агент, скорее всего, потратил бы больше; а на вопросе про мёртвые экспорты два ответа использовали разные определения (18 против 44), и более тонким был ответ без графа. Расстояние между этими −47 % и отношениями выше — честная мера того, насколько модельная базовая линия льстит графу.
 
 ### MCP-сервер
 
@@ -371,7 +382,7 @@ usages: incremental — re-extracted 4 file(s), reused 256 cached edge(s)
 | `<out-docs>/dependencies.md` | Карта междоменных связей, внешние пакеты, крупнейшие импортёры. |
 | `<out-docs>/health.md` | Мёртвые экспорты и кандидаты в «сироты». |
 
-По умолчанию пути — `<repo>/AGENTS.md` и `<repo>/docs/loregraph/`; `--agents-out` и `--out-docs` их меняют. На этом репозитории запуск дал 21 страницу (`AGENTS.md`, три страницы верхнего уровня, 17 страниц доменов).
+По умолчанию пути — `<repo>/AGENTS.md` и `<repo>/docs/loregraph/`; `--agents-out` и `--out-docs` их меняют. На этом репозитории запуск дал 24 страницы (`AGENTS.md`, три страницы верхнего уровня, 20 страниц доменов).
 
 Написанное вручную не теряется. Всё сгенерированное находится между двумя маркерами:
 
@@ -388,23 +399,24 @@ usages: incremental — re-extracted 4 file(s), reused 256 cached edge(s)
 ## 📦 Требования
 
 - Node.js **>= 18** (`engines.node` в `package.json`). Здесь проверено на Node v22.17.0.
-- Зависимости времени выполнения: `typescript` и `ignore`. Больше ничего.
+- Зависимости времени выполнения: `typescript` и `ignore`. Больше ничего — `vitest` и `gpt-tokenizer` это devDependencies, в пакет они не попадают.
 
 ## 🧪 Разработка
 
 ```bash
 npm install
 npm test        # vitest run
+npm run bench   # бенчмарк токенов, на самом этом репозитории
 ```
 
-Набор тестов — **537 тестов в 51 файле**, все проходят на текущей ревизии. В него входит и проверка равенства для инкрементального режима, которая утверждает, что артефакты тяжёлых слоёв побайтово совпадают с полной пересборкой.
+Набор тестов — **589 тестов в 53 файлах**, все проходят на текущей ревизии. В него входит и проверка равенства для инкрементального режима, которая утверждает, что артефакты тяжёлых слоёв побайтово совпадают с полной пересборкой.
 
 ## 🚢 Публикация
 
-Релизы публикует GitHub Actions по файлу [`.github/workflows/publish.yml`](.github/workflows/publish.yml): пуш тега `v*` ставит зависимости, прогоняет тесты и публикует пакет в npm.
+`0.1.0` уже в npm. Следующие релизы публикует GitHub Actions по файлу [`.github/workflows/publish.yml`](.github/workflows/publish.yml): пуш тега `v*` ставит зависимости, прогоняет тесты и публикует пакет в npm. Опубликовать одну и ту же версию повторно npm не даёт, поэтому **следующий** релиз начинается с поднятия версии:
 
 ```bash
-npm version patch                    # поднимает версию в package.json и создаёт соответствующий тег vX.Y.Z
+npm version patch                    # 0.1.0 -> 0.1.1 и создаёт соответствующий тег vX.Y.Z
 git push origin main --follow-tags   # либо: git push origin vX.Y.Z
 ```
 

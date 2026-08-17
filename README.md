@@ -7,8 +7,9 @@
 <p><b>English</b> · <a href="README.ru.md">Русский</a></p>
 
 <p>
+  <img alt="npm version" src="https://img.shields.io/npm/v/loregraph?logo=npm&logoColor=white&color=CB3837">
   <img alt="Node &gt;= 18" src="https://img.shields.io/badge/node-%3E%3D18-339933?logo=nodedotjs&logoColor=white">
-  <img alt="537 tests passing" src="https://img.shields.io/badge/tests-537%20passing-6E9F18?logo=vitest&logoColor=white">
+  <img alt="589 tests passing" src="https://img.shields.io/badge/tests-589%20passing-6E9F18?logo=vitest&logoColor=white">
   <img alt="Analysis scope: JavaScript / TypeScript" src="https://img.shields.io/badge/analysis-JavaScript%20%2F%20TypeScript-3178C6?logo=typescript&logoColor=white">
   <img alt="Runtime dependencies: typescript and ignore" src="https://img.shields.io/badge/runtime%20deps-typescript%20%2B%20ignore-8957E5">
   <img alt="MCP server: 13 tools" src="https://img.shields.io/badge/MCP-13%20tools-1F6FEB">
@@ -69,26 +70,12 @@ Flags: `--yes`, `--dry-run`, `--repo-root PATH`, `--out DIR`, `--hook`, `--build
 
 ## 🚀 Quick start
 
-> [!NOTE]
-> From the first tagged release onward the package is published to npm as **`loregraph`** (`npm i -g loregraph`). Until that release ships, use it from a clone.
+Published on npm as [`loregraph`](https://www.npmjs.com/package/loregraph):
 
 ```bash
-git clone <repo-url> loregraph
-cd loregraph
-npm install
-```
-
-Run it directly:
-
-```bash
-node bin/loregraph.mjs regenerate --repo-root /path/to/your-repo --out /path/to/your-repo/.kg-cache
-```
-
-Or link it once to get a global `loregraph` binary:
-
-```bash
-npm link          # in the loregraph clone
-loregraph regenerate --repo-root /path/to/your-repo
+npx loregraph init      # set a project up, nothing to install first
+npm i -D loregraph      # or add it to the project
+npm i -g loregraph      # or install the CLI globally
 ```
 
 Build the whole graph, then browse it:
@@ -98,6 +85,15 @@ cd /path/to/your-repo
 loregraph regenerate
 loregraph explorer --serve      # http://localhost:8765/
 ```
+
+Or point it at another checkout without leaving your own:
+
+```bash
+loregraph regenerate --repo-root /path/to/your-repo
+```
+
+> [!NOTE]
+> Working on loregraph itself? Clone the repo, `npm install`, then run `node bin/loregraph.mjs <command>` — or `npm link` once for a global `loregraph` that resolves to your checkout.
 
 Ask it things from the terminal:
 
@@ -170,7 +166,7 @@ domain: lib
 imports (0 internal): —
 packages (2): node:fs, node:path
 imported by (11): src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/explorer/run.mjs, src/impact/lib/impact.test.mjs, src/impact/run.mjs, src/lib/graph_load.test.mjs, src/mcp/lib/rpc.test.mjs, src/mcp/lib/tools.test.mjs (+1 more)
-blast radius (18): bin/loregraph.mjs, src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/docs/run.test.mjs, src/explorer/run.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs (+8 more)
+blast radius (20): bin/loregraph.mjs, src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/docs/run.test.mjs, src/explorer/run.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs (+10 more)
 symbols (5):
   GRAPH_LAYERS variable exported L22 refs=1
   readJsonl function L27 refs=0
@@ -185,26 +181,41 @@ symbols (5):
 IMPACT  1 changed file(s)  (files)
 changed by domain:
   lib (1): src/lib/graph_load.mjs
-blast radius (18): bin/loregraph.mjs, src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/docs/run.test.mjs, src/explorer/run.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs (+8 more)
-affected domains (8): brief(3), docs(3), impact(3), mcp(3), explorer(2), lib(2), orchestrate(2), bin(1)
+blast radius (20): bin/loregraph.mjs, src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/docs/run.test.mjs, src/explorer/run.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs (+10 more)
+affected domains (9): brief(3), docs(3), impact(3), mcp(3), explorer(2), init(2), lib(2), orchestrate(2), bin(1)
 risky exports (2):
   loadGraph src/lib/graph_load.mjs:64 refs=11 <- src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/docs/lib/render.test.mjs (+8 more)
   GRAPH_LAYERS src/lib/graph_load.mjs:22 refs=1 <- src/lib/graph_load.test.mjs
-likely tests (11): src/brief/lib/brief.test.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.test.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs, src/impact/run.test.mjs, src/lib/graph_load.test.mjs, src/mcp/lib/rpc.test.mjs, src/mcp/lib/tools.test.mjs (+1 more)
+likely tests (12): src/brief/lib/brief.test.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.test.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs, src/impact/run.test.mjs, src/init/run.test.mjs, src/lib/graph_load.test.mjs, src/mcp/lib/rpc.test.mjs (+2 more)
 ```
 
 </details>
 
-### Measured size comparison
+### Token savings
 
-Measured in this repo, on loregraph's own source tree (107 files, 100 JS/TS sources), by byte count of the exact outputs above:
+There is a reproducible benchmark in [`bench/`](bench/README.md). It needs no model, no API key and no network:
 
-| Question | loregraph output | Reading the files instead | Difference |
-| :--- | :--- | :--- | :--- |
-| "What is `graph_load.mjs` and who uses it?" | `brief`, **874 B** | the file + its 11 direct importers = **86,233 B** | ~99% less |
-| "What breaks if I change it, and what should I run?" | `impact`, **1,001 B** | the file + its 18 blast-radius files = **136,384 B** | ~99% less |
+```bash
+npm run bench
+```
 
-This compares bytes, not tokens, and it assumes the agent would otherwise read those files in full. It is one measurement on one repo — treat it as an order of magnitude, not a benchmark.
+It builds the graph into a temporary cache, then for five real questions compares the tokens of loregraph's answer against the tokens of an explicit, documented file-reading procedure — counted with **`gpt-tokenizer`** (`o200k_base`), a bench-only devDependency. Not bytes, and not `chars / 4`, which undercuts the real count by 7–9% on these files.
+
+On this repo (129 indexed files, 598 symbols, 110 JS/TS files in the grep universe). The graph build is **1.92 s of wall clock and 0 tokens** — it happens outside the model's context — and is deliberately kept out of the per-question numbers:
+
+| Question | Graph | File-reading baseline | Skim floor | Ratio |
+| :--- | ---: | ---: | ---: | ---: |
+| Blast radius of a file | 424 | 49,608 | 13,338 | 117x |
+| Who references an export | 281 | 23,764 | 6,427 | 84.6x |
+| What is this file wired to | 413 | 10,149 | 1,662 | 24.6x |
+| What a module depends on | 175 | 13,892 | 3,255 | 79.4x |
+| Repo-wide dead exports | 806 | 167,675 | 49,028 | 208x |
+| **Total** | **2,099** | **265,088** | **73,710** | **126.3x** |
+
+> [!IMPORTANT]
+> **The baseline is a model of what a file-reading agent would read, not a measurement of one.** Nobody's context window was observed. Two of the five rows compare answers that are not identical, and in both cases the baseline is under-charged. The dead-exports row assumes an agent that reads every file rather than writing a script, so treat it as an upper bound on the naive path. The "skim floor" column charges only the first 40 lines of each file — not a realistic way to answer anything, but a hard lower bound: even there the graph is 35.1x cheaper. Every procedure is written out in [`bench/README.md`](bench/README.md) so it can be argued with.
+
+Separately, and **not** produced by that script: a one-off manual A/B gave two AI agents the same three questions about a 217-file demo project, one with the graph and one without. Both answered the blast-radius and symbol-usage questions identically and correctly, at **51,802 tokens with the graph vs 97,464 without (−47%)**. n = 1; the no-graph agent was unusually efficient (it wrote a TypeScript-compiler script instead of grepping), so a typical agent would likely cost more; and on the dead-exports question the two answers used different definitions (18 vs 44) with the no-graph answer being the more nuanced one. The distance between −47% there and the ratios above is the honest measure of how much a modelled baseline flatters the graph.
 
 ### MCP server
 
@@ -371,7 +382,7 @@ Wall clock on that repo was 0.59 s full vs 0.54 s incremental for `references` a
 | `<out-docs>/dependencies.md` | Cross-domain map, external packages, biggest importers. |
 | `<out-docs>/health.md` | Dead exports and orphan candidates. |
 
-Default locations are `<repo>/AGENTS.md` and `<repo>/docs/loregraph/`; `--agents-out` and `--out-docs` move them. On this repo the run produced 21 pages (`AGENTS.md`, three top-level pages, 17 domain pages).
+Default locations are `<repo>/AGENTS.md` and `<repo>/docs/loregraph/`; `--agents-out` and `--out-docs` move them. On this repo the run produced 24 pages (`AGENTS.md`, three top-level pages, 20 domain pages).
 
 Hand-written content survives. Everything generated sits between two markers:
 
@@ -388,23 +399,24 @@ Hand-written content survives. Everything generated sits between two markers:
 ## 📦 Requirements
 
 - Node.js **>= 18** (`engines.node` in `package.json`). Verified here on Node v22.17.0.
-- Runtime dependencies: `typescript` and `ignore`. Nothing else.
+- Runtime dependencies: `typescript` and `ignore`. Nothing else — `vitest` and `gpt-tokenizer` are devDependencies and are not published with the package.
 
 ## 🧪 Development
 
 ```bash
 npm install
 npm test        # vitest run
+npm run bench   # the token benchmark, against this repo itself
 ```
 
-The suite is **537 tests across 51 files**, all passing at the current revision. It includes the incremental equality gate, which asserts that incremental heavy-layer artifacts are byte-identical to a full rebuild.
+The suite is **589 tests across 53 files**, all passing at the current revision. It includes the incremental equality gate, which asserts that incremental heavy-layer artifacts are byte-identical to a full rebuild.
 
 ## 🚢 Publishing
 
-Releases are published by GitHub Actions from [`.github/workflows/publish.yml`](.github/workflows/publish.yml): pushing a `v*` tag installs, runs the suite and publishes to npm.
+`0.1.0` is live on npm. Releases after it are published by GitHub Actions from [`.github/workflows/publish.yml`](.github/workflows/publish.yml): pushing a `v*` tag installs, runs the suite and publishes to npm. npm never lets a version be republished, so the **next** release needs a version bump first:
 
 ```bash
-npm version patch                    # bumps package.json and creates the matching vX.Y.Z tag
+npm version patch                    # 0.1.0 -> 0.1.1, and creates the matching vX.Y.Z tag
 git push origin main --follow-tags   # or: git push origin vX.Y.Z
 ```
 
