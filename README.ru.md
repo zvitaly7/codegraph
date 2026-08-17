@@ -9,10 +9,10 @@
 <p>
   <img alt="Версия в npm" src="https://img.shields.io/npm/v/loregraph?logo=npm&logoColor=white&color=CB3837">
   <img alt="Node &gt;= 18" src="https://img.shields.io/badge/node-%3E%3D18-339933?logo=nodedotjs&logoColor=white">
-  <img alt="589 тестов проходят" src="https://img.shields.io/badge/tests-589%20passing-6E9F18?logo=vitest&logoColor=white">
+  <img alt="674 теста проходят" src="https://img.shields.io/badge/tests-674%20passing-6E9F18?logo=vitest&logoColor=white">
   <img alt="Область анализа: JavaScript / TypeScript" src="https://img.shields.io/badge/analysis-JavaScript%20%2F%20TypeScript-3178C6?logo=typescript&logoColor=white">
   <img alt="Зависимости времени выполнения: typescript и ignore" src="https://img.shields.io/badge/runtime%20deps-typescript%20%2B%20ignore-8957E5">
-  <img alt="MCP-сервер: 13 инструментов" src="https://img.shields.io/badge/MCP-13%20tools-1F6FEB">
+  <img alt="MCP-сервер: 15 инструментов" src="https://img.shields.io/badge/MCP-15%20tools-1F6FEB">
 </p>
 
 </div>
@@ -24,7 +24,7 @@
 - **Составляет карту репозитория.** Каталогизирует каждый файл, затем разрешает импорты, объявления верхнего уровня, межфайловые ссылки и связи «символ → символ» в слоистый граф.
 - **Группирует код по доменам.** Семантический слой, выводимый из структуры каталогов (настраивается), плюс взвешенные рёбра `DEPENDS_ON` между доменами.
 - **Показывает всё в браузере.** Один статический HTML-файл и JSON-индекс — с поиском, офлайн, без сервера (кроме опционального локального раздатчика статики).
-- **Отвечает на вопросы агента, не открывая файлы.** `brief` и `impact` упаковывают полезные факты о файле, домене, символе или диффе в несколько сотен байт; MCP-сервер отдаёт те же запросы в виде 13 инструментов.
+- **Отвечает на вопросы агента, не открывая файлы.** `brief` и `impact` упаковывают полезные факты о файле, домене, символе или диффе в несколько сотен байт; `outline` показывает объявления файла без тел, а `show` печатает ровно один символ; MCP-сервер отдаёт те же запросы в виде 15 инструментов.
 - **Живёт в связке с git и потому не устаревает.** Каждый артефакт помечен коммитом, на котором собран. `--if-stale` превращает пересборку в no-op, пока `HEAD` не сдвинулся; `--incremental` читает `git diff` и переанализирует только изменённые файлы и то, что их импортирует — побайтово совпадая с полной пересборкой; опциональный хук `post-merge` держит граф в ногу с `git pull`. Каждый потребитель предупреждает, если кэш отстал. И, в отличие от рукописных доков по архитектуре, граф выводится из кода, а значит не может с ним разойтись.
 
 > [!NOTE]
@@ -143,6 +143,8 @@ NODE_OPTIONS=--max-old-space-size=8192 loregraph regenerate
 | `usages` | Слой 2d — рёбра `USES` вида «символ → символ». Использует проверку типов. | `--inventory DIR`, `--symbols DIR`, `--max-files N`, `--incremental off\|incremental` |
 | `domains` | Слой 3 — доменный слой: узлы `Domain`, `BELONGS_TO`, взвешенные `DEPENDS_ON`. | `--inventory DIR`, `--imports DIR` |
 | `brief` | Пакет контекста по одному файлу, домену или символу. | `<target>`, `--cache DIR`, `--limit N` (10), `--json` |
+| `outline` | Объявления файла — виды, сигнатуры, диапазоны строк, члены классов — без тел. Кэш не нужен. | `<file>`, `--limit N` (100), `--json` |
+| `show` | Исходный код ровно одного символа вместе с JSDoc. Файл перечитывается в момент вызова, поэтому устаревший кэш не собьёт диапазон. | `<symbol>`, `--context N` (0), `--cache DIR`, `--json` |
 | `impact` | Радиус поражения, затронутые домены, рискованные экспорты и вероятные тесты для изменения. | `--diff REF` (HEAD), `--files a,b`, `--cache DIR`, `--limit N` (10), `--max-depth N` (25), `--json` |
 | `explorer` | Собирает `graph-index.json` и SPA, при желании раздаёт их. | `--cache DIR`, `--serve`, `--port N` (8765) |
 | `docs` | Генерирует `AGENTS.md` и Markdown-страницы из графа. | `--cache DIR`, `--out-docs DIR`, `--agents-out FILE`, `--lang en\|ru`, `--force` |
@@ -153,7 +155,7 @@ NODE_OPTIONS=--max-old-space-size=8192 loregraph regenerate
 ## 🤖 Для AI-агентов (экономия токенов)
 
 > [!TIP]
-> Агент, которому задали вопрос «что это за файл и что сломается, если я его изменю?», обычно открывает файл, затем его импортёров, затем их импортёров. `brief` и `impact` отвечают из графа.
+> Агент, которому задали вопрос «что это за файл и что сломается, если я его изменю?», обычно открывает файл, затем его импортёров, затем их импортёров. `brief` и `impact` отвечают из графа. А когда важен сам файл, `outline` и `show` отвечают из файла — скелетом или одним символом, но не целиком.
 
 <details>
 <summary><b>Реальный снятый вывод — <code>brief</code> и <code>impact</code> на собственном репозитории loregraph</b></summary>
@@ -165,14 +167,14 @@ FILE src/lib/graph_load.mjs  (JavaScript, code, 5.4 KB)
 domain: lib
 imports (0 internal): —
 packages (2): node:fs, node:path
-imported by (11): src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/explorer/run.mjs, src/impact/lib/impact.test.mjs, src/impact/run.mjs, src/lib/graph_load.test.mjs, src/mcp/lib/rpc.test.mjs, src/mcp/lib/tools.test.mjs (+1 more)
-blast radius (20): bin/loregraph.mjs, src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/docs/run.test.mjs, src/explorer/run.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs (+10 more)
+imported by (12): src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/explorer/run.mjs, src/impact/lib/impact.test.mjs, src/impact/run.mjs, src/lib/graph_load.test.mjs, src/mcp/lib/rpc.test.mjs, src/mcp/lib/tools.test.mjs (+2 more)
+blast radius (22): bin/loregraph.mjs, src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/docs/run.test.mjs, src/explorer/run.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs (+12 more)
 symbols (5):
   GRAPH_LAYERS variable exported L22 refs=1
   readJsonl function L27 refs=0
   mergeNode function L35 refs=0
   pushInto function L52 refs=0
-  loadGraph function exported L64 refs=11
+  loadGraph function exported L64 refs=12
 ```
 
 `loregraph impact --files src/lib/graph_load.mjs` — тот же репозиторий:
@@ -181,12 +183,69 @@ symbols (5):
 IMPACT  1 changed file(s)  (files)
 changed by domain:
   lib (1): src/lib/graph_load.mjs
-blast radius (20): bin/loregraph.mjs, src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/docs/run.test.mjs, src/explorer/run.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs (+10 more)
-affected domains (9): brief(3), docs(3), impact(3), mcp(3), explorer(2), init(2), lib(2), orchestrate(2), bin(1)
+blast radius (22): bin/loregraph.mjs, src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/docs/run.test.mjs, src/explorer/run.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs (+12 more)
+affected domains (10): brief(3), docs(3), impact(3), mcp(3), explorer(2), init(2), lib(2), orchestrate(2), show(2), bin(1)
 risky exports (2):
-  loadGraph src/lib/graph_load.mjs:64 refs=11 <- src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/docs/lib/render.test.mjs (+8 more)
+  loadGraph src/lib/graph_load.mjs:64 refs=12 <- src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/docs/lib/render.test.mjs (+9 more)
   GRAPH_LAYERS src/lib/graph_load.mjs:22 refs=1 <- src/lib/graph_load.test.mjs
-likely tests (12): src/brief/lib/brief.test.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.test.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs, src/impact/run.test.mjs, src/init/run.test.mjs, src/lib/graph_load.test.mjs, src/mcp/lib/rpc.test.mjs (+2 more)
+likely tests (13): src/brief/lib/brief.test.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.test.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs, src/impact/run.test.mjs, src/init/run.test.mjs, src/lib/graph_load.test.mjs, src/mcp/lib/rpc.test.mjs (+3 more)
+```
+
+</details>
+
+<details>
+<summary><b>Реальный снятый вывод — <code>outline</code> и <code>show</code>, пара для точного чтения</b></summary>
+
+`loregraph outline src/lib/graph_load.mjs` — файл на 159 строк, понятый по семи:
+
+```
+OUTLINE src/lib/graph_load.mjs  (159 lines · 5 declarations)
+imports (2): node:path, node:fs
+  L22-24   export const GRAPH_LAYERS = array  — Every layer merged into the index, in dependency order (later wins on conflict).
+  L27-32   function readJsonl(path)  — Read every row of a .jsonl file (blank lines skipped).
+  L35-50   function mergeNode(nodesById, node)  — Merge `node` into the index: union labels, later properties override earlier.
+  L52-56   function pushInto(map, key, value)
+  L64-158  export function loadGraph(cacheDir, { layers = GRAPH_LAYERS } = {})  — Load and index the graph artifacts under `cacheDir`.
+```
+
+`loregraph show mergeNode` — ровно один символ из этого файла вместе с JSDoc. Кэш не нужен, а диапазон перечитывается в момент вызова, поэтому устаревший номер строки его не собьёт:
+
+```
+src/lib/graph_load.mjs:34-50  function mergeNode  (17 lines)
+34 | /** Merge `node` into the index: union labels, later properties override earlier. */
+35 | function mergeNode(nodesById, node) {
+36 |   if (!node || typeof node.id !== 'string') return;
+37 |   const existing = nodesById.get(node.id);
+38 |   if (!existing) {
+39 |     nodesById.set(node.id, {
+40 |       id: node.id,
+41 |       labels: [...(node.labels ?? [])],
+42 |       properties: { ...(node.properties ?? {}) },
+43 |     });
+44 |     return;
+45 |   }
+46 |   const labels = new Set(existing.labels);
+47 |   for (const label of node.labels ?? []) labels.add(label);
+48 |   existing.labels = [...labels];
+49 |   existing.properties = { ...existing.properties, ...(node.properties ?? {}) };
+50 | }
+```
+
+Неоднозначное имя перечисляется, а не угадывается — `loregraph show DEFAULT_LIMIT`:
+
+```
+ambiguous symbol "DEFAULT_LIMIT" — 3 candidates:
+  src/impact/lib/impact.mjs:23  variable DEFAULT_LIMIT
+  src/brief/lib/brief.mjs:25  variable DEFAULT_LIMIT
+  src/outline/lib/outline.mjs:29  variable DEFAULT_LIMIT
+```
+
+`loregraph show outline.mjs#DEFAULT_LIMIT` снимает неоднозначность:
+
+```
+src/outline/lib/outline.mjs:28-29  variable DEFAULT_LIMIT  (2 lines)
+28 | /** Default cap on the declaration / member / import lists. */
+29 | export const DEFAULT_LIMIT = 100;
 ```
 
 </details>
@@ -199,30 +258,32 @@ likely tests (12): src/brief/lib/brief.test.mjs, src/brief/run.test.mjs, src/doc
 npm run bench
 ```
 
-Он собирает граф во временный кеш, а затем на пяти реальных вопросах сравнивает количество токенов в ответе loregraph с количеством токенов явной, описанной в документации процедуры чтения файлов — считает **`gpt-tokenizer`** (`o200k_base`), devDependency только для бенчмарка. Не байты и не `chars / 4`: на этих файлах `chars / 4` занижает реальное число токенов на 7–9 %.
+Он собирает граф во временный кеш, а затем на семи реальных вопросах сравнивает количество токенов в ответе loregraph с количеством токенов явной, описанной в документации процедуры чтения файлов — считает **`gpt-tokenizer`** (`o200k_base`), devDependency только для бенчмарка. Не байты и не `chars / 4`: на этих файлах `chars / 4` занижает реальное число токенов на 7–9 %.
 
-На этом репозитории (129 проиндексированных файлов, 598 символов, 110 JS/TS-файлов во «вселенной grep»). Сборка графа — **1,92 с реального времени и 0 токенов**, потому что происходит вне контекста модели, и она намеренно не размазана по вопросам:
+На этом репозитории (145 проиндексированных файлов, 682 символа, 126 JS/TS-файлов во «вселенной grep»). Сборка графа — **2,88 с реального времени и 0 токенов**, потому что происходит вне контекста модели, и она намеренно не размазана по вопросам:
 
 | Вопрос | Граф | Базовая линия с чтением файлов | Нижняя граница | Отношение |
 | :--- | ---: | ---: | ---: | ---: |
-| Радиус поражения файла | 424 | 49 608 | 13 338 | 117x |
-| Кто ссылается на экспорт | 281 | 23 764 | 6 427 | 84,6x |
-| С чем связан этот файл | 413 | 10 149 | 1 662 | 24,6x |
-| От чего зависит модуль | 175 | 13 892 | 3 255 | 79,4x |
-| Мёртвые экспорты по всему репозиторию | 806 | 167 675 | 49 028 | 208x |
-| **Итого** | **2 099** | **265 088** | **73 710** | **126,3x** |
+| Радиус поражения файла | 448 | 52 747 | 14 162 | 117,7x |
+| Кто ссылается на экспорт | 308 | 25 413 | 6 806 | 82,5x |
+| С чем связан этот файл | 450 | 11 836 | 1 678 | 26,3x |
+| От чего зависит модуль | 183 | 15 579 | 3 271 | 85,1x |
+| Что объявляет файл (`outline`) | 900 | 6 191 | 445 | 6,9x |
+| Реализация одного символа (`show`) | 1 131 | 2 399 | 1 433 | 2,1x |
+| Мёртвые экспорты по всему репозиторию | 1 004 | 188 959 | 55 362 | 188,2x |
+| **Итого** | **4 424** | **303 124** | **83 157** | **68,5x** |
 
 > [!IMPORTANT]
-> **Базовая линия — это модель того, что читал бы агент, работающий с файлами, а не измерение реального агента.** Ничей контекст не наблюдался. Две строки из пяти сравнивают не полностью совпадающие ответы, и в обоих случаях базовая линия занижена. Строка про мёртвые экспорты предполагает агента, который читает все файлы, а не пишет скрипт, — считайте её верхней оценкой наивного пути. Колонка «нижняя граница» учитывает только первые 40 строк каждого файла: так на эти вопросы не отвечают, но это жёсткая нижняя оценка — даже там граф дешевле в 35,1 раза. Все процедуры расписаны в [`bench/README.md`](bench/README.md), так что с ними можно спорить.
+> **Базовая линия — это модель того, что читал бы агент, работающий с файлами, а не измерение реального агента.** Ничей контекст не наблюдался. Четыре строки из семи сравнивают не полностью совпадающие ответы — и не всегда в пользу графа. В строках *с чем связан этот файл* и *от чего зависит модуль* граф отвечает больше, чем базовая линия, поэтому она занижена. В строке *что объявляет файл* больше отвечает **базовая линия**: текст файла содержит все тела функций, которые `outline` опускает, — эта строка про навигацию, а не про понимание кода. Строка про мёртвые экспорты предполагает агента, который читает все файлы, а не пишет скрипт, — считайте её верхней оценкой наивного пути. Самая строгая строка — *реализация одного символа*, 2,1x: только там обе стороны получают один и тот же текст на заданный вопрос. Колонка «нижняя граница» учитывает только первые 40 строк каждого файла: так на эти вопросы не отвечают, но это жёсткая нижняя оценка — даже там граф дешевле в 18,8 раза. Все процедуры расписаны в [`bench/README.md`](bench/README.md), так что с ними можно спорить.
 
 Отдельно, и **не** этим скриптом: разовый ручной A/B-эксперимент дал двум AI-агентам одни и те же три вопроса по демо-проекту из 217 файлов — одному с графом, другому без. Оба ответили на вопросы про радиус поражения и использование символа одинаково и правильно, ценой **51 802 токенов с графом против 97 464 без него (−47 %)**. n = 1; агент без графа оказался необычно экономным (вместо grep он написал скрипт на компиляторе TypeScript), так что типичный агент, скорее всего, потратил бы больше; а на вопросе про мёртвые экспорты два ответа использовали разные определения (18 против 44), и более тонким был ответ без графа. Расстояние между этими −47 % и отношениями выше — честная мера того, насколько модельная базовая линия льстит графу.
 
 ### MCP-сервер
 
-`loregraph mcp` говорит на JSON-RPC 2.0 через stdin/stdout (версия протокола `2024-11-05`) и предоставляет **13 инструментов**. В stdout идёт только трафик протокола, диагностика — в stderr.
+`loregraph mcp` говорит на JSON-RPC 2.0 через stdin/stdout (версия протокола `2024-11-05`) и предоставляет **15 инструментов**. В stdout идёт только трафик протокола, диагностика — в stderr.
 
 <details>
-<summary><b>Все 13 инструментов и их аргументы</b></summary>
+<summary><b>Все 15 инструментов и их аргументы</b></summary>
 
 | Инструмент | Аргументы |
 | :--- | :--- |
@@ -238,11 +299,13 @@ npm run bench
 | `domain_crossings` | — |
 | `dead_exports` | `limit` |
 | `brief` | `target` (обязательный), `limit` |
+| `outline` | `target` (обязательный), `limit` |
+| `show` | `symbol` (обязательный), `context` |
 | `impact` | `files`, `diff`, `limit`, `maxDepth` |
 
 </details>
 
-`brief` и `impact` — те самые экономящие токены инструменты: они вызывают ровно те же чистые функции, что и CLI.
+`brief`, `impact`, `outline` и `show` — те самые экономящие токены инструменты: они вызывают ровно те же чистые функции, что и CLI.
 
 ## 🏗️ Как это работает
 

@@ -9,10 +9,10 @@
 <p>
   <img alt="npm version" src="https://img.shields.io/npm/v/loregraph?logo=npm&logoColor=white&color=CB3837">
   <img alt="Node &gt;= 18" src="https://img.shields.io/badge/node-%3E%3D18-339933?logo=nodedotjs&logoColor=white">
-  <img alt="589 tests passing" src="https://img.shields.io/badge/tests-589%20passing-6E9F18?logo=vitest&logoColor=white">
+  <img alt="674 tests passing" src="https://img.shields.io/badge/tests-674%20passing-6E9F18?logo=vitest&logoColor=white">
   <img alt="Analysis scope: JavaScript / TypeScript" src="https://img.shields.io/badge/analysis-JavaScript%20%2F%20TypeScript-3178C6?logo=typescript&logoColor=white">
   <img alt="Runtime dependencies: typescript and ignore" src="https://img.shields.io/badge/runtime%20deps-typescript%20%2B%20ignore-8957E5">
-  <img alt="MCP server: 13 tools" src="https://img.shields.io/badge/MCP-13%20tools-1F6FEB">
+  <img alt="MCP server: 15 tools" src="https://img.shields.io/badge/MCP-15%20tools-1F6FEB">
 </p>
 
 </div>
@@ -24,7 +24,7 @@ Builds a deterministic map of a JavaScript/TypeScript codebase — files, symbol
 - **Maps the repo.** Catalogs every file, then resolves imports, top-level declarations, cross-file references and symbol-to-symbol usage into a layered graph.
 - **Groups code into domains.** A semantic overlay derived from the directory layout (configurable), plus weighted `DEPENDS_ON` edges between domains.
 - **Shows it in a browser.** One static HTML file plus a JSON index — searchable, offline, no server required beyond an optional local static host.
-- **Answers agent questions without opening files.** `brief` and `impact` pack the useful facts about a file, domain, symbol or diff into a few hundred bytes; an MCP server exposes the same queries as 13 tools.
+- **Answers agent questions without opening files.** `brief` and `impact` pack the useful facts about a file, domain, symbol or diff into a few hundred bytes; `outline` gives a file's declarations without the bodies and `show` prints exactly one symbol; an MCP server exposes the same queries as 15 tools.
 - **Rides along with git, so it cannot go stale.** Every artifact is stamped with the commit it was built from. `--if-stale` turns a rebuild into a no-op while `HEAD` has not moved; `--incremental` reads `git diff` and re-analyzes only the changed files and whatever imports them — byte-identical to a full rebuild; an opt-in `post-merge` hook keeps the graph in step with `git pull`. Every consumer warns when the cache is behind. And because it is derived from the code rather than written by hand, it cannot drift from it.
 
 > [!NOTE]
@@ -143,6 +143,8 @@ Global flags on every command: `--repo-root PATH`, `--out DIR`, `--config FILE`,
 | `usages` | Layer 2d — symbol → symbol `USES` edges. Uses the type-checker. | `--inventory DIR`, `--symbols DIR`, `--max-files N`, `--incremental off\|incremental` |
 | `domains` | Layer 3 — domain overlay: `Domain` nodes, `BELONGS_TO`, weighted `DEPENDS_ON`. | `--inventory DIR`, `--imports DIR` |
 | `brief` | Context pack for one file, domain or symbol. | `<target>`, `--cache DIR`, `--limit N` (10), `--json` |
+| `outline` | A file's declarations — kinds, signatures, line ranges, class members — without the bodies. Needs no cache. | `<file>`, `--limit N` (100), `--json` |
+| `show` | The source of exactly one symbol, with its JSDoc. Re-parsed at call time, so a stale cache cannot misplace it. | `<symbol>`, `--context N` (0), `--cache DIR`, `--json` |
 | `impact` | Blast radius, affected domains, risky exports and likely tests for a change. | `--diff REF` (HEAD), `--files a,b`, `--cache DIR`, `--limit N` (10), `--max-depth N` (25), `--json` |
 | `explorer` | Builds `graph-index.json` + the SPA, optionally serves them. | `--cache DIR`, `--serve`, `--port N` (8765) |
 | `docs` | Generates `AGENTS.md` and Markdown pages from the graph. | `--cache DIR`, `--out-docs DIR`, `--agents-out FILE`, `--lang en\|ru`, `--force` |
@@ -153,7 +155,7 @@ Exit codes: `0` success, `2` a usage error or a missing prerequisite (no cache, 
 ## 🤖 For AI agents (token savings)
 
 > [!TIP]
-> An agent asked "what is this file and what breaks if I change it?" normally opens the file, then its importers, then their importers. `brief` and `impact` answer from the graph instead.
+> An agent asked "what is this file and what breaks if I change it?" normally opens the file, then its importers, then their importers. `brief` and `impact` answer from the graph instead. And when the file itself is the point, `outline` and `show` answer from the file — the skeleton, or one symbol, never the whole thing.
 
 <details>
 <summary><b>Real captured output — <code>brief</code> and <code>impact</code> on loregraph's own repo</b></summary>
@@ -165,14 +167,14 @@ FILE src/lib/graph_load.mjs  (JavaScript, code, 5.4 KB)
 domain: lib
 imports (0 internal): —
 packages (2): node:fs, node:path
-imported by (11): src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/explorer/run.mjs, src/impact/lib/impact.test.mjs, src/impact/run.mjs, src/lib/graph_load.test.mjs, src/mcp/lib/rpc.test.mjs, src/mcp/lib/tools.test.mjs (+1 more)
-blast radius (20): bin/loregraph.mjs, src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/docs/run.test.mjs, src/explorer/run.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs (+10 more)
+imported by (12): src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/explorer/run.mjs, src/impact/lib/impact.test.mjs, src/impact/run.mjs, src/lib/graph_load.test.mjs, src/mcp/lib/rpc.test.mjs, src/mcp/lib/tools.test.mjs (+2 more)
+blast radius (22): bin/loregraph.mjs, src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/docs/run.test.mjs, src/explorer/run.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs (+12 more)
 symbols (5):
   GRAPH_LAYERS variable exported L22 refs=1
   readJsonl function L27 refs=0
   mergeNode function L35 refs=0
   pushInto function L52 refs=0
-  loadGraph function exported L64 refs=11
+  loadGraph function exported L64 refs=12
 ```
 
 `loregraph impact --files src/lib/graph_load.mjs` — same repo:
@@ -181,12 +183,69 @@ symbols (5):
 IMPACT  1 changed file(s)  (files)
 changed by domain:
   lib (1): src/lib/graph_load.mjs
-blast radius (20): bin/loregraph.mjs, src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/docs/run.test.mjs, src/explorer/run.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs (+10 more)
-affected domains (9): brief(3), docs(3), impact(3), mcp(3), explorer(2), init(2), lib(2), orchestrate(2), bin(1)
+blast radius (22): bin/loregraph.mjs, src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.mjs, src/docs/run.test.mjs, src/explorer/run.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs (+12 more)
+affected domains (10): brief(3), docs(3), impact(3), mcp(3), explorer(2), init(2), lib(2), orchestrate(2), show(2), bin(1)
 risky exports (2):
-  loadGraph src/lib/graph_load.mjs:64 refs=11 <- src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/docs/lib/render.test.mjs (+8 more)
+  loadGraph src/lib/graph_load.mjs:64 refs=12 <- src/brief/lib/brief.test.mjs, src/brief/run.mjs, src/docs/lib/render.test.mjs (+9 more)
   GRAPH_LAYERS src/lib/graph_load.mjs:22 refs=1 <- src/lib/graph_load.test.mjs
-likely tests (12): src/brief/lib/brief.test.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.test.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs, src/impact/run.test.mjs, src/init/run.test.mjs, src/lib/graph_load.test.mjs, src/mcp/lib/rpc.test.mjs (+2 more)
+likely tests (13): src/brief/lib/brief.test.mjs, src/brief/run.test.mjs, src/docs/lib/render.test.mjs, src/docs/run.test.mjs, src/explorer/run.test.mjs, src/impact/lib/impact.test.mjs, src/impact/run.test.mjs, src/init/run.test.mjs, src/lib/graph_load.test.mjs, src/mcp/lib/rpc.test.mjs (+3 more)
+```
+
+</details>
+
+<details>
+<summary><b>Real captured output — <code>outline</code> and <code>show</code>, the precise-reading pair</b></summary>
+
+`loregraph outline src/lib/graph_load.mjs` — a 159-line file, understood in seven:
+
+```
+OUTLINE src/lib/graph_load.mjs  (159 lines · 5 declarations)
+imports (2): node:path, node:fs
+  L22-24   export const GRAPH_LAYERS = array  — Every layer merged into the index, in dependency order (later wins on conflict).
+  L27-32   function readJsonl(path)  — Read every row of a .jsonl file (blank lines skipped).
+  L35-50   function mergeNode(nodesById, node)  — Merge `node` into the index: union labels, later properties override earlier.
+  L52-56   function pushInto(map, key, value)
+  L64-158  export function loadGraph(cacheDir, { layers = GRAPH_LAYERS } = {})  — Load and index the graph artifacts under `cacheDir`.
+```
+
+`loregraph show mergeNode` — one symbol out of that file, JSDoc included. No cache needed, and the range is re-parsed at call time, so it cannot be off by a stale line number:
+
+```
+src/lib/graph_load.mjs:34-50  function mergeNode  (17 lines)
+34 | /** Merge `node` into the index: union labels, later properties override earlier. */
+35 | function mergeNode(nodesById, node) {
+36 |   if (!node || typeof node.id !== 'string') return;
+37 |   const existing = nodesById.get(node.id);
+38 |   if (!existing) {
+39 |     nodesById.set(node.id, {
+40 |       id: node.id,
+41 |       labels: [...(node.labels ?? [])],
+42 |       properties: { ...(node.properties ?? {}) },
+43 |     });
+44 |     return;
+45 |   }
+46 |   const labels = new Set(existing.labels);
+47 |   for (const label of node.labels ?? []) labels.add(label);
+48 |   existing.labels = [...labels];
+49 |   existing.properties = { ...existing.properties, ...(node.properties ?? {}) };
+50 | }
+```
+
+A name that is not unique is listed, never guessed — `loregraph show DEFAULT_LIMIT`:
+
+```
+ambiguous symbol "DEFAULT_LIMIT" — 3 candidates:
+  src/impact/lib/impact.mjs:23  variable DEFAULT_LIMIT
+  src/brief/lib/brief.mjs:25  variable DEFAULT_LIMIT
+  src/outline/lib/outline.mjs:29  variable DEFAULT_LIMIT
+```
+
+`loregraph show outline.mjs#DEFAULT_LIMIT` settles it:
+
+```
+src/outline/lib/outline.mjs:28-29  variable DEFAULT_LIMIT  (2 lines)
+28 | /** Default cap on the declaration / member / import lists. */
+29 | export const DEFAULT_LIMIT = 100;
 ```
 
 </details>
@@ -199,30 +258,32 @@ There is a reproducible benchmark in [`bench/`](bench/README.md). It needs no mo
 npm run bench
 ```
 
-It builds the graph into a temporary cache, then for five real questions compares the tokens of loregraph's answer against the tokens of an explicit, documented file-reading procedure — counted with **`gpt-tokenizer`** (`o200k_base`), a bench-only devDependency. Not bytes, and not `chars / 4`, which undercuts the real count by 7–9% on these files.
+It builds the graph into a temporary cache, then for seven real questions compares the tokens of loregraph's answer against the tokens of an explicit, documented file-reading procedure — counted with **`gpt-tokenizer`** (`o200k_base`), a bench-only devDependency. Not bytes, and not `chars / 4`, which undercuts the real count by 7–9% on these files.
 
-On this repo (129 indexed files, 598 symbols, 110 JS/TS files in the grep universe). The graph build is **1.92 s of wall clock and 0 tokens** — it happens outside the model's context — and is deliberately kept out of the per-question numbers:
+On this repo (145 indexed files, 682 symbols, 126 JS/TS files in the grep universe). The graph build is **2.88 s of wall clock and 0 tokens** — it happens outside the model's context — and is deliberately kept out of the per-question numbers:
 
 | Question | Graph | File-reading baseline | Skim floor | Ratio |
 | :--- | ---: | ---: | ---: | ---: |
-| Blast radius of a file | 424 | 49,608 | 13,338 | 117x |
-| Who references an export | 281 | 23,764 | 6,427 | 84.6x |
-| What is this file wired to | 413 | 10,149 | 1,662 | 24.6x |
-| What a module depends on | 175 | 13,892 | 3,255 | 79.4x |
-| Repo-wide dead exports | 806 | 167,675 | 49,028 | 208x |
-| **Total** | **2,099** | **265,088** | **73,710** | **126.3x** |
+| Blast radius of a file | 448 | 52,747 | 14,162 | 117.7x |
+| Who references an export | 308 | 25,413 | 6,806 | 82.5x |
+| What is this file wired to | 450 | 11,836 | 1,678 | 26.3x |
+| What a module depends on | 183 | 15,579 | 3,271 | 85.1x |
+| What a file declares (`outline`) | 900 | 6,191 | 445 | 6.9x |
+| One symbol's implementation (`show`) | 1,131 | 2,399 | 1,433 | 2.1x |
+| Repo-wide dead exports | 1,004 | 188,959 | 55,362 | 188.2x |
+| **Total** | **4,424** | **303,124** | **83,157** | **68.5x** |
 
 > [!IMPORTANT]
-> **The baseline is a model of what a file-reading agent would read, not a measurement of one.** Nobody's context window was observed. Two of the five rows compare answers that are not identical, and in both cases the baseline is under-charged. The dead-exports row assumes an agent that reads every file rather than writing a script, so treat it as an upper bound on the naive path. The "skim floor" column charges only the first 40 lines of each file — not a realistic way to answer anything, but a hard lower bound: even there the graph is 35.1x cheaper. Every procedure is written out in [`bench/README.md`](bench/README.md) so it can be argued with.
+> **The baseline is a model of what a file-reading agent would read, not a measurement of one.** Nobody's context window was observed. Four of the seven rows compare answers that are not identical — and not always in the graph's favour. On *what is this file wired to* and *what a module depends on* the graph answers more than the baseline, which is therefore under-charged. On *what a file declares* the **baseline** answers more: the file text carries every body `outline` leaves out, so that row is a claim about navigation, not about understanding. The dead-exports row assumes an agent that reads every file rather than writing a script, so treat it as an upper bound on the naive path. The strictest row is *one symbol's implementation* at 2.1x, where both sides end up with the same text for what was asked. The "skim floor" column charges only the first 40 lines of each file — not a realistic way to answer anything, but a hard lower bound: even there the graph is 18.8x cheaper. Every procedure is written out in [`bench/README.md`](bench/README.md) so it can be argued with.
 
 Separately, and **not** produced by that script: a one-off manual A/B gave two AI agents the same three questions about a 217-file demo project, one with the graph and one without. Both answered the blast-radius and symbol-usage questions identically and correctly, at **51,802 tokens with the graph vs 97,464 without (−47%)**. n = 1; the no-graph agent was unusually efficient (it wrote a TypeScript-compiler script instead of grepping), so a typical agent would likely cost more; and on the dead-exports question the two answers used different definitions (18 vs 44) with the no-graph answer being the more nuanced one. The distance between −47% there and the ratios above is the honest measure of how much a modelled baseline flatters the graph.
 
 ### MCP server
 
-`loregraph mcp` speaks JSON-RPC 2.0 on stdin/stdout (protocol version `2024-11-05`) and exposes **13 tools**. stdout carries protocol traffic only; diagnostics go to stderr.
+`loregraph mcp` speaks JSON-RPC 2.0 on stdin/stdout (protocol version `2024-11-05`) and exposes **15 tools**. stdout carries protocol traffic only; diagnostics go to stderr.
 
 <details>
-<summary><b>All 13 tools and their arguments</b></summary>
+<summary><b>All 15 tools and their arguments</b></summary>
 
 | Tool | Arguments |
 | :--- | :--- |
@@ -238,11 +299,13 @@ Separately, and **not** produced by that script: a one-off manual A/B gave two A
 | `domain_crossings` | — |
 | `dead_exports` | `limit` |
 | `brief` | `target` (required), `limit` |
+| `outline` | `target` (required), `limit` |
+| `show` | `symbol` (required), `context` |
 | `impact` | `files`, `diff`, `limit`, `maxDepth` |
 
 </details>
 
-`brief` and `impact` are the token savers — they call the same pure functions the CLI does.
+`brief`, `impact`, `outline` and `show` are the token savers — they call the same pure functions the CLI does.
 
 ## 🏗️ How it works
 
