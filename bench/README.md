@@ -39,7 +39,7 @@ exactly the kind of slop a benchmark should not have.
 
 ## The build cost, stated separately
 
-Building the graph on this repo takes **≈2 s of wall clock** — 1.92 s in the run
+Building the graph on this repo takes **≈2 s of wall clock** — 2.21 s in the run
 recorded in `results.json`, and 2.48 s / 2.76 s / 2.80 s across three standalone
 `loregraph regenerate` runs measured with `time`. That is all six layers plus the
 browser index.
@@ -106,6 +106,117 @@ would search; it is implemented in Node so the benchmark runs anywhere.
 - **Baseline:** list every source file and read all of them. You cannot know what
   a file exports, nor whether anything uses it, without its text.
 
+## Path prefix compression, measured
+
+`--compress-paths` (CLI) / `compressPaths: true` (MCP) factors a shared directory
+prefix out of the path lists an answer prints. A text line becomes
+
+```
+blast radius (25):
+  bin/loregraph.mjs
+  under src/: brief/run.mjs, describe/run.mjs, docs/run.mjs, …
+```
+
+and `--json` replaces the flat list with `pathGroups: [{ pathPrefix, paths }]`, so
+every full path is `pathPrefix + paths[i]`. It is lossless in both renderings, and
+`run.mjs` measures **both variants of every question**, including the ones with no
+path list to factor.
+
+| question | plain | prefix-compressed | saved | verdict |
+| --- | ---: | ---: | ---: | --- |
+| `blast-radius` | 515 | 462 | 10.3% | smaller |
+| `symbol-usage` | 367 | 349 | 4.9% | smaller |
+| `file-orientation` | 505 | 494 | 2.2% | smaller |
+| `domain-deps` | 187 | 187 | 0% | no path list to factor |
+| `file-declarations` | 1036 | 1036 | 0% | no path list to factor |
+| `symbol-source` | 1131 | 1131 | 0% | no path list to factor |
+| `dead-exports` | 1330 | 1330 | 0% | no path list to factor |
+| **total** | **5071** | **4989** | **1.6%** | |
+
+No row got worse. Three rows improved, and only one of the three cleared 5%.
+
+**So it ships OFF by default, and that is the honest call.** loregraph's own tree
+is close to the worst case for this optimisation: the only prefix worth factoring
+is `src/`, four characters, which a BPE tokenizer spends 2 tokens on. Two of the
+three path-heavy questions save less than 5%, the whole set saves 1.6%, and every
+compressed list costs a reader one more line to interpret. That is not a trade
+worth making for everyone.
+
+### Where it does pay: deep monorepo paths
+
+Not produced by `run.mjs` — a separate, reproducible one-off. A scratch repo laid
+out like a real monorepo (`scenarios/6-mf-ssr/apps/shell/src/features/<area>/PartN.tsx`,
+31 files, one hub module every leaf imports) was indexed with `loregraph regenerate`
+and the same commands were run twice, counted with the same tokenizer:
+
+| command | plain | prefix-compressed | saved |
+| :--- | ---: | ---: | ---: |
+| `impact --files <hub> --limit 200` | 740 | 390 | 47.3% |
+| `brief <hub> --limit 200` | 1230 | 530 | 56.9% |
+| `brief useStore --limit 200` | 1323 | 972 | 26.5% |
+| `impact --files <hub> --limit 200 --json` | 1645 | 1298 | 21.1% |
+
+A 34-character prefix repeated thirty times is worth removing; a 4-character one
+is not. If your repo looks like the second table, put `compressPaths: true` in
+`loregraph.config.mjs` once. The flag exists for exactly that; the default is set
+by the repo this benchmark can actually measure.
+
+### Where it is deliberately left off
+
+- **`dead_exports`** lists paths, and it is *not* compressed. Its rows carry both
+  a `path` and an `id` (`sym:<path>#<name>`), and the `id` is 30% of the answer.
+  Factoring the prefix out of `path` alone is worth **1.7%**; factoring it out of
+  `id` too would produce ids that no longer resolve when handed to another tool —
+  a correctness bug traded for a rounding error. Measured, rejected.
+- **`outline` imports** are import *specifiers* (`node:path`, `../../lib/x.mjs`),
+  not repo paths. `under ../../:` is a confusing thing to read, and the list is a
+  small share of an outline's tokens, so `outline` has no compression switch.
+- **`brief`'s domain view** ranks its top files as `{ path, importedBy }` objects
+  printed one per line with a metric attached. Only flat string lists are
+  compressed, which is why `domain-deps` measures 0%.
+- **Risky-export reference lists** inside `impact` show only the first three of
+  each in text, so factoring the whole list would buy nothing a reader can see.
+
+## Response token budget
+
+`--max-tokens N` (CLI) / `maxTokens: N` (MCP) is a cap the caller chooses on
+`brief`, `impact` and `outline`, so it is opt-in by construction and there is no
+default to argue about. What the benchmark is for here is proving three
+properties rather than quoting a ratio:
+
+- **It holds.** Token counts use the same `~4 chars/token` approximation the
+  `describe` estimator uses — no tokenizer in the runtime dependencies — and are
+  labelled approximate everywhere they appear.
+- **It is visible.** A list that lost items keeps its real, untruncated count and
+  gains `(+N more, truncated to fit --max-tokens)`. In `--json` the same fact is a
+  `budgetDropped: N` field plus one `budget` block naming every section cut.
+- **It is deterministic.** Sections are cut in a fixed, declared order — least
+  important first — so the same input under the same cap is byte-identical.
+
+The cut order, least important first:
+
+| command | cut first → cut last |
+| :--- | :--- |
+| `brief` (file) | blast radius → symbols → packages → importers → imports |
+| `brief` (domain) | top files → packages → depended-on-by → depends-on |
+| `brief` (symbol) | used-by → uses → referenced-by |
+| `impact` | blast radius → risky exports → affected domains → likely tests → changed files → changed-by-domain |
+| `outline` | imports → declarations |
+
+The reasoning is arguable and meant to be argued with: the blast radius goes
+first because it is the longest list and the one another command (`impact`)
+answers in full; a brief's symbol table goes next because `outline` answers that
+better; and what a file imports, or what a diff changed, survives longest because
+it is the thing the question was about.
+
+A cap can be too small to meet. The identifying header line is never dropped, so
+below that floor the answer says so instead of pretending:
+
+```
+FILE src/mcp/lib/tools.mjs  (JavaScript, code, 26.1 KB)
+(4 section(s) omitted; this header alone is ~14 tokens, OVER --max-tokens=12)
+```
+
 ## Caveats
 
 Read these before quoting any number from this page.
@@ -115,7 +226,14 @@ Read these before quoting any number from this page.
   deterministic, not authoritative.
 - **`--limit 200` is used on the graph side**, which on a repo this size means "do
   not truncate". The default `--limit 10` would make the graph output smaller and
-  the comparison dishonest.
+  the comparison dishonest. For the same reason **no `--max-tokens` is passed**:
+  capping the answer would shrink the graph column by fiat. The budget is a knob
+  for a caller who wants a smaller answer, not a way to win a benchmark.
+- **The compression A/B is a real measurement, and it is a narrow one.** Both
+  variants are produced by real subprocesses and counted with the same tokenizer,
+  but they are counted on ONE repo whose deepest shared prefix is `src/`. The
+  deep-monorepo table is a separate hand-run experiment on a scratch tree, n = 1,
+  and is labelled as such where it appears.
 - **Two rows compare different answers, and both under-charge the baseline.**
   `file-orientation`: the graph brief also carries the transitive blast radius and
   per-symbol reference counts, which one level of grep does not produce.
@@ -127,13 +245,13 @@ Read these before quoting any number from this page.
   answers "what does this file declare" exactly — kind, name, export status, line
   range, signature, first doc line, class members — and does not answer "what does
   this code do". Reach for `show` (or the file) when the body is the point. Its
-  6.9x is therefore a claim about navigation, not about understanding.
+  7.2x is therefore a claim about navigation, not about understanding.
 - **`symbol-source` is the strictest row in the set, and the narrowest.** Both
   sides end up with the same text for the thing asked: `show` prints the
   declaration verbatim, JSDoc included. The baseline additionally carries the rest
-  of the declaring file — not asked for, but often useful next. 2.1x is what
+  of the declaring file — not asked for, but often useful next. 2.3x is what
   honest looks like when the two answers really are comparable.
-- **`dead-exports` is the weakest row and it flatters the graph.** "Read all 126
+- **`dead-exports` is the weakest row and it flatters the graph.** "Read all 144
   files" is what a naive agent does; a capable one writes a script instead and
   pays almost nothing (that is exactly what happened in the manual A/B below).
   Treat it as an upper bound on the naive path, not as a claim about good agents.
@@ -163,24 +281,26 @@ Read these before quoting any number from this page.
 
 ## Results on this repo
 
-`node bench/run.mjs`, loregraph at 145 indexed files / 682 symbols / 202 exported
-symbols; 126 JS/TS files in the grep universe. Tokenizer: `gpt-tokenizer`,
-`o200k_base`. Graph build: **2.88 s wall clock, 0 tokens**, reported separately.
+`node bench/run.mjs`, loregraph at 163 indexed files / 835 symbols / 265 exported
+symbols; 144 JS/TS files in the grep universe. Tokenizer: `gpt-tokenizer`,
+`o200k_base`. Graph build: **2.21 s wall clock, 0 tokens**, reported separately.
 
 | question | graph tokens | baseline tokens | baseline, skim floor | files read | ratio | saved |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `blast-radius` | 448 | 52747 | 14162 | 24 | 117.7x | 99.2% |
-| `symbol-usage` | 308 | 25413 | 6806 | 13 | 82.5x | 98.8% |
-| `file-orientation` | 450 | 11836 | 1678 | 3 | 26.3x | 96.2% |
-| `domain-deps` | 183 | 15579 | 3271 | 6 | 85.1x | 98.8% |
-| `file-declarations` | 900 | 6191 | 445 | 1 | 6.9x | 85.5% |
-| `symbol-source` | 1131 | 2399 | 1433 | 1 | 2.1x | 52.9% |
-| `dead-exports` | 1004 | 188959 | 55362 | 126 | 188.2x | 99.5% |
-| **total** | **4424** | **303124** | **83157** | — | **68.5x** | **98.5%** |
+| `blast-radius` | 515 | 69842 | 16287 | 28 | 135.6x | 99.3% |
+| `symbol-usage` | 367 | 36981 | 8346 | 16 | 100.8x | 99% |
+| `file-orientation` | 505 | 14758 | 1744 | 3 | 29.2x | 96.6% |
+| `domain-deps` | 187 | 18501 | 3337 | 6 | 98.9x | 99% |
+| `file-declarations` | 1036 | 7436 | 511 | 1 | 7.2x | 86.1% |
+| `symbol-source` | 1131 | 2600 | 1634 | 1 | 2.3x | 56.5% |
+| `dead-exports` | 1330 | 239983 | 63815 | 144 | 180.4x | 99.4% |
+| **total** | **5071** | **390101** | **95674** | — | **76.9x** | **98.7%** |
 
-Against the skim floor the total is **18.8x** (94.7% saved).
+Against the skim floor the total is **18.9x** (94.7% saved). With
+`--compress-paths` on, the graph total is **4989** (78.2x) — see the compression
+section above for why that 1.6% is not the default.
 
-The graph won every question. The narrowest margin is `symbol-source` at 2.1x,
+The graph won every question. The narrowest margin is `symbol-source` at 2.3x,
 and that is the row to trust most: it is the only one where both sides produce
 the same text for what was asked, and its baseline opens a single file.
 
