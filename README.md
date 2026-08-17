@@ -25,7 +25,7 @@ Builds a deterministic map of a JavaScript/TypeScript codebase — files, symbol
 - **Groups code into domains.** A semantic overlay derived from the directory layout (configurable), plus weighted `DEPENDS_ON` edges between domains.
 - **Shows it in a browser.** One static HTML file plus a JSON index — searchable, offline, no server required beyond an optional local static host.
 - **Answers agent questions without opening files.** `brief` and `impact` pack the useful facts about a file, domain, symbol or diff into a few hundred bytes; an MCP server exposes the same queries as 13 tools.
-- **Stays honest about freshness.** Artifacts record the revision they were built from, and every consumer warns when the cache is behind the repo.
+- **Rides along with git, so it cannot go stale.** Every artifact is stamped with the commit it was built from. `--if-stale` turns a rebuild into a no-op while `HEAD` has not moved; `--incremental` reads `git diff` and re-analyzes only the changed files and whatever imports them — byte-identical to a full rebuild; an opt-in `post-merge` hook keeps the graph in step with `git pull`. Every consumer warns when the cache is behind. And because it is derived from the code rather than written by hand, it cannot drift from it.
 
 > [!NOTE]
 > Analysis scope: the inventory layer catalogs files in **any** language, but import, symbol, reference and usage analysis is **JavaScript/TypeScript only**.
