@@ -35,17 +35,17 @@ function bindingNames(name) {
 }
 
 /**
- * @param {string} relPath repo-relative path — its extension selects the TS
- *        script kind (e.g. `.tsx` enables JSX), so pass the real path.
- * @param {string} text file contents.
- * @returns {Array<{name:string, kind:string, exported:boolean, line:number}>}
+ * Export intent that lives in statements OTHER than the declaration itself:
+ *  - local `export { a, b as c }` (no `from`) → the LOCAL names a, b.
+ *  - `export default <ident>` / `export = <ident>` → that identifier.
+ *
+ * Exported because `outline` decides "is this exported?" the same way, and the
+ * rule is subtle enough that two copies of it would drift.
+ *
+ * @param {import('typescript').SourceFile} sf
+ * @returns {{exportedByClause: Set<string>, defaultName: string|undefined}}
  */
-export function extractSymbols(relPath, text) {
-  const sf = ts.createSourceFile(relPath, text, ts.ScriptTarget.Latest, true);
-
-  // Pre-pass: collect export intent that lives in separate statements.
-  //  - local `export { a, b as c }` (no `from`) → the LOCAL names a, b.
-  //  - `export default <ident>` / `export = <ident>` → that identifier.
+export function collectExportIntent(sf) {
   const exportedByClause = new Set();
   let defaultName;
   for (const stmt of sf.statements) {
@@ -60,6 +60,19 @@ export function extractSymbols(relPath, text) {
       defaultName = stmt.expression.text;
     }
   }
+  return { exportedByClause, defaultName };
+}
+
+/**
+ * @param {string} relPath repo-relative path — its extension selects the TS
+ *        script kind (e.g. `.tsx` enables JSX), so pass the real path.
+ * @param {string} text file contents.
+ * @returns {Array<{name:string, kind:string, exported:boolean, line:number}>}
+ */
+export function extractSymbols(relPath, text) {
+  const sf = ts.createSourceFile(relPath, text, ts.ScriptTarget.Latest, true);
+
+  const { exportedByClause, defaultName } = collectExportIntent(sf);
 
   const lineOf = (node) => sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
   const isExported = (name, byKeyword) => byKeyword || exportedByClause.has(name) || name === defaultName;

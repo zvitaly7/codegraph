@@ -15,7 +15,7 @@
 //   5. an exact symbol name        (useCart)
 // Nothing matched → `not-found`, with substring near-misses as suggestions.
 
-import { normPosix } from '../../inventory/schema.mjs';
+import { exactPathMatch, suffixPathMatches } from '../../lib/path_match.mjs';
 import {
   toFileId, fileIdToPath, domainOfFile, symbolsOfFile, referencingFiles,
   directImporters, transitiveImporters, importsOfFile, filesOfDomain, capped,
@@ -50,22 +50,29 @@ function candidate(graph, id) {
   return out;
 }
 
+/** Repo-relative paths of every File node in the graph. */
+function filePathsOf(graph) {
+  return graph.byLabel('File')
+    .map((n) => n.properties?.path)
+    .filter((p) => typeof p === 'string');
+}
+
 /** Ordered resolution tiers; the first non-empty one decides. @returns {string[]} ids */
 function resolveTarget(graph, target) {
   if (graph.nodesById.has(target)) return [target];
 
-  const asFile = `file:${normPosix(target)}`;
-  if (graph.nodesById.has(asFile)) return [asFile];
+  // Tiers 2 and 4 are the FILE tiers, and `outline` / `show` must match a file
+  // argument exactly the same way — so both come from lib/path_match.mjs
+  // rather than being spelled out a second time here.
+  const paths = filePathsOf(graph);
+  const exact = exactPathMatch(paths, target);
+  if (exact !== null) return [toFileId(exact)];
 
   const asDomain = `domain:${target}`;
   if (graph.nodesById.has(asDomain)) return [asDomain];
 
-  const suffix = `/${normPosix(target)}`;
-  const bySuffix = graph.byLabel('File')
-    .filter((n) => typeof n.properties?.path === 'string' && n.properties.path.endsWith(suffix))
-    .map((n) => n.id)
-    .sort();
-  if (bySuffix.length > 0) return bySuffix;
+  const bySuffix = suffixPathMatches(paths, target);
+  if (bySuffix.length > 0) return bySuffix.map(toFileId);
 
   const byName = graph.byLabel('Symbol')
     .filter((n) => n.properties?.name === target)
