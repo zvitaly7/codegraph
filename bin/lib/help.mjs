@@ -16,6 +16,8 @@
 
 import { DEFAULTS } from '../../src/config/defaults.mjs';
 import { DEFAULT_LIMIT as BRIEF_LIMIT } from '../../src/brief/lib/brief.mjs';
+import { DEFAULT_LIMIT as OUTLINE_LIMIT } from '../../src/outline/lib/outline.mjs';
+import { DEFAULT_CONTEXT as SHOW_CONTEXT } from '../../src/show/lib/show.mjs';
 import { DEFAULT_LIMIT as IMPACT_LIMIT } from '../../src/impact/lib/impact.mjs';
 import { STRINGS as DOCS_STRINGS, DEFAULT_LANG as DOCS_DEFAULT_LANG } from '../../src/docs/lib/render.mjs';
 import { USAGE as INIT_USAGE } from '../../src/init/lib/usage.mjs';
@@ -36,7 +38,7 @@ const DOCS_LANGS = Object.keys(DOCS_STRINGS).join('|');
 // or dependency order used elsewhere.
 export const COMMAND_ORDER = [
   'init', 'regenerate', 'inventory', 'imports', 'symbols', 'references',
-  'usages', 'domains', 'brief', 'impact', 'explorer', 'docs', 'mcp',
+  'usages', 'domains', 'brief', 'outline', 'show', 'impact', 'explorer', 'docs', 'mcp',
 ];
 
 /**
@@ -132,6 +134,25 @@ export const COMMAND_HELP = {
       ['--cache DIR', 'graph cache to read (default: resolved --out)'],
       ['--json', 'print the raw structured object instead of formatted text'],
       ['--limit N', `cap list lengths (default: ${BRIEF_LIMIT})`],
+    ],
+    globals: ['repo-root', 'out', 'config'],
+  },
+  outline: {
+    summary: 'A file\'s declarations, without the bodies',
+    usage: 'loregraph outline <file> [options]',
+    options: [
+      ['--json', 'print the raw structured object instead of formatted text'],
+      ['--limit N', `cap the declaration / member lists (default: ${OUTLINE_LIMIT})`],
+    ],
+    globals: ['repo-root', 'config'],
+  },
+  show: {
+    summary: 'The source of exactly one symbol',
+    usage: 'loregraph show <symbol> [options]',
+    options: [
+      ['--cache DIR', 'graph cache used to locate the symbol (default: resolved --out)'],
+      ['--json', 'print the raw structured object instead of formatted text'],
+      ['--context N', `lines of surrounding context (default: ${SHOW_CONTEXT})`],
     ],
     globals: ['repo-root', 'out', 'config'],
   },

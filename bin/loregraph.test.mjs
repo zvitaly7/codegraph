@@ -48,6 +48,8 @@ const DISTINCTIVE_FLAG = {
   usages: '--symbols',
   domains: '--imports',
   brief: '--limit',
+  outline: '<file>',
+  show: '--context',
   impact: '--diff',
   explorer: '--serve',
   docs: '--out-docs',
@@ -120,6 +122,8 @@ Commands:
   usages       Layer 2d: symbol → symbol
   domains      Layer 3: semantic domain overlay
   brief        Context pack for a file / domain / symbol
+  outline      A file's declarations, without the bodies
+  show         The source of exactly one symbol
   impact       Blast radius + likely tests for a diff
   explorer     Build (and optionally serve) the browser index
   docs         Generate AGENTS.md + Markdown docs from the graph
