@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 400" width="1280" height="400" role="img" aria-labelledby="title desc">
+  <title id="title">loregraph</title>
+  <desc id="desc">Детерминированный слоистый граф знаний о коде для любого JS/TS-репозитория, с MCP-сервером для агентов.</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#EAF1FB"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="50%" cy="46%" r="52%">
+      <stop offset="0%" stop-color="#2563EB" stop-opacity="0.1"/>
+      <stop offset="100%" stop-color="#2563EB" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rule" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#2563EB" stop-opacity="0"/>
+      <stop offset="18%" stop-color="#2563EB"/>
+      <stop offset="50%" stop-color="#7C3AED"/>
+      <stop offset="82%" stop-color="#0D9488"/>
+      <stop offset="100%" stop-color="#0D9488" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="400" fill="url(#bg)"/>
+  <rect width="1280" height="400" fill="url(#halo)"/>
+
+  <g opacity="0.85">
+    <line x1="64" y1="96" x2="148" y2="58" stroke="#C7D6EA" stroke-width="1.5"/>
+    <line x1="64" y1="96" x2="152" y2="152" stroke="#C7D6EA" stroke-width="1.5"/>
+    <line x1="148" y1="58" x2="152" y2="152" stroke="#C7D6EA" stroke-width="1.5"/>
+    <line x1="152" y1="152" x2="58" y2="214" stroke="#C7D6EA" stroke-width="1.5"/>
+    <line x1="152" y1="152" x2="186" y2="244" stroke="#C7D6EA" stroke-width="1.5"/>
+    <line x1="58" y1="214" x2="96" y2="312" stroke="#C7D6EA" stroke-width="1.5"/>
+    <line x1="186" y1="244" x2="152" y2="366" stroke="#C7D6EA" stroke-width="1.5"/>
+    <line x1="96" y1="312" x2="152" y2="366" stroke="#C7D6EA" stroke-width="1.5"/>
+    <line x1="148" y1="58" x2="246" y2="122" stroke="#C7D6EA" stroke-width="1.5"/>
+    <line x1="152" y1="152" x2="246" y2="122" stroke="#C7D6EA" stroke-width="1.5"/>
+    <circle cx="64" cy="96" r="7" fill="#2563EB" stroke="#FFFFFF" stroke-width="2"/>
+    <circle cx="148" cy="58" r="5" fill="#0D9488" stroke="#FFFFFF" stroke-width="2"/>
+    <circle cx="152" cy="152" r="9" fill="#7C3AED" stroke="#FFFFFF" stroke-width="2"/>
+    <circle cx="58" cy="214" r="5" fill="#16A34A" stroke="#FFFFFF" stroke-width="2"/>
+    <circle cx="186" cy="244" r="7" fill="#EA580C" stroke="#FFFFFF" stroke-width="2"/>
+    <circle cx="96" cy="312" r="6" fill="#2563EB" stroke="#FFFFFF" stroke-width="2"/>
+    <circle cx="152" cy="366" r="4" fill="#0D9488" stroke="#FFFFFF" stroke-width="2"/>
+    <circle cx="246" cy="122" r="4" fill="#2563EB" stroke="#FFFFFF" stroke-width="2"/>
+  </g>
+  <g opacity="0.85">
+    <line x1="1216" y1="96" x2="1132" y2="58" stroke="#C7D6EA" stroke-width="1.5"/>
+    <line x1="1216" y1="96" x2="1128" y2="152" stroke="#C7D6EA" stroke-width="1.5"/>
+    <line x1="1132" y1="58" x2="1128" y2="152" stroke="#C7D6EA" stroke-width="1.5"/>
+    <line x1="1128" y1="152" x2="1222" y2="214" stroke="#C7D6EA" stroke-width="1.5"/>
+    <line x1="1128" y1="152" x2="1094" y2="244" stroke="#C7D6EA" stroke-width="1.5"/>
+    <line x1="1222" y1="214" x2="1184" y2="312" stroke="#C7D6EA" stroke-width="1.5"/>
+    <line x1="1094" y1="244" x2="1128" y2="366" stroke="#C7D6EA" stroke-width="1.5"/>
+    <line x1="1184" y1="312" x2="1128" y2="366" stroke="#C7D6EA" stroke-width="1.5"/>
+    <line x1="1132" y1="58" x2="1034" y2="122" stroke="#C7D6EA" stroke-width="1.5"/>
+    <line x1="1128" y1="152" x2="1034" y2="122" stroke="#C7D6EA" stroke-width="1.5"/>
+    <circle cx="1216" cy="96" r="7" fill="#2563EB" stroke="#FFFFFF" stroke-width="2"/>
+    <circle cx="1132" cy="58" r="5" fill="#0D9488" stroke="#FFFFFF" stroke-width="2"/>
+    <circle cx="1128" cy="152" r="9" fill="#7C3AED" stroke="#FFFFFF" stroke-width="2"/>
+    <circle cx="1222" cy="214" r="5" fill="#16A34A" stroke="#FFFFFF" stroke-width="2"/>
+    <circle cx="1094" cy="244" r="7" fill="#EA580C" stroke="#FFFFFF" stroke-width="2"/>
+    <circle cx="1184" cy="312" r="6" fill="#2563EB" stroke="#FFFFFF" stroke-width="2"/>
+    <circle cx="1128" cy="366" r="4" fill="#0D9488" stroke="#FFFFFF" stroke-width="2"/>
+    <circle cx="1034" cy="122" r="4" fill="#2563EB" stroke="#FFFFFF" stroke-width="2"/>
+  </g>
+
+  <!-- mark: three files resolving into one graph node -->
+  <g transform="translate(640 96)">
+    <line x1="-46" y1="14" x2="0" y2="-22" stroke="#C7D6EA" stroke-width="2.5"/>
+    <line x1="46" y1="14" x2="0" y2="-22" stroke="#C7D6EA" stroke-width="2.5"/>
+    <line x1="-46" y1="14" x2="46" y2="14" stroke="#C7D6EA" stroke-width="2.5" stroke-dasharray="4 5"/>
+    <circle cx="0" cy="-22" r="13" fill="#2563EB"/>
+    <circle cx="-46" cy="14" r="10" fill="#7C3AED"/>
+    <circle cx="46" cy="14" r="10" fill="#0D9488"/>
+  </g>
+
+  <g font-family="'Inter', 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" text-anchor="middle">
+    <text x="640" y="226" font-size="104" font-weight="700" letter-spacing="-3" fill="#0B1220">loregraph</text>
+    <text x="640" y="278" font-size="25" font-weight="500" fill="#5B6B82">Детерминированный слоистый граф знаний о коде для JS/TS</text>
+    <text x="640" y="342" font-size="17" font-weight="600" letter-spacing="3.2" fill="#64748B">INVENTORY · IMPORTS · SYMBOLS · REFERENCES · USAGES · DOMAINS · MCP</text>
+  </g>
+
+  <rect x="480" y="300" width="320" height="3" rx="1.5" fill="url(#rule)"/>
+</svg>
