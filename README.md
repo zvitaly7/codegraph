@@ -195,10 +195,10 @@ Global flags on every command: `--repo-root PATH`, `--out DIR`, `--config FILE`,
 
 | Command | What it does | Key flags |
 | :--- | :--- | :--- |
-| `brief` | Context pack for one file, domain or symbol. | `<target>`, `--cache DIR`, `--limit N` (10), `--json` |
-| `outline` | A file's declarations — kinds, signatures, line ranges, class members — without the bodies. Needs no cache. | `<file>`, `--limit N` (100), `--json` |
+| `brief` | Context pack for one file, domain or symbol. | `<target>`, `--cache DIR`, `--limit N` (10), `--max-tokens N`, `--compress-paths`, `--json` |
+| `outline` | A file's declarations — kinds, signatures, line ranges, class members — without the bodies. Needs no cache. | `<file>`, `--limit N` (100), `--max-tokens N`, `--json` |
 | `show` | The source of exactly one symbol, with its JSDoc. Re-parsed at call time, so a stale cache cannot misplace it. | `<symbol>`, `--context N` (0), `--cache DIR`, `--json` |
-| `impact` | Blast radius, affected domains, risky exports and likely tests for a change. | `--diff REF` (HEAD), `--files a,b`, `--cache DIR`, `--limit N` (10), `--max-depth N` (25), `--json` |
+| `impact` | Blast radius, affected domains, risky exports and likely tests for a change. | `--diff REF` (HEAD), `--files a,b`, `--cache DIR`, `--limit N` (10), `--max-depth N` (25), `--max-tokens N`, `--compress-paths`, `--json` |
 | `describe` | Cached, model-written descriptions of domains / files / symbols. **The only command that can cost money.** | `--scope domains\|files\|symbols\|all`, `--top N`, `--command CMD`, `--model NAME`, `--dry-run`, `--yes`, `--budget N`, `--budget-tokens N`, `--force`, `--timeout MS`, `--json` |
 | `explorer` | Builds `graph-index.json` + the SPA, optionally serves them. | `--cache DIR`, `--serve`, `--port N` (8765) |
 | `docs` | Generates `AGENTS.md` and Markdown pages from the graph. | `--cache DIR`, `--out-docs DIR`, `--agents-out FILE`, `--lang en\|ru`, `--force` |
@@ -370,6 +370,24 @@ On this repo (145 indexed files, 682 symbols, 126 JS/TS files in the grep univer
 
 Separately, and **not** produced by that script: a one-off manual A/B gave two AI agents the same three questions about a 217-file demo project, one with the graph and one without. Both answered the blast-radius and symbol-usage questions identically and correctly, at **51,802 tokens with the graph vs 97,464 without (−47%)**. n = 1; the no-graph agent was unusually efficient (it wrote a TypeScript-compiler script instead of grepping), so a typical agent would likely cost more; and on the dead-exports question the two answers used different definitions (18 vs 44) with the no-graph answer being the more nuanced one. The distance between −47% there and the ratios above is the honest measure of how much a modelled baseline flatters the graph.
 
+**`--max-tokens N`** is an opt-in cap on the whole answer, on `brief`, `impact` and `outline`. Sections are dropped in a fixed, declared order — least important first — so the same input under the same cap is byte-identical, and a list that lost items keeps its real untruncated count and gains `(+N more, truncated to fit --max-tokens)`. In `--json` the same fact is a `budgetDropped: N` field plus one `budget` block naming every section cut. A truncated answer can therefore never be mistaken for a complete one. Counts are the same `~4 chars/token` estimate `describe` uses, and are labelled `~` everywhere they appear.
+
+**`--compress-paths`** is opt-in too, on `brief` and `impact` — an `outline`'s import list holds specifiers like `node:path`, not repo paths, so it has no switch. It factors a shared directory prefix out of a path list: the text prints `under src/:` and then the suffixes, and `--json` replaces the flat field with `pathGroups: [{ pathPrefix, paths }]` and **drops the flat field**, so a consumer cannot silently read a subset. Lossless in both renderings, and measured on this repo:
+
+| Question | Saved by `--compress-paths` |
+| :--- | ---: |
+| Blast radius of a file | **10.3%** |
+| Who references an export | **4.9%** |
+| What is this file wired to | **2.2%** |
+| The other four questions | 0% — no path list to factor |
+| **Whole set** | **1.6%** |
+
+> [!NOTE]
+> **That 1.6% is why it ships off by default.** Only one of the three path-heavy questions clears 5%, and every compressed list costs a reader one more line to interpret — not a trade worth making for everyone. This repo is close to the worst case: the only prefix worth factoring is `src/`, four characters. Deep paths are what the flag exists for — a separate one-off run on a real deep-path monorepo saved **47.3%** on `impact` and **56.9%** on a file `brief` (n = 1, and labelled as such). Set `compressPaths: true` once if your repo looks like that. Both measurements are in [`bench/README.md`](bench/README.md).
+
+> [!TIP]
+> A cap can be too small to meet, because the JSON skeleton cannot shrink and the identifying header line is never dropped. Below that floor the answer says so instead of pretending: the text reports the header alone is over the cap, and the payload carries `overBudget: true`. The guarantee is **never *silently* over budget** — not "always under".
+
 ### 🔌 MCP server
 
 `loregraph mcp` speaks JSON-RPC 2.0 on stdin/stdout (protocol version `2024-11-05`) and exposes **16 tools**. stdout carries protocol traffic only; diagnostics go to stderr.
@@ -404,10 +422,10 @@ Separately, and **not** produced by that script: a one-off manual A/B gave two A
 
 | Tool | Arguments |
 | :--- | :--- |
-| `brief` | `target` (required), `limit` |
-| `outline` | `target` (required), `limit` |
+| `brief` | `target` (required), `limit`, `maxTokens`, `compressPaths` |
+| `outline` | `target` (required), `limit`, `maxTokens` |
 | `show` | `symbol` (required), `context` |
-| `impact` | `files`, `diff`, `limit`, `maxDepth` |
+| `impact` | `files`, `diff`, `limit`, `maxDepth`, `maxTokens`, `compressPaths` |
 | `describe` | `target` (required) — **lookup only, never generates** |
 
 </details>
@@ -638,6 +656,7 @@ Optional `loregraph.config.mjs` (default export) or `loregraph.config.json` at t
 | `outDir` | `'.kg-cache'` | Base cache directory for all artifacts. |
 | `domains` | `null` | `null` auto-derives the overlay. Otherwise an inline object or a path to a module exporting `CANONICAL_DOMAINS`, `ALIASES` and `AREA_BUCKETS`. |
 | `incremental` | `'off'` | `'off'` or `'incremental'` — rebuild mode for the heavy layers. |
+| `compressPaths` | `false` | Factor shared directory prefixes out of the path lists `brief` and `impact` print. `--compress-paths` / `--no-compress-paths` override it per call. |
 | `describe` | `{}` | Defaults for `loregraph describe`: `command`, `model`, `scope`, `top`, `timeoutMs`, and `pricing: { input, output }` in USD per million tokens. |
 
 `loregraph docs` additionally reads a `lang` key (`'en'` or `'ru'`, default `'en'`); `--lang` overrides it.
