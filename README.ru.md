@@ -9,7 +9,7 @@
 <p>
   <img alt="Версия в npm" src="https://img.shields.io/npm/v/loregraph?logo=npm&logoColor=white&color=CB3837">
   <img alt="Node &gt;= 18" src="https://img.shields.io/badge/node-%3E%3D18-339933?logo=nodedotjs&logoColor=white">
-  <img alt="777 тестов проходят" src="https://img.shields.io/badge/tests-777%20passing-6E9F18?logo=vitest&logoColor=white">
+  <img alt="778 тестов проходят" src="https://img.shields.io/badge/tests-778%20passing-6E9F18?logo=vitest&logoColor=white">
   <img alt="Область анализа: JavaScript / TypeScript" src="https://img.shields.io/badge/analysis-JavaScript%20%2F%20TypeScript-3178C6?logo=typescript&logoColor=white">
   <img alt="Зависимости времени выполнения: typescript и ignore" src="https://img.shields.io/badge/runtime%20deps-typescript%20%2B%20ignore-8957E5">
   <img alt="MCP-сервер: 16 инструментов" src="https://img.shields.io/badge/MCP-16%20tools-1F6FEB">

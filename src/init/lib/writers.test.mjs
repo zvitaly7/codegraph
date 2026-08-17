@@ -199,4 +199,19 @@ describe('renderConfigFile', () => {
     const mod = await import(`data:text/javascript,${encodeURIComponent(custom)}`);
     expect(mod.default).toEqual({ srcRoots: ['src'], outDir: '.cache/graph' });
   });
+
+  it('documents the describe knob, leading with the no-API-tokens path', () => {
+    expect(rendered).toContain('// describe: {');
+    expect(rendered).toContain('command:');
+    expect(rendered).toContain('stdin');
+    expect(rendered).toContain('ANTHROPIC_API_KEY');
+    expect(rendered).toContain('pricing:');
+    // Commented out, so it never silently turns on a paid provider.
+    expect(rendered).toContain('MODEL-WRITTEN');
+    for (const line of rendered.split('\n')) {
+      if (line.includes('describe') || line.includes('command:') || line.includes('pricing:')) {
+        expect(line.trimStart().startsWith('//')).toBe(true);
+      }
+    }
+  });
 });

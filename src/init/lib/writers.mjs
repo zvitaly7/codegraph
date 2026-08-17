@@ -202,6 +202,31 @@ const KNOB_COMMENTS = {
   incremental: 'Rebuild mode for the heavy type-checking layers.',
 };
 
+/**
+ * Defaults for `loregraph describe`, shown as a commented worked example.
+ *
+ * The command form comes first on purpose: it is the one path that bills no API
+ * tokens, and it is the least discoverable without an example.
+ */
+const DESCRIBE_BLOCK = [
+  '  // `loregraph describe` — cached, MODEL-WRITTEN descriptions. The only',
+  '  // command that can cost money; it always estimates and asks first.',
+  '  // describe: {',
+  '  //   // Recommended: a CLI you already pay for. The prompt arrives on its',
+  '  //   // stdin; the description is read from its stdout.',
+  '  //   command: \'your-llm-cli --quiet\',',
+  '  //   // Otherwise ANTHROPIC_API_KEY or OPENAI_API_KEY is used, in that order.',
+  '  //   model: undefined,          // provider default when unset',
+  '  //   scope: \'domains\',           // domains | files | symbols | all',
+  '  //   top: undefined,            // cap per kind, by importance',
+  '  //   timeoutMs: 60000,          // per item',
+  '  //   // Your own rates, so the estimate can quote a real figure instead of',
+  '  //   // "unknown" (USD per million tokens).',
+  '  //   pricing: { input: 0, output: 0 },',
+  '  // },',
+  '',
+];
+
 /** A JS literal for a config value (only the shapes `DEFAULTS` actually uses). */
 function literal(value) {
   if (value === null) return 'null';
@@ -233,6 +258,11 @@ export function renderConfigFile({ projectName, srcRoots, outDir }) {
       : `  // ${key}: ${literal(value)},`);
     lines.push('');
   }
+
+  // `describe` is a nested object rather than a scalar default, so it gets a
+  // worked example instead of a `// describe: {}` line that teaches nothing.
+  // `command` leads because it is the path that costs no API tokens.
+  lines.push(...DESCRIBE_BLOCK);
 
   lines[lines.length - 1] = '};';
   return `${lines.join('\n')}\n`;
