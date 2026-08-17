@@ -60,8 +60,10 @@ export const STRINGS = {
     exploreTitle: 'How to explore (cheapest first)',
     exploreBullets: [
       '`loregraph brief <file|domain|symbol>` — one dense context pack: what it imports, who imports it, what it exports, which tests cover it. **Start here.**',
+      '`loregraph outline <file>` — the file\'s declarations with signatures and line ranges, without the bodies. Read this instead of opening a file to find your way around it.',
+      '`loregraph show <symbol>` — the source of exactly one symbol, JSDoc included, instead of the whole file that declares it.',
       '`loregraph impact --base <rev>` — the blast radius of a diff plus the tests most likely to cover it.',
-      '`loregraph mcp --cache <dir>` — the same queries as MCP tools (`brief`, `impact`, `find_node`, `dead_exports`, `domain_dependencies`, …), answered as compact JSON.',
+      '`loregraph mcp --cache <dir>` — the same queries as MCP tools (`brief`, `outline`, `show`, `impact`, `find_node`, `dead_exports`, …), answered as compact JSON.',
       'Prefer these over grepping or opening many files: one query answers what a dozen file reads would, for a small fraction of the tokens.',
       'Rebuild with `loregraph regenerate` when the cache is stale — a warning on stderr means these pages describe older code.',
     ],
@@ -138,8 +140,10 @@ export const STRINGS = {
     exploreTitle: 'Как исследовать (от дешёвого к дорогому)',
     exploreBullets: [
       '`loregraph brief <file|domain|symbol>` — плотная сводка контекста: что импортирует, кто импортирует его, что экспортирует, какие тесты покрывают. **Начинайте отсюда.**',
+      '`loregraph outline <file>` — объявления файла с сигнатурами и диапазонами строк, но без тел. Читайте это вместо того, чтобы открывать файл ради ориентации в нём.',
+      '`loregraph show <symbol>` — исходный код ровно одного символа вместе с JSDoc вместо целого файла, который его объявляет.',
       '`loregraph impact --base <rev>` — радиус влияния изменений и тесты, которые вероятнее всего их покрывают.',
-      '`loregraph mcp --cache <dir>` — те же запросы как инструменты MCP (`brief`, `impact`, `find_node`, `dead_exports`, `domain_dependencies`, …) в компактном JSON.',
+      '`loregraph mcp --cache <dir>` — те же запросы как инструменты MCP (`brief`, `outline`, `show`, `impact`, `find_node`, `dead_exports`, …) в компактном JSON.',
       'Предпочитайте это чтению множества файлов и grep: один запрос отвечает на то, ради чего пришлось бы открыть десяток файлов, и тратит малую долю токенов.',
       'Пересоберите граф через `loregraph regenerate`, если кэш устарел: предупреждение в stderr означает, что страницы описывают более старый код.',
     ],
