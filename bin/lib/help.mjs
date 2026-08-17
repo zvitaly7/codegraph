@@ -21,6 +21,8 @@ import { DEFAULT_CONTEXT as SHOW_CONTEXT } from '../../src/show/lib/show.mjs';
 import { DEFAULT_LIMIT as IMPACT_LIMIT } from '../../src/impact/lib/impact.mjs';
 import { STRINGS as DOCS_STRINGS, DEFAULT_LANG as DOCS_DEFAULT_LANG } from '../../src/docs/lib/render.mjs';
 import { USAGE as INIT_USAGE } from '../../src/init/lib/usage.mjs';
+import { SCOPES as DESCRIBE_SCOPES, DEFAULT_SCOPE as DESCRIBE_DEFAULT_SCOPE } from '../../src/describe/lib/targets.mjs';
+import { DEFAULT_TIMEOUT_MS as DESCRIBE_TIMEOUT } from '../../src/describe/lib/provider.mjs';
 
 // The three global flags every `resolveConfig`-based command accepts, keyed for
 // reuse in each command's `globals` list below. `init` does not use these (it
@@ -38,7 +40,8 @@ const DOCS_LANGS = Object.keys(DOCS_STRINGS).join('|');
 // or dependency order used elsewhere.
 export const COMMAND_ORDER = [
   'init', 'regenerate', 'inventory', 'imports', 'symbols', 'references',
-  'usages', 'domains', 'brief', 'outline', 'show', 'impact', 'explorer', 'docs', 'mcp',
+  'usages', 'domains', 'brief', 'outline', 'show', 'impact', 'describe',
+  'explorer', 'docs', 'mcp',
 ];
 
 /**
@@ -166,6 +169,25 @@ export const COMMAND_HELP = {
       ['--diff REF', 'changed files = working tree vs REF (default: HEAD)'],
       ['--files a,b,c', 'explicit changed-file list instead of a VCS diff (repeatable)'],
       ['--max-depth N', 'cap the blast-radius traversal depth (default: unlimited)'],
+    ],
+    globals: ['repo-root', 'out', 'config'],
+  },
+  describe: {
+    summary: 'Cached, model-written descriptions (the only paid command)',
+    usage: 'loregraph describe [options]',
+    options: [
+      ['--cache DIR', 'graph cache to read/write (default: resolved --out)'],
+      [`--scope ${DESCRIBE_SCOPES.join('|')}`, `what to describe (default: ${DESCRIBE_DEFAULT_SCOPE})`],
+      ['--top N', 'only the N most important items per kind (default: all)'],
+      ['--command CMD', 'shell command: prompt on its stdin, description from its stdout (recommended)'],
+      ['--model NAME', 'model id (default per provider; also recorded with each description)'],
+      ['--dry-run', 'print the estimate and exit — zero calls, nothing written'],
+      ['--yes, -y', 'skip the confirmation prompt (required on a non-interactive stdin)'],
+      ['--budget N', 'stop cleanly after N items and report the remainder'],
+      ['--budget-tokens N', 'stop cleanly before exceeding N estimated tokens'],
+      ['--force', 're-describe even items whose content has not changed'],
+      ['--timeout MS', `per-item timeout (default: ${DESCRIBE_TIMEOUT})`],
+      ['--json', 'print the run summary as JSON instead of text'],
     ],
     globals: ['repo-root', 'out', 'config'],
   },

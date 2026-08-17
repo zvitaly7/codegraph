@@ -14,6 +14,7 @@ const COMMANDS = {
   outline: () => import('../src/outline/run.mjs'),
   show: () => import('../src/show/run.mjs'),
   impact: () => import('../src/impact/run.mjs'),
+  describe: () => import('../src/describe/run.mjs'),
   explorer: () => import('../src/explorer/run.mjs'),
   docs: () => import('../src/docs/run.mjs'),
   mcp: () => import('../src/mcp/run.mjs'),

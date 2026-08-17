@@ -51,6 +51,7 @@ const DISTINCTIVE_FLAG = {
   outline: '<file>',
   show: '--context',
   impact: '--diff',
+  describe: '--budget-tokens',
   explorer: '--serve',
   docs: '--out-docs',
   mcp: '--cache',
@@ -125,6 +126,7 @@ Commands:
   outline      A file's declarations, without the bodies
   show         The source of exactly one symbol
   impact       Blast radius + likely tests for a diff
+  describe     Cached, model-written descriptions (the only paid command)
   explorer     Build (and optionally serve) the browser index
   docs         Generate AGENTS.md + Markdown docs from the graph
   mcp          Start the stdio MCP server

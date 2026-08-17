@@ -35,6 +35,9 @@ const OUTLINE_CAP = 40;
 /** Accepted `--scope` values. */
 export const SCOPES = ['domains', 'files', 'symbols', 'all'];
 
+/** Default `--scope`: fewest items, highest value per call. */
+export const DEFAULT_SCOPE = 'domains';
+
 /** `--scope` value → the kinds it selects. */
 const SCOPE_KINDS = {
   domains: ['domain'],
