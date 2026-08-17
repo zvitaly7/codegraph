@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import process from 'node:process';
+import { formatMainUsage, formatCommandHelp, wantsHelp } from './lib/help.mjs';
 
 const COMMANDS = {
   init: () => import('../src/init/run.mjs'),
@@ -17,24 +18,7 @@ const COMMANDS = {
   regenerate: () => import('../src/orchestrate/regenerate.mjs'),
 };
 
-const USAGE = `loregraph <command> [options]
-
-Commands:
-  init         Set a project up: config, ignore rule, MCP entry, npm scripts
-  regenerate   Build the whole graph in dependency order
-  inventory    Layer 1: files + directories
-  imports      Layer 2a: file → file/package imports
-  symbols      Layer 2b: declarations
-  references   Layer 2c: file → symbol
-  usages       Layer 2d: symbol → symbol
-  domains      Layer 3: semantic domain overlay
-  brief        Context pack for a file / domain / symbol
-  impact       Blast radius + likely tests for a diff
-  explorer     Build (and optionally serve) the browser index
-  docs         Generate AGENTS.md + Markdown docs from the graph
-  mcp          Start the stdio MCP server
-
-Global: --repo-root PATH  --out DIR  --config FILE  --help`;
+const USAGE = formatMainUsage();
 
 async function main() {
   const [cmd, ...rest] = process.argv.slice(2);
@@ -47,6 +31,15 @@ async function main() {
     console.error(`Unknown command: ${cmd}\n\n${USAGE}`);
     process.exit(2);
   }
+
+  // `--help`/`-h` anywhere in the sub-command's own args prints ITS help and
+  // exits 0 — checked before the command module is ever imported, so a help
+  // request can never run the layer or write cache artifacts.
+  if (wantsHelp(rest)) {
+    console.log(formatCommandHelp(cmd));
+    process.exit(0);
+  }
+
   const mod = await loader();
   const code = await mod.run(rest);
   process.exit(typeof code === 'number' ? code : 0);

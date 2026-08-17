@@ -27,6 +27,7 @@ import process from 'node:process';
 import { DEFAULTS } from '../config/defaults.mjs';
 import { writeTextAtomic } from '../inventory/write.mjs';
 import { MCP_CLIENTS, MCP_SERVER_ENTRY, MCP_SERVER_NAME, detectProject } from './lib/detect.mjs';
+import { USAGE } from './lib/usage.mjs';
 import {
   GITIGNORE_COMMENT,
   INIT_SCRIPTS,
@@ -36,20 +37,6 @@ import {
   planPostMergeHook,
   renderConfigFile,
 } from './lib/writers.mjs';
-
-const USAGE = `loregraph init [options]
-
-Sets a project up: config file, ignored cache dir, an MCP entry for your AI
-agent, npm scripts, and optionally a git hook that refreshes the graph on pull.
-
-Options:
-  -y, --yes          take every default and ask nothing (automatic when stdin is not a TTY)
-      --dry-run      print the planned actions and write nothing
-      --repo-root P  the project to set up (default: the current directory)
-      --out DIR      graph cache directory (default: <repo>/${DEFAULTS.outDir})
-      --hook         install the git post-merge hook without asking
-      --build        build the graph when done (non-interactive runs skip it otherwise)
-      --no-build     never build the graph`;
 
 const OPTIONS = {
   'repo-root': { type: 'string' },

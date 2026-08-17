@@ -28,7 +28,8 @@
     "README.md",
     "README.ru.md",
     "LICENSE",
-    "!src/**/*.test.mjs"
+    "!src/**/*.test.mjs",
+    "!bin/**/*.test.mjs"
   ],
   "dependencies": {
     "ignore": "^5.3.2",
