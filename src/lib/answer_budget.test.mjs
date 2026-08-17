@@ -22,7 +22,7 @@ const SECTIONS = [
 function renderText(p) {
   const line = (label, box) => {
     const hidden = box.count - box.files.length;
-    const marker = moreMarker(hidden, { budget: box.budgetTruncated === true });
+    const marker = moreMarker(hidden, { budget: (box.budgetDropped ?? 0) > 0 });
     return `${label} (${box.count}): ${[...box.files, marker].filter(Boolean).join(', ')}`;
   };
   return [p.header, line('alpha', p.alpha), line('beta', p.beta)].join('\n');
@@ -178,12 +178,13 @@ describe('fitPayload — the floor', () => {
       sections: SECTIONS,
       render: renderText,
       maxTokens: 1,
-      floor: (payload, cut) => headerFloor(renderText(payload), cut),
+      floor: (payload, cut) => headerFloor(renderText(payload), cut, { maxTokens: 1 }),
     });
     expect(fit.text.length).toBeGreaterThan(0);
     // Over the cap — and it says so rather than pretending to have obeyed.
     expect(fit.overBudget).toBe(true);
     expect(fit.approxTokens).toBeGreaterThan(1);
+    expect(fit.text).toContain('OVER --max-tokens=1');
   });
 
   it('falls back to the all-empty rendering when no floor is supplied', () => {
@@ -218,6 +219,8 @@ describe('budgetBlock / truncatedSectionsOf', () => {
     const p = payloadOf(60, 60);
     fitPayload(p, { sections: SECTIONS, render: renderText, maxTokens: 300 });
     expect(truncatedSectionsOf(p, SECTIONS)).toEqual(['beta']);
+    expect(p.beta.budgetDropped).toBe(60 - p.beta.files.length);
+    expect(p.alpha.budgetDropped).toBeUndefined();
     expect(budgetBlock(p, { sections: SECTIONS, maxTokens: 300 })).toEqual({
       maxTokens: 300,
       truncated: true,
@@ -244,12 +247,12 @@ describe('budgetBlock / truncatedSectionsOf', () => {
     expect(parsed.budget.truncated).toBe(true);
     expect(parsed.budget.truncatedSections).toEqual(['beta']);
     expect(parsed.beta.count).toBe(60);
-    expect(parsed.beta.budgetTruncated).toBe(true);
+    expect(parsed.beta.budgetDropped).toBe(60 - parsed.beta.files.length);
   });
 });
 
 describe('two sections sharing one container', () => {
-  it('records each cut under its own flag', () => {
+  it('records each cut under its own field', () => {
     const p = {
       header: 'H',
       imports: {
@@ -259,13 +262,15 @@ describe('two sections sharing one container', () => {
       },
     };
     const sections = [
-      { id: 'internal', drop: 1, get: (x) => x.imports, key: 'internal', flag: 'internalTruncated' },
-      { id: 'external', drop: 2, get: (x) => x.imports, key: 'external', flag: 'externalTruncated' },
+      { id: 'internal', drop: 1, get: (x) => x.imports, key: 'internal', dropped: 'internalDropped' },
+      { id: 'external', drop: 2, get: (x) => x.imports, key: 'external', dropped: 'externalDropped' },
     ];
     const render = (x) => `${x.header} ${x.imports.internal.join(',')} | ${x.imports.external.join(',')}`;
     fitPayload(p, { sections, render, maxTokens: 55 });
-    expect(p.imports.externalTruncated).toBe(true);
-    expect(p.imports.internalTruncated).toBeUndefined();
+    expect(p.imports.externalDropped).toBe(30 - p.imports.external.length);
+    expect(p.imports.externalDropped).toBeGreaterThan(0);
+    expect(p.imports.internalDropped).toBeUndefined();
+    expect(p.imports.internal).toHaveLength(30);
     expect(truncatedSectionsOf(p, sections)).toEqual(['external']);
   });
 });

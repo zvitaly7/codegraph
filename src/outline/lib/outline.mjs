@@ -24,6 +24,8 @@
 import ts from 'typescript';
 import { collectExportIntent } from '../../symbols/lib/symbol_extractor.mjs';
 import { attachedCommentRange, firstDocLine } from '../../lib/ts_doc.mjs';
+import { BUDGET_MARKER, moreMarker } from '../../lib/answer_budget.mjs';
+import { fitAnswer } from '../../lib/answer_render.mjs';
 
 /** Default cap on the declaration / member / import lists. */
 export const DEFAULT_LIMIT = 100;
@@ -360,9 +362,10 @@ export function formatOutline(o) {
   if (o.parseErrors > 0) meta.push(`${o.parseErrors} parse errors`);
   const lines = [`OUTLINE ${o.path}  (${meta.join(' · ')})`];
 
-  const more = o.imports.count - o.imports.list.length;
+  const more = moreMarker(o.imports.count - o.imports.list.length,
+    { budget: (o.imports.budgetDropped ?? 0) > 0 });
   lines.push(`imports (${o.imports.count}): ${
-    o.imports.list.length > 0 ? o.imports.list.join(', ') + (more > 0 ? ` (+${more} more)` : '') : '—'}`);
+    o.imports.list.length > 0 ? [o.imports.list.join(', '), more].filter(Boolean).join(' ') : (more || '—')}`);
 
   const width = Math.max(0, ...o.declarations.list.map((d) => `L${d.startLine}-${d.endLine}`.length));
   for (const d of o.declarations.list) {
@@ -375,8 +378,37 @@ export function formatOutline(o) {
     if (hiddenMembers > 0) lines.push(`      (+${hiddenMembers} more members)`);
   }
   const hidden = o.declarations.count - o.declarations.list.length;
-  if (hidden > 0) lines.push(`  (+${hidden} more declarations)`);
+  if (hidden > 0) {
+    lines.push((o.declarations.budgetDropped ?? 0) > 0
+      ? `  (+${hidden} more declarations, ${BUDGET_MARKER})`
+      : `  (+${hidden} more declarations)`);
+  }
   if (o.declarations.count === 0) lines.push('  (no top-level declarations)');
 
   return lines.join('\n');
+}
+
+// ---- token budget -------------------------------------------------------
+
+/**
+ * Budget sections for an outline, least important first (higher `drop` goes
+ * first). An outline exists to answer "what does this file declare", so the
+ * import list yields before the declarations do — and neither is a path list,
+ * which is why `outline` has no `--compress-paths` to turn on.
+ */
+export function outlineSections(o) {
+  if (o?.kind !== 'outline') return [];
+  return [
+    { id: 'declarations', drop: 1, get: (p) => p.declarations, key: 'list' },
+    { id: 'imports', drop: 2, get: (p) => p.imports, key: 'list' },
+  ];
+}
+
+/**
+ * An outline, ready to emit.
+ * @param {object} o from `buildOutline` (or `outlineTarget`). Mutated by the budget step.
+ * @param {{mode?: 'text'|'json', maxTokens?: number|null}} [opts]
+ */
+export function fitOutline(o, opts = {}) {
+  return fitAnswer(o, { ...opts, sections: outlineSections(o), format: formatOutline });
 }

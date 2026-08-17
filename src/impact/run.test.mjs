@@ -164,3 +164,32 @@ describe('impact CLI — guards', () => {
     expect(err.join('\n')).toMatch(/regenerate/);
   });
 });
+
+describe('impact CLI — --max-tokens and --compress-paths', () => {
+  it('exits 2 on a non-positive --max-tokens', async () => {
+    expect(await run(['--files', 'src/a.ts', '--cache', cache, '--repo-root', repo, '--max-tokens', '0'])).toBe(2);
+    expect(err.join('\n')).toMatch(/--max-tokens must be a positive integer/);
+  });
+
+  it('exits 2 on a non-numeric --max-tokens', async () => {
+    expect(await run(['--files', 'src/a.ts', '--cache', cache, '--repo-root', repo, '--max-tokens', 'small'])).toBe(2);
+  });
+
+  it('keeps a tiny --max-tokens answer valid and marked, not crashed', async () => {
+    const code = await run(['--files', 'src/a.ts', '--cache', cache, '--repo-root', repo, '--max-tokens', '30']);
+    expect(code).toBe(0);
+    expect(stdout()).toContain('IMPACT');
+    expect(stdout()).toMatch(/--max-tokens/);
+  });
+
+  it('accepts --compress-paths and --no-compress-paths without changing the answer set', async () => {
+    expect(await run(['--files', 'src/a.ts', '--cache', cache, '--repo-root', repo, '--compress-paths'])).toBe(0);
+    const packed = stdout();
+    out.length = 0;
+    expect(await run(['--files', 'src/a.ts', '--cache', cache, '--repo-root', repo, '--no-compress-paths'])).toBe(0);
+    const plain = stdout();
+    // Whatever the rendering, both name the same blast-radius size.
+    const size = (text) => text.match(/blast radius \((\d+)/)?.[1];
+    expect(size(packed)).toBe(size(plain));
+  });
+});

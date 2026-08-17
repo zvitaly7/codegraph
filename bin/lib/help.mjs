@@ -23,6 +23,7 @@ import { STRINGS as DOCS_STRINGS, DEFAULT_LANG as DOCS_DEFAULT_LANG } from '../.
 import { USAGE as INIT_USAGE } from '../../src/init/lib/usage.mjs';
 import { SCOPES as DESCRIBE_SCOPES, DEFAULT_SCOPE as DESCRIBE_DEFAULT_SCOPE } from '../../src/describe/lib/targets.mjs';
 import { DEFAULT_TIMEOUT_MS as DESCRIBE_TIMEOUT } from '../../src/describe/lib/provider.mjs';
+import { COMPRESS_PATHS_DEFAULT } from '../../src/lib/answer_render.mjs';
 
 // The three global flags every `resolveConfig`-based command accepts, keyed for
 // reuse in each command's `globals` list below. `init` does not use these (it
@@ -34,6 +35,14 @@ const GLOBAL_FLAGS = {
 };
 
 const DOCS_LANGS = Object.keys(DOCS_STRINGS).join('|');
+
+// `brief` and `impact` list repo paths, so both take the same compression
+// switch. Which way round it reads depends on the measured default — see the
+// "Path prefix compression" section of bench/README.md.
+const COMPRESS_FLAG = COMPRESS_PATHS_DEFAULT ? '--no-compress-paths' : '--compress-paths';
+const COMPRESS_HELP = COMPRESS_PATHS_DEFAULT
+  ? 'print every path in full instead of factoring shared directory prefixes out'
+  : 'factor shared directory prefixes out of path lists (lossless, off by default)';
 
 // Display order for `loregraph --help`'s Commands: list — a curated workflow
 // order (set up, build, then each layer, then consumers), NOT the alphabetical
@@ -137,6 +146,8 @@ export const COMMAND_HELP = {
       ['--cache DIR', 'graph cache to read (default: resolved --out)'],
       ['--json', 'print the raw structured object instead of formatted text'],
       ['--limit N', `cap list lengths (default: ${BRIEF_LIMIT})`],
+      ['--max-tokens N', 'cap the whole answer at ~N tokens (~4 chars/token); cuts are marked'],
+      [COMPRESS_FLAG, COMPRESS_HELP],
     ],
     globals: ['repo-root', 'out', 'config'],
   },
@@ -146,6 +157,7 @@ export const COMMAND_HELP = {
     options: [
       ['--json', 'print the raw structured object instead of formatted text'],
       ['--limit N', `cap the declaration / member lists (default: ${OUTLINE_LIMIT})`],
+      ['--max-tokens N', 'cap the whole answer at ~N tokens (~4 chars/token); cuts are marked'],
     ],
     globals: ['repo-root', 'config'],
   },
@@ -169,6 +181,8 @@ export const COMMAND_HELP = {
       ['--diff REF', 'changed files = working tree vs REF (default: HEAD)'],
       ['--files a,b,c', 'explicit changed-file list instead of a VCS diff (repeatable)'],
       ['--max-depth N', 'cap the blast-radius traversal depth (default: unlimited)'],
+      ['--max-tokens N', 'cap the whole answer at ~N tokens (~4 chars/token); cuts are marked'],
+      [COMPRESS_FLAG, COMPRESS_HELP],
     ],
     globals: ['repo-root', 'out', 'config'],
   },

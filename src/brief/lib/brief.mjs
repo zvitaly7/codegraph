@@ -17,6 +17,9 @@
 
 import { exactPathMatch, suffixPathMatches } from '../../lib/path_match.mjs';
 import { generatedLabel } from '../../describe/lib/store.mjs';
+import { renderPathList, shownPaths } from '../../lib/path_compress.mjs';
+import { moreMarker } from '../../lib/answer_budget.mjs';
+import { fitAnswer } from '../../lib/answer_render.mjs';
 import {
   toFileId, fileIdToPath, domainOfFile, symbolsOfFile, referencingFiles,
   directImporters, transitiveImporters, importsOfFile, filesOfDomain, capped,
@@ -287,11 +290,29 @@ function humanBytes(n) {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/** `a, b, c (+N more)` — or `—` when the list is empty. */
-function list(items, total) {
-  if (items.length === 0) return '—';
-  const more = (total ?? items.length) - items.length;
-  return items.join(', ') + (more > 0 ? ` (+${more} more)` : '');
+/**
+ * `a, b, c (+N more)` — or `—` when the list is empty.
+ * @param {{budget?: boolean, dropped?: number}} [opts] `budget` marks the
+ *   `(+N more)` as a `--max-tokens` cut; `dropped` supplies the count for the
+ *   lists that carry no untruncated total of their own.
+ */
+function list(items, total, { budget = false, dropped = 0 } = {}) {
+  const hidden = dropped > 0 ? dropped : (total ?? items.length) - items.length;
+  const marker = moreMarker(hidden, { budget: budget || dropped > 0 });
+  if (items.length === 0) return marker || '—';
+  return [items.join(', '), marker].filter(Boolean).join(' ');
+}
+
+/**
+ * One path list as `label: …`, plus the extra indented lines a compressed list
+ * needs. Push both onto `lines`.
+ */
+function pushPathLine(lines, label, box, key, total) {
+  const hidden = total - shownPaths(box, key);
+  const marker = moreMarker(hidden, { budget: (box?.budgetDropped ?? 0) > 0 });
+  const { inline, lines: extra } = renderPathList(box, key, { marker });
+  lines.push(inline === '' ? `${label}:` : `${label}: ${inline}`);
+  lines.push(...extra);
 }
 
 /** `sym:src/a.ts#foo` → `foo@src/a.ts` (ids are too long to print raw). */
@@ -306,10 +327,10 @@ function formatFile(b) {
   const meta = [b.language, b.fileKind, humanBytes(b.sizeBytes)].filter(Boolean).join(', ');
   const lines = [`FILE ${b.path}${meta ? `  (${meta})` : ''}`];
   lines.push(`domain: ${b.domain ?? '—'}`);
-  lines.push(`imports (${b.imports.counts.internal} internal): ${list(b.imports.internal, b.imports.counts.internal)}`);
-  lines.push(`packages (${b.imports.counts.external}): ${list(b.imports.external, b.imports.counts.external)}`);
-  lines.push(`imported by (${b.importedBy.count}): ${list(b.importedBy.files, b.importedBy.count)}`);
-  lines.push(`blast radius (${b.blastRadius.count}): ${list(b.blastRadius.files, b.blastRadius.count)}`);
+  pushPathLine(lines, `imports (${b.imports.counts.internal} internal)`, b.imports, 'internal', b.imports.counts.internal);
+  lines.push(`packages (${b.imports.counts.external}): ${list(b.imports.external, b.imports.counts.external, { budget: (b.imports.externalDropped ?? 0) > 0 })}`);
+  pushPathLine(lines, `imported by (${b.importedBy.count})`, b.importedBy, 'files', b.importedBy.count);
+  pushPathLine(lines, `blast radius (${b.blastRadius.count})`, b.blastRadius, 'files', b.blastRadius.count);
   lines.push(`symbols (${b.symbols.count}):`);
   for (const s of b.symbols.list) {
     const tags = [s.kind, s.exported ? 'exported' : null, s.line ? `L${s.line}` : null, `refs=${s.refs}`]
@@ -317,7 +338,8 @@ function formatFile(b) {
     lines.push(`  ${s.name} ${tags}${s.exported && s.refs === 0 ? ' DEAD?' : ''}`);
   }
   const hidden = b.symbols.count - b.symbols.list.length;
-  if (hidden > 0) lines.push(`  (+${hidden} more)`);
+  const marker = moreMarker(hidden, { budget: (b.symbols.budgetDropped ?? 0) > 0 });
+  if (marker) lines.push(`  ${marker}`);
   return lines.join('\n');
 }
 
@@ -326,26 +348,29 @@ function formatDomain(b) {
   const lines = [
     `DOMAIN ${b.name}${b.domainKind ? `  (${b.domainKind})` : ''}`,
     `files: ${b.files.count}`,
-    `depends on: ${list(b.dependsOn.map(pair))}`,
-    `depended on by: ${list(b.dependedOnBy.map(pair))}`,
-    `packages: ${list(b.packages.map((p) => `${p.name}(${p.files})`))}`,
+    `depends on: ${list(b.dependsOn.map(pair), null, { dropped: b.dependsOnDropped ?? 0 })}`,
+    `depended on by: ${list(b.dependedOnBy.map(pair), null, { dropped: b.dependedOnByDropped ?? 0 })}`,
+    `packages: ${list(b.packages.map((p) => `${p.name}(${p.files})`), null, { dropped: b.packagesDropped ?? 0 })}`,
     `top files (by importers):`,
   ];
   // One per line: each carries a metric, so an inline list would run very wide.
   for (const f of b.topFiles) lines.push(`  <-${f.importedBy}  ${f.path}`);
-  if (b.topFiles.length === 0) lines.push('  —');
+  const dropped = moreMarker(b.topFilesDropped ?? 0, { budget: true });
+  if (dropped) lines.push(`  ${dropped}`);
+  else if (b.topFiles.length === 0) lines.push('  —');
   return lines.join('\n');
 }
 
 function formatSymbol(b) {
   const meta = [b.symbolKind, b.exported ? 'exported' : 'local'].filter(Boolean).join(', ');
-  return [
+  const lines = [
     `SYMBOL ${b.name}${meta ? `  (${meta})` : ''}${b.dead ? '  DEAD?' : ''}`,
     `declared: ${b.path}${b.line ? `:${b.line}` : ''}   domain: ${b.domain ?? '—'}`,
-    `referenced by (${b.referencedBy.count}): ${list(b.referencedBy.files, b.referencedBy.count)}`,
-    `uses: ${list(b.uses.map(shortSym))}`,
-    `used by: ${list(b.usedBy.map(shortSym))}`,
-  ].join('\n');
+  ];
+  pushPathLine(lines, `referenced by (${b.referencedBy.count})`, b.referencedBy, 'files', b.referencedBy.count);
+  lines.push(`uses: ${list(b.uses.map(shortSym), null, { dropped: b.usesDropped ?? 0 })}`);
+  lines.push(`used by: ${list(b.usedBy.map(shortSym), null, { dropped: b.usedByDropped ?? 0 })}`);
+  return lines.join('\n');
 }
 
 /**
@@ -382,4 +407,77 @@ export function formatBrief(b) {
     default:
       return JSON.stringify(b, null, 2);
   }
+}
+
+// ---- path compression + token budget ------------------------------------
+
+/**
+ * Which of a brief's lists hold repo-relative paths, and may therefore have a
+ * shared directory prefix factored out. Only genuine path lists are here:
+ * `packages` are package names, and `uses` / `usedBy` are symbol ids whose
+ * prefix an agent may well paste straight back into another tool.
+ */
+export function briefPathLists(b) {
+  switch (b?.kind) {
+    case 'file': return [
+      { get: (p) => p.imports, key: 'internal' },
+      { get: (p) => p.importedBy, key: 'files' },
+      { get: (p) => p.blastRadius, key: 'files' },
+    ];
+    case 'symbol': return [{ get: (p) => p.referencedBy, key: 'files' }];
+    default: return [];
+  }
+}
+
+/**
+ * Budget sections, with the order `--max-tokens` cuts them in. HIGHER `drop`
+ * goes first, and the ranking is a claim worth arguing with:
+ *
+ *   - the blast radius is the longest list in a brief and the most derivable
+ *     elsewhere (`impact` answers it in full), so it goes first;
+ *   - the symbol table goes next — `outline` answers that question better;
+ *   - then packages, then importers;
+ *   - what the file itself imports survives longest, because it is the shortest
+ *     path to understanding the file you asked about.
+ *
+ * The header, the domain line and any generated description are never cut.
+ */
+export function briefSections(b) {
+  switch (b?.kind) {
+    case 'file': return [
+      { id: 'imports', drop: 1, get: (p) => p.imports, key: 'internal' },
+      { id: 'packages', drop: 3, get: (p) => p.imports, key: 'external', dropped: 'externalDropped' },
+      { id: 'importedBy', drop: 2, get: (p) => p.importedBy, key: 'files' },
+      { id: 'blastRadius', drop: 5, get: (p) => p.blastRadius, key: 'files' },
+      { id: 'symbols', drop: 4, get: (p) => p.symbols, key: 'list' },
+    ];
+    case 'domain': return [
+      { id: 'dependsOn', drop: 1, get: (p) => p, key: 'dependsOn', dropped: 'dependsOnDropped' },
+      { id: 'dependedOnBy', drop: 2, get: (p) => p, key: 'dependedOnBy', dropped: 'dependedOnByDropped' },
+      { id: 'packages', drop: 3, get: (p) => p, key: 'packages', dropped: 'packagesDropped' },
+      { id: 'topFiles', drop: 4, get: (p) => p, key: 'topFiles', dropped: 'topFilesDropped' },
+    ];
+    case 'symbol': return [
+      { id: 'referencedBy', drop: 1, get: (p) => p.referencedBy, key: 'files' },
+      { id: 'uses', drop: 2, get: (p) => p, key: 'uses', dropped: 'usesDropped' },
+      { id: 'usedBy', drop: 3, get: (p) => p, key: 'usedBy', dropped: 'usedByDropped' },
+    ];
+    default: return [];
+  }
+}
+
+/**
+ * A brief, ready to emit: path lists compressed if asked, shrunk to
+ * `--max-tokens` if asked, rendered as text or JSON.
+ * @param {object} b from `buildBrief`. Mutated by the budget step.
+ * @param {{mode?: 'text'|'json', compress?: boolean, maxTokens?: number|null}} [opts]
+ * @returns see `fitAnswer` — `.text` for stdout, `.payload` for JSON consumers.
+ */
+export function fitBrief(b, opts = {}) {
+  return fitAnswer(b, {
+    ...opts,
+    pathLists: briefPathLists(b),
+    sections: briefSections(b),
+    format: formatBrief,
+  });
 }

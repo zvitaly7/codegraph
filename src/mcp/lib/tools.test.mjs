@@ -437,3 +437,72 @@ describe('callTool + registry', () => {
     expect(r.note).toMatch(/graph empty/);
   });
 });
+
+describe('optional response shaping on the token savers', () => {
+  it('advertises maxTokens on brief, impact and outline', () => {
+    for (const name of ['brief', 'impact', 'outline']) {
+      const spec = TOOLS.find((t) => t.name === name);
+      expect(spec.inputSchema.properties.maxTokens).toBeDefined();
+      expect(spec.inputSchema.required ?? []).not.toContain('maxTokens');
+    }
+  });
+
+  it('advertises compressPaths on the two tools that list repo paths', () => {
+    for (const name of ['brief', 'impact']) {
+      expect(TOOLS.find((t) => t.name === name).inputSchema.properties.compressPaths).toBeDefined();
+    }
+    // `outline` lists import specifiers, not repo paths — no switch to offer.
+    expect(TOOLS.find((t) => t.name === 'outline').inputSchema.properties.compressPaths).toBeUndefined();
+  });
+
+  it('either honours the cap or says out loud that it could not', () => {
+    // A JSON result has a fixed skeleton (kind, path, counts, the budget block)
+    // that truncation cannot shrink, so a small enough cap is unmeetable. The
+    // invariant is not "always under" — it is "never silently over".
+    const graph = buildGraph();
+    for (const cap of [400, 300, 200, 150, 100, 50, 10]) {
+      const capped = callTool(graph, 'brief', { target: 'src/core/util.ts', limit: 200, maxTokens: cap });
+      const approx = Math.ceil(JSON.stringify(capped).length / 4);
+      expect(capped.budget.maxTokens).toBe(cap);
+      expect(capped.budget.note).toMatch(/4 chars\/token/);
+      if (approx > cap) expect(capped.budget.overBudget).toBe(true);
+      else expect(capped.budget.overBudget).toBeUndefined();
+    }
+  });
+
+  it('records which sections a cap cut', () => {
+    const graph = buildGraph();
+    const capped = callTool(graph, 'brief', { target: 'src/core/util.ts', limit: 200, maxTokens: 150 });
+    expect(capped.budget.truncated).toBe(true);
+    expect(capped.budget.truncatedSections.length).toBeGreaterThan(0);
+  });
+
+  it('says so in the payload when a cap is impossible to meet', () => {
+    const graph = buildGraph();
+    const capped = callTool(graph, 'brief', { target: 'src/core/util.ts', maxTokens: 1 });
+    expect(capped.budget.overBudget).toBe(true);
+  });
+
+  it('ignores a nonsensical maxTokens instead of returning nothing', () => {
+    const graph = buildGraph();
+    for (const bad of [0, -1, 'lots', null]) {
+      const result = callTool(graph, 'brief', { target: 'src/core/util.ts', maxTokens: bad });
+      expect(result.budget).toBeUndefined();
+      expect(result.kind).toBe('file');
+    }
+  });
+
+  it('returns pathGroups a caller can rebuild full paths from', () => {
+    const graph = buildGraph();
+    const packed = callTool(graph, 'impact', { files: ['src/core/util.ts'], limit: 200, compressPaths: true });
+    const plain = callTool(graph, 'impact', { files: ['src/core/util.ts'], limit: 200, compressPaths: false });
+    if (packed.blastRadius.pathGroups) {
+      const rebuilt = packed.blastRadius.pathGroups
+        .flatMap((g) => g.paths.map((p) => `${g.pathPrefix}${p}`)).sort();
+      expect(rebuilt).toEqual([...plain.blastRadius.files].sort());
+    } else {
+      // Below the thresholds on this fixture: then it must be byte-identical.
+      expect(packed).toEqual(plain);
+    }
+  });
+});

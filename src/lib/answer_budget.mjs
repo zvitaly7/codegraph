@@ -5,8 +5,9 @@
 //   VISIBLE. A truncated answer never looks like a complete one. Every list
 //   that lost items keeps its real, untruncated count and gains
 //   `(+N more, truncated to fit --max-tokens)`. In `--json` the same fact is a
-//   `budgetTruncated: true` flag on the affected container plus one `budget`
-//   block naming every section that was cut.
+//   `budgetDropped: N` field on the affected container plus one `budget` block
+//   naming every section that was cut — and saying so when the cap could not be
+//   met at all.
 //
 //   DETERMINISTIC. Sections are cut in a fixed, declared order — least
 //   important first — and the same input under the same cap always produces
@@ -27,7 +28,7 @@ import { estimateTokens } from '../describe/lib/estimate.mjs';
 export const BUDGET_MARKER = 'truncated to fit --max-tokens';
 
 /** What the `budget` block in `--json` says about its own accuracy. */
-export const BUDGET_NOTE = 'token counts are approximate (~4 chars/token)';
+export const BUDGET_NOTE = 'approximate: ~4 chars/token';
 
 /** Rough token count of a rendered answer. Deliberately the `describe` estimator. */
 export const approxTokens = estimateTokens;
@@ -44,10 +45,14 @@ export function moreMarker(hidden, { budget = false } = {}) {
   return budget ? `(+${hidden} more, ${BUDGET_MARKER})` : `(+${hidden} more)`;
 }
 
-/** The flag a truncated container carries when the section does not name its own. */
-const DEFAULT_FLAG = 'budgetTruncated';
+/**
+ * How many items a cut took, recorded on the container. One field, not two: a
+ * positive count already says "truncated", and it is the number the `(+N more)`
+ * marker needs for the lists whose container carries no untruncated `count`.
+ */
+const DEFAULT_DROPPED = 'budgetDropped';
 
-const flagOf = (section) => section.flag ?? DEFAULT_FLAG;
+const droppedOf = (section) => section.dropped ?? DEFAULT_DROPPED;
 
 /**
  * Which sections are currently cut, in output order. Read off the payload, so a
@@ -57,7 +62,7 @@ const flagOf = (section) => section.flag ?? DEFAULT_FLAG;
  * @returns {string[]} section ids.
  */
 export function truncatedSectionsOf(payload, sections) {
-  return sections.filter((s) => s.get(payload)?.[flagOf(s)] === true).map((s) => s.id);
+  return sections.filter((s) => (s.get(payload)?.[droppedOf(s)] ?? 0) > 0).map((s) => s.id);
 }
 
 /**
@@ -79,12 +84,22 @@ export function budgetBlock(payload, { sections, maxTokens }) {
 /**
  * The floor: when not even one line per section fits, keep the ONE line that
  * says what the answer is about and state plainly what is missing.
+ *
+ * A cap small enough to reach this point may be smaller than the header itself.
+ * The header is never dropped — an answer with no subject is not an answer — so
+ * in that case the note says the cap was MISSED rather than quietly implying it
+ * was met.
+ *
  * @param {string} text the full rendering (its first line identifies the target).
  * @param {string[]} omitted section ids that were cut.
+ * @param {{maxTokens?: number|null}} [opts]
  */
-export function headerFloor(text, omitted) {
+export function headerFloor(text, omitted, { maxTokens = null } = {}) {
   const head = String(text ?? '').split('\n', 1)[0];
-  return `${head}\n(${omitted.length} section(s) omitted, ${BUDGET_MARKER})`;
+  const fitted = `${head}\n(${omitted.length} section(s) omitted, ${BUDGET_MARKER})`;
+  if (maxTokens === null || approxTokens(fitted) <= maxTokens) return fitted;
+  return `${head}\n(${omitted.length} section(s) omitted; this header alone is `
+    + `~${approxTokens(head)} tokens, OVER --max-tokens=${maxTokens})`;
 }
 
 /**
@@ -104,10 +119,11 @@ export function headerFloor(text, omitted) {
  *   and its container gains the section's truncation flag.
  * @param {object} o
  * @param {Array<{id: string, drop: number, get: (p: object) => object|undefined,
- *   key: string, flag?: string}>} o.sections
+ *   key: string, dropped?: string}>} o.sections
  *   `get(payload)` is the container, `key` its list field, `drop` the rank
- *   (HIGHER = cut earlier), `flag` where to record the cut (default
- *   `budgetTruncated`) — two sections sharing a container must name different flags.
+ *   (HIGHER = cut earlier) and `dropped` the field that records how many items
+ *   the cut took (default `budgetDropped`). Two sections sharing one container
+ *   must name different `dropped` fields.
  * @param {(p: object) => string} o.render renders the payload as the caller will emit it.
  * @param {number} o.maxTokens the cap; a non-positive or non-finite value means "no cap".
  * @param {(p: object, cut: string[]) => string} [o.floor] step 3's last resort.
@@ -141,8 +157,8 @@ export function fitPayload(payload, { sections = [], render, maxTokens, floor } 
       const all = items.get(section.id);
       const n = keep.get(section.id);
       box[section.key] = all.slice(0, n);
-      if (n < all.length) box[flagOf(section)] = true;
-      else delete box[flagOf(section)];
+      if (n < all.length) box[droppedOf(section)] = all.length - n;
+      else delete box[droppedOf(section)];
     }
   };
 

@@ -18,7 +18,8 @@ import { resolveConfig } from '../config/load.mjs';
 import { checkStaleness } from '../lib/staleness.mjs';
 import { loadGraph } from '../lib/graph_load.mjs';
 import { changedFilesSince } from '../lib/changed_files.mjs';
-import { buildImpact, formatImpact, DEFAULT_LIMIT } from './lib/impact.mjs';
+import { ANSWER_OPTIONS, resolveCompressPaths, resolveMaxTokens } from '../lib/answer_render.mjs';
+import { buildImpact, fitImpact, DEFAULT_LIMIT } from './lib/impact.mjs';
 
 /** Positive-integer flag parse; returns null when absent, NaN-ish when invalid. */
 function intFlag(value) {
@@ -42,6 +43,7 @@ export async function run(argv) {
         diff: { type: 'string' },
         files: { type: 'string', multiple: true },
         'max-depth': { type: 'string' },
+        ...ANSWER_OPTIONS,
       },
     });
   } catch (err) {
@@ -59,6 +61,12 @@ export async function run(argv) {
   const maxDepth = intFlag(flags['max-depth']);
   if (Number.isNaN(maxDepth)) {
     console.error(`impact: --max-depth must be a positive integer, got ${flags['max-depth']}`);
+    return 2;
+  }
+
+  const budget = resolveMaxTokens(flags);
+  if (budget.error) {
+    console.error(`impact: ${budget.error}`);
     return 2;
   }
 
@@ -106,6 +114,12 @@ export async function run(argv) {
   }
 
   const report = buildImpact(graph, changed, { limit, maxDepth: maxDepth ?? undefined, source });
-  console.log(flags.json ? JSON.stringify(report, null, 2) : formatImpact(report));
+  const fit = fitImpact(report, {
+    mode: flags.json ? 'json' : 'text',
+    jsonSpace: 2,
+    compress: resolveCompressPaths(flags, cfg),
+    maxTokens: budget.value,
+  });
+  console.log(fit.text);
   return 0;
 }

@@ -155,3 +155,72 @@ export function renderPathGroups(groups) {
       : `under ${g.pathPrefix}: ${g.paths.join(', ')}`)),
   };
 }
+
+/** The field a compressed list stores its groups under. */
+export const GROUPS_KEY = 'pathGroups';
+
+/**
+ * How many paths a list is showing, whether it is flat or grouped. The caller
+ * needs this to work out the `(+N more)` count either way.
+ */
+export function shownPaths(box, key) {
+  const groups = box?.[GROUPS_KEY];
+  if (Array.isArray(groups)) {
+    return groups.reduce((n, g) => n + (Array.isArray(g?.paths) ? g.paths.length : 0), 0);
+  }
+  return Array.isArray(box?.[key]) ? box[key].length : 0;
+}
+
+/**
+ * Replace flat path lists with prefix groups, wherever that pays.
+ *
+ * Returns a NEW payload (deep-cloned) so the caller's object is never mutated —
+ * the same answer can be rendered compressed and uncompressed from one build.
+ * A compressed list loses its flat field entirely and gains `pathGroups`:
+ * absence is loud, so a consumer that reads `files` and gets `undefined`
+ * notices, instead of silently receiving a subset of the paths.
+ *
+ * @param {object} payload a `brief` / `impact` / `outline` answer.
+ * @param {Array<{get: (p: object) => object|undefined, key: string}>} locations
+ *   which lists may be compressed. At most one per container (a container holds
+ *   a single `pathGroups`).
+ * @param {{compress?: boolean}} [opts] plus any `compressPaths` threshold.
+ * @returns {object} the payload, or a compressed copy of it.
+ */
+export function compressAnswerPaths(payload, locations = [], opts = {}) {
+  if (opts.compress !== true || !payload || typeof payload !== 'object') return payload;
+  const out = structuredClone(payload);
+  for (const loc of locations) {
+    const box = loc.get(out);
+    if (!box || !Array.isArray(box[loc.key])) continue;
+    const groups = compressPaths(box[loc.key], opts);
+    if (groups === null) continue;
+    box[GROUPS_KEY] = groups;
+    delete box[loc.key];
+  }
+  return out;
+}
+
+/**
+ * The text of one path list: what goes on the `label:` line, and any extra
+ * indented lines beneath it.
+ *
+ * @param {object} box the container holding the list (flat or grouped).
+ * @param {string} key its flat list field.
+ * @param {{total?: number, marker?: string, indent?: string, empty?: string}} [opts]
+ *   `total` is the UNtruncated count, used for `(+N more)`; `marker` is that
+ *   marker, already rendered by the caller (it knows whether the cut came from
+ *   `--limit` or from `--max-tokens`).
+ * @returns {{inline: string, lines: string[]}}
+ */
+export function renderPathList(box, key, { marker = '', indent = '  ', empty = '—' } = {}) {
+  const groups = box?.[GROUPS_KEY];
+  if (Array.isArray(groups) && groups.length > 0) {
+    const lines = renderPathGroups(groups).lines.map((line) => `${indent}${line}`);
+    if (marker) lines.push(`${indent}${marker}`);
+    return { inline: '', lines };
+  }
+  const items = Array.isArray(box?.[key]) ? box[key] : [];
+  if (items.length === 0) return { inline: marker || empty, lines: [] };
+  return { inline: [items.join(', '), marker].filter(Boolean).join(' '), lines: [] };
+}

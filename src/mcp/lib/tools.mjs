@@ -19,9 +19,11 @@
 
 import { normPosix } from '../../inventory/schema.mjs';
 import { changedFilesSince } from '../../lib/changed_files.mjs';
-import { buildBrief, resolveTarget } from '../../brief/lib/brief.mjs';
-import { buildImpact } from '../../impact/lib/impact.mjs';
+import { buildBrief, fitBrief, resolveTarget } from '../../brief/lib/brief.mjs';
+import { buildImpact, fitImpact } from '../../impact/lib/impact.mjs';
+import { fitOutline } from '../../outline/lib/outline.mjs';
 import { outlineTarget } from '../../outline/lib/lookup.mjs';
+import { COMPRESS_PATHS_DEFAULT } from '../../lib/answer_render.mjs';
 import { lookupSymbol } from '../../show/lib/lookup.mjs';
 import { loadDescriptions, generatedLabel } from '../../describe/lib/store.mjs';
 
@@ -336,14 +338,34 @@ export function domainCrossings(graph) {
   return result;
 }
 
+// ---- response shaping (optional, per call) ------------------------------
+
+/**
+ * Turn the two optional shaping arguments into `fitAnswer` options.
+ *
+ * An MCP tool result is COMPACT JSON (see ./rpc.mjs), so that is what a token
+ * budget has to be measured against — hence `jsonSpace: 0`. `compressPaths`
+ * follows the CLI default unless the caller says otherwise, so an agent and a
+ * terminal see the same answer for the same question.
+ */
+function answerOpts({ maxTokens, compressPaths } = {}) {
+  return {
+    mode: 'json',
+    jsonSpace: 0,
+    maxTokens: Number.isInteger(maxTokens) && maxTokens > 0 ? maxTokens : null,
+    compress: typeof compressPaths === 'boolean' ? compressPaths : COMPRESS_PATHS_DEFAULT,
+  };
+}
+
 // ---- context packs (the token savers) -----------------------------------
 
 /** Everything worth knowing about a file / domain / symbol, in one payload. */
-export function brief(graph, { target, limit } = {}) {
+export function brief(graph, { target, limit, maxTokens, compressPaths } = {}) {
   if (typeof target !== 'string' || target.length === 0) {
     return { kind: 'not-found', target: target ?? null, error: 'target must be a non-empty string', candidates: [] };
   }
-  return buildBrief(graph, target, { limit, descriptions: loadDescriptions(graph.cacheDir) });
+  const built = buildBrief(graph, target, { limit, descriptions: loadDescriptions(graph.cacheDir) });
+  return fitBrief(built, answerOpts({ maxTokens, compressPaths })).payload;
 }
 
 // ---- generated descriptions (LOOKUP ONLY) -------------------------------
@@ -404,9 +426,10 @@ export function describe(graph, { target } = {}) {
  * likely tests. Pass `files` explicitly, or let it diff the working tree against
  * `diff` (default HEAD) using the repo root recorded in the inventory manifest.
  */
-export function impact(graph, { files, diff, limit, maxDepth } = {}) {
+export function impact(graph, { files, diff, limit, maxDepth, maxTokens, compressPaths } = {}) {
+  const fitted = (report) => fitImpact(report, answerOpts({ maxTokens, compressPaths })).payload;
   if (Array.isArray(files)) {
-    return buildImpact(graph, files.map(String), { limit, maxDepth, source: 'files' });
+    return fitted(buildImpact(graph, files.map(String), { limit, maxDepth, source: 'files' }));
   }
   const ref = typeof diff === 'string' && diff.length > 0 ? diff : 'HEAD';
   const source = `diff ${ref}`;
@@ -419,7 +442,7 @@ export function impact(graph, { files, diff, limit, maxDepth } = {}) {
     return { source, error: `could not determine changes vs ${ref} in ${repoRoot} — pass \`files\` explicitly` };
   }
   const changed = [...delta.added, ...delta.modified, ...delta.deleted];
-  return buildImpact(graph, changed, { limit, maxDepth, source });
+  return fitted(buildImpact(graph, changed, { limit, maxDepth, source }));
 }
 
 // ---- precise reading (the file, without the file) -----------------------
@@ -429,7 +452,7 @@ export function impact(graph, { files, diff, limit, maxDepth } = {}) {
  * from the FILE, not from the graph, so it is never stale. The repo root comes
  * from the inventory manifest; without one there is nothing to resolve against.
  */
-export function outline(graph, { target, limit } = {}) {
+export function outline(graph, { target, limit, maxTokens } = {}) {
   if (typeof target !== 'string' || target.length === 0) {
     return { kind: 'not-found', target: target ?? null, error: 'target must be a non-empty string', candidates: [] };
   }
@@ -442,7 +465,7 @@ export function outline(graph, { target, limit } = {}) {
       candidates: [],
     };
   }
-  return outlineTarget({ repoRoot, target, limit });
+  return fitOutline(outlineTarget({ repoRoot, target, limit }), answerOpts({ maxTokens })).payload;
 }
 
 /**
@@ -557,6 +580,8 @@ export const TOOLS = [
       properties: {
         target: strProp('File path or path suffix (Cart.tsx), domain name, symbol name, or a node id.'),
         limit: { type: 'integer', description: 'Max items per list (default 10).' },
+        maxTokens: { type: 'integer', description: 'Cap the whole answer at ~N tokens (~4 chars/token). Least important sections are cut first and every cut is marked in the result.' },
+        compressPaths: { type: 'boolean', description: 'Factor shared directory prefixes out of the path lists: each becomes pathGroups: [{ pathPrefix, paths }], and a full path is pathPrefix + paths[i]. Lossless.' },
       },
       required: ['target'],
     },
@@ -573,6 +598,8 @@ export const TOOLS = [
         diff: strProp('Revision to compare the working tree against (default HEAD; e.g. main, HEAD~1).'),
         limit: { type: 'integer', description: 'Max items per list (default 10).' },
         maxDepth: { type: 'integer', description: 'Blast-radius BFS depth cap (default 25).' },
+        maxTokens: { type: 'integer', description: 'Cap the whole answer at ~N tokens (~4 chars/token). Least important sections are cut first and every cut is marked in the result.' },
+        compressPaths: { type: 'boolean', description: 'Factor shared directory prefixes out of the path lists: each becomes pathGroups: [{ pathPrefix, paths }], and a full path is pathPrefix + paths[i]. Lossless.' },
       },
     },
   },
@@ -587,6 +614,7 @@ export const TOOLS = [
       properties: {
         target: strProp('File path or path suffix (Cart.tsx). Ambiguous suffixes come back as candidates.'),
         limit: { type: 'integer', description: 'Max declarations / class members (default 100).' },
+        maxTokens: { type: 'integer', description: 'Cap the whole answer at ~N tokens (~4 chars/token). Least important sections are cut first and every cut is marked in the result.' },
       },
       required: ['target'],
     },

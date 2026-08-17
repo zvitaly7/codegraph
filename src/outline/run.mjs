@@ -12,7 +12,8 @@
 
 import process from 'node:process';
 import { resolveConfig } from '../config/load.mjs';
-import { formatOutline, DEFAULT_LIMIT } from './lib/outline.mjs';
+import { ANSWER_OPTIONS, resolveMaxTokens } from '../lib/answer_render.mjs';
+import { fitOutline, DEFAULT_LIMIT } from './lib/outline.mjs';
 import { outlineTarget } from './lib/lookup.mjs';
 
 export async function run(argv) {
@@ -26,6 +27,7 @@ export async function run(argv) {
       extraOptions: {
         json: { type: 'boolean' },
         limit: { type: 'string' },
+        ...ANSWER_OPTIONS,
       },
     });
   } catch (err) {
@@ -49,6 +51,12 @@ export async function run(argv) {
     }
   }
 
+  const budget = resolveMaxTokens(flags);
+  if (budget.error) {
+    console.error(`outline: ${budget.error}`);
+    return 2;
+  }
+
   const result = outlineTarget({
     repoRoot: cfg.repoRoot, target, limit, ignoreFile: cfg.ignoreFile,
   });
@@ -63,6 +71,11 @@ export async function run(argv) {
     return 1;
   }
 
-  console.log(flags.json ? JSON.stringify(result, null, 2) : formatOutline(result));
+  const fit = fitOutline(result, {
+    mode: flags.json ? 'json' : 'text',
+    jsonSpace: 2,
+    maxTokens: budget.value,
+  });
+  console.log(fit.text);
   return 0;
 }

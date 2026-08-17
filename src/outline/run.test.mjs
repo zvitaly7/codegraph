@@ -23,6 +23,10 @@ function seedRepo() {
   writeFileSync(join(repo, 'src', 'checkout', 'Cart.tsx'), 'export const other = 1;\n');
   writeFileSync(join(repo, 'src', 'util.ts'), 'export function util(): void {}\n');
   writeFileSync(join(repo, 'notes.md'), '# notes\n');
+  // A file big enough for --max-tokens to have something to cut.
+  writeFileSync(join(repo, 'src', 'big.ts'), ['import a from "./a";', 'import b from "./b";']
+    .concat(Array.from({ length: 40 }, (_, i) => `export function fn${i}(argument${i}: string): void {}`))
+    .join('\n'));
   return repo;
 }
 
@@ -105,5 +109,19 @@ describe('outline CLI', () => {
   it('exits 2 on a file the TS parser does not handle', async () => {
     expect(await run(['notes.md', '--repo-root', repo])).toBe(2);
     expect(err.join('\n')).toMatch(/not a JS\/TS source file/);
+  });
+});
+
+describe('outline CLI — --max-tokens', () => {
+  it('exits 2 on a bad --max-tokens', async () => {
+    expect(await run(['src/big.ts', '--repo-root', repo, '--max-tokens', 'lots'])).toBe(2);
+    expect(err.join('\n')).toMatch(/--max-tokens must be a positive integer/);
+  });
+
+  it('marks what a cap cut, and keeps the untruncated count', async () => {
+    const code = await run(['src/big.ts', '--repo-root', repo, '--max-tokens', '60']);
+    expect(code).toBe(0);
+    expect(stdout()).toContain('OUTLINE');
+    expect(stdout()).toMatch(/truncated to fit --max-tokens/);
   });
 });
