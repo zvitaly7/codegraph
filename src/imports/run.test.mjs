@@ -227,6 +227,36 @@ describe('run() — workspace monorepos', () => {
     expect(text.indexOf('@myorg/ghost')).toBeLessThan(text.indexOf('@myorg/spectre'));
   });
 
+  // Naming the package leaves the reader to work out where its sources live.
+  // The layout is visible in the index, so the report reads it for them — and
+  // only proposes what it could confirm against real files.
+  it('proposes the paths mapping that would bring the package back', async () => {
+    src('package.json', JSON.stringify({ name: 'root', private: true, workspaces: ['packages/*'] }));
+    src('packages/ghost/package.json', JSON.stringify({ name: '@myorg/ghost', main: 'dist/index.js' }));
+    // A package that is itself a monorepo: no src/ of its own, so the
+    // conventional fallback cannot reach it and a mapping is genuinely needed.
+    src('packages/ghost/packages/inner/src/index.ts', 'export const g = 1;');
+    src('packages/app/src/main.ts', "import a from '@myorg/ghost';");
+    writeInventory(repo, [
+      INV[0],
+      {
+        id: 'file:packages/ghost/packages/inner/src/index.ts',
+        path: 'packages/ghost/packages/inner/src/index.ts',
+        language: 'TypeScript',
+        kind: 'code',
+      },
+    ]);
+
+    const warn = [];
+    console.error.mockImplementation((m) => warn.push(String(m)));
+    await run(['--repo-root', repo, '--out', join(repo, '.kg-cache')]);
+    console.error.mockImplementation(() => {});
+
+    const text = warn.join('\n');
+    expect(text).toContain('packages/ghost/packages/*/src');
+    expect(text).toMatch(/paths/);
+  });
+
   it('says nothing about unreachable packages when there are none', async () => {
     monorepo({ rootPkg: { name: 'root', private: true, workspaces: ['packages/*'] } });
     const warn = [];
