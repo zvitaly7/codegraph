@@ -96,6 +96,118 @@ describe('bare specifiers → external packages', () => {
   });
 });
 
+describe('workspace packages', () => {
+  function makeWs(fileSet, packages, tsconfig = NO_TS) {
+    const set = new Set(fileSet);
+    const byName = new Map(packages.map((p) => [p.name, p]));
+    return (specifier, fromRel) =>
+      resolveSpecifier(specifier, {
+        fromAbsFile: `${REPO}/${fromRel}`,
+        repoRoot: REPO,
+        fileSet: set,
+        tsconfig,
+        workspaces: byName,
+      });
+  }
+
+  it('resolves a sibling workspace package to its entry file, not pkg:', () => {
+    const r = makeWs(
+      ['packages/app/src/main.ts', 'packages/ui/src/index.ts'],
+      [{ name: '@myorg/ui', dir: 'packages/ui', entries: ['packages/ui/src/index.ts'], subpaths: {} }],
+    );
+    expect(r('@myorg/ui', 'packages/app/src/main.ts'))
+      .toEqual({ kind: 'internal', targetId: 'file:packages/ui/src/index.ts' });
+  });
+
+  it('falls back to <dir>/index.<ext> when the manifest names no entry', () => {
+    const r = makeWs(
+      ['packages/ui/index.tsx'],
+      [{ name: '@myorg/ui', dir: 'packages/ui', entries: [], subpaths: {} }],
+    );
+    expect(r('@myorg/ui', 'packages/app/src/main.ts'))
+      .toEqual({ kind: 'internal', targetId: 'file:packages/ui/index.tsx' });
+  });
+
+  it('tries each entry candidate until one is a known source', () => {
+    const r = makeWs(
+      ['packages/ui/src/index.ts'],
+      [{
+        name: '@myorg/ui',
+        dir: 'packages/ui',
+        entries: ['packages/ui/dist/index.js', 'packages/ui/src/index.ts'],
+        subpaths: {},
+      }],
+    );
+    expect(r('@myorg/ui', 'packages/app/src/main.ts'))
+      .toEqual({ kind: 'internal', targetId: 'file:packages/ui/src/index.ts' });
+  });
+
+  it('resolves a subpath import to the file under the package', () => {
+    const r = makeWs(
+      ['packages/ui/button.ts', 'packages/ui/deep/nested/thing.ts'],
+      [{ name: '@myorg/ui', dir: 'packages/ui', entries: [], subpaths: {} }],
+    );
+    expect(r('@myorg/ui/button', 'packages/app/src/main.ts'))
+      .toEqual({ kind: 'internal', targetId: 'file:packages/ui/button.ts' });
+    expect(r('@myorg/ui/deep/nested/thing', 'packages/app/src/main.ts'))
+      .toEqual({ kind: 'internal', targetId: 'file:packages/ui/deep/nested/thing.ts' });
+  });
+
+  it('prefers an explicit exports subpath over the plain directory join', () => {
+    const r = makeWs(
+      ['packages/ui/src/button.ts'],
+      [{
+        name: '@myorg/ui',
+        dir: 'packages/ui',
+        entries: [],
+        subpaths: { button: ['packages/ui/src/button.ts'] },
+      }],
+    );
+    expect(r('@myorg/ui/button', 'packages/app/src/main.ts'))
+      .toEqual({ kind: 'internal', targetId: 'file:packages/ui/src/button.ts' });
+  });
+
+  it('an unscoped workspace name resolves too', () => {
+    const r = makeWs(
+      ['packages/ui/src/index.ts'],
+      [{ name: 'ui', dir: 'packages/ui', entries: ['packages/ui/src/index.ts'], subpaths: {} }],
+    );
+    expect(r('ui', 'packages/app/src/main.ts'))
+      .toEqual({ kind: 'internal', targetId: 'file:packages/ui/src/index.ts' });
+  });
+
+  it('stays external when the workspace name resolves to no real file', () => {
+    const r = makeWs(
+      ['packages/app/src/main.ts'],
+      [{ name: '@myorg/ui', dir: 'packages/ui', entries: ['packages/ui/dist/index.js'], subpaths: {} }],
+    );
+    expect(r('@myorg/ui', 'packages/app/src/main.ts'))
+      .toEqual({ kind: 'external', targetId: 'pkg:@myorg/ui', packageName: '@myorg/ui' });
+    expect(r('@myorg/ui/ghost', 'packages/app/src/main.ts'))
+      .toEqual({ kind: 'external', targetId: 'pkg:@myorg/ui', packageName: '@myorg/ui' });
+  });
+
+  it('leaves a genuine third-party package alone', () => {
+    const r = makeWs(
+      ['packages/ui/src/index.ts'],
+      [{ name: '@myorg/ui', dir: 'packages/ui', entries: ['packages/ui/src/index.ts'], subpaths: {} }],
+    );
+    expect(r('react', 'packages/app/src/main.ts'))
+      .toEqual({ kind: 'external', targetId: 'pkg:react', packageName: 'react' });
+  });
+
+  it('a tsconfig alias still wins over the workspace map', () => {
+    const tsconfig = { paths: { '@myorg/ui': ['packages/ui/src/aliased.ts'] }, pathsBase: REPO };
+    const r = makeWs(
+      ['packages/ui/src/index.ts', 'packages/ui/src/aliased.ts'],
+      [{ name: '@myorg/ui', dir: 'packages/ui', entries: ['packages/ui/src/index.ts'], subpaths: {} }],
+      tsconfig,
+    );
+    expect(r('@myorg/ui', 'packages/app/src/main.ts'))
+      .toEqual({ kind: 'internal', targetId: 'file:packages/ui/src/aliased.ts' });
+  });
+});
+
 describe('edge cases', () => {
   const r = make(['src/a.ts']);
   it('an absolute-path specifier is unresolved', () => {
