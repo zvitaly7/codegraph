@@ -39,9 +39,9 @@ exactly the kind of slop a benchmark should not have.
 
 ## The build cost, stated separately
 
-Building the graph on this repo takes **≈3 s of wall clock** — 3.65 s in the run
-recorded in `results.json`, and 3.00 s / 3.09 s / 3.34 s across three standalone
-`loregraph regenerate` runs measured with `time`. That is all six layers plus the
+Building the graph on this repo takes **≈4 s of wall clock** — 3.78 s in the run
+recorded in `results.json`, and 3.79 s / 4.31 s / 2.72 s across three standalone
+`loregraph regenerate` runs. That is all six layers plus the
 browser index.
 
 The build costs **zero tokens**, because it is an ordinary process whose output
@@ -124,21 +124,21 @@ path list to factor.
 
 | question | plain | prefix-compressed | saved | verdict |
 | --- | ---: | ---: | ---: | --- |
-| `blast-radius` | 515 | 462 | 10.3% | smaller |
-| `symbol-usage` | 367 | 349 | 4.9% | smaller |
-| `file-orientation` | 505 | 494 | 2.2% | smaller |
-| `domain-deps` | 187 | 187 | 0% | no path list to factor |
-| `file-declarations` | 1036 | 1036 | 0% | no path list to factor |
+| `blast-radius` | 580 | 516 | 11% | smaller |
+| `symbol-usage` | 416 | 394 | 5.3% | smaller |
+| `file-orientation` | 557 | 543 | 2.5% | smaller |
+| `domain-deps` | 191 | 191 | 0% | no path list to factor |
+| `file-declarations` | 1086 | 1086 | 0% | no path list to factor |
 | `symbol-source` | 1131 | 1131 | 0% | no path list to factor |
-| `dead-exports` | 1330 | 1330 | 0% | no path list to factor |
-| **total** | **5071** | **4989** | **1.6%** | |
+| `dead-exports` | 1341 | 1341 | 0% | no path list to factor |
+| **total** | **5302** | **5202** | **1.9%** | |
 
-No row got worse. Three rows improved, and only one of the three cleared 5%.
+No row got worse. Three rows improved, and two of the three cleared 5%.
 
 **So it ships OFF by default, and that is the honest call.** loregraph's own tree
 is close to the worst case for this optimisation: the only prefix worth factoring
 is `src/`, four characters, which a BPE tokenizer spends 2 tokens on. Two of the
-three path-heavy questions save less than 5%, the whole set saves 1.6%, and every
+four of the seven questions have no path list at all, the whole set saves 1.9%, and every
 compressed list costs a reader one more line to interpret. That is not a trade
 worth making for everyone.
 
@@ -289,26 +289,26 @@ Read these before quoting any number from this page.
 
 ## Results on this repo
 
-`node bench/run.mjs`, loregraph at 168 indexed files / 846 symbols / 265 exported
-symbols; 145 JS/TS files in the grep universe. Tokenizer: `gpt-tokenizer`,
-`o200k_base`. Graph build: **3.65 s wall clock, 0 tokens**, reported separately.
+`node bench/run.mjs`, loregraph at 182 indexed files / 954 symbols / 289 exported
+symbols; 159 JS/TS files in the grep universe. Tokenizer: `gpt-tokenizer`,
+`o200k_base`. Graph build: **3.78 s wall clock, 0 tokens**, reported separately.
 
 | question | graph tokens | baseline tokens | baseline, skim floor | files read | ratio | saved |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `blast-radius` | 515 | 69842 | 16287 | 28 | 135.6x | 99.3% |
-| `symbol-usage` | 367 | 36981 | 8346 | 16 | 100.8x | 99% |
-| `file-orientation` | 505 | 14758 | 1744 | 3 | 29.2x | 96.6% |
-| `domain-deps` | 187 | 18501 | 3337 | 6 | 98.9x | 99% |
-| `file-declarations` | 1036 | 7436 | 511 | 1 | 7.2x | 86.1% |
-| `symbol-source` | 1131 | 2600 | 1634 | 1 | 2.3x | 56.5% |
-| `dead-exports` | 1330 | 242097 | 64209 | 145 | 182x | 99.5% |
-| **total** | **5071** | **392215** | **96068** | — | **77.3x** | **98.7%** |
+| `blast-radius` | 580 | 80135 | 19060 | 33 | 138.2x | 99.3% |
+| `symbol-usage` | 416 | 46253 | 10041 | 20 | 111.2x | 99.1% |
+| `file-orientation` | 557 | 19632 | 2250 | 4 | 35.2x | 97.2% |
+| `domain-deps` | 191 | 20435 | 3326 | 6 | 107x | 99.1% |
+| `file-declarations` | 1086 | 8180 | 512 | 1 | 7.5x | 86.7% |
+| `symbol-source` | 1131 | 2880 | 1914 | 1 | 2.5x | 60.7% |
+| `dead-exports` | 1341 | 287269 | 71257 | 159 | 214.2x | 99.5% |
+| **total** | **5302** | **464784** | **108360** | — | **87.7x** | **98.9%** |
 
-Against the skim floor the total is **18.9x** (94.7% saved). With
-`--compress-paths` on, the graph total is **4989** (78.6x) — see the compression
-section above for why that 1.6% is not the default.
+Against the skim floor the total is **20.4x** (94.7% saved). With
+`--compress-paths` on, the graph total is **5202** (89.3x) — see the compression
+section above for why that 1.9% is not the default.
 
-The graph won every question. The narrowest margin is `symbol-source` at 2.3x,
+The graph won every question. The narrowest margin is `symbol-source` at 2.5x,
 and that is the row to trust most: it is the only one where both sides produce
 the same text for what was asked, and its baseline opens a single file.
 
