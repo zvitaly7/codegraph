@@ -1,17 +1,17 @@
 {
   "tokenizer": "gpt-tokenizer / o200k_base (GPT-4o, GPT-5 family)",
-  "timestamp": "2026-08-17T08:22:54.173Z",
+  "timestamp": "2026-08-18T07:52:39.657Z",
   "timestampSource": "clock",
   "repo": {
     "root": "/Users/vzheltko/UK Talent/projects/codegraph",
-    "indexedFiles": 163,
-    "symbols": 835,
+    "indexedFiles": 168,
+    "symbols": 846,
     "exportedSymbols": 265,
-    "benchSourceFiles": 144
+    "benchSourceFiles": 145
   },
   "build": {
     "command": "loregraph regenerate",
-    "wallClockMs": 2212,
+    "wallClockMs": 3648,
     "contextTokens": 0,
     "note": "The build runs as a normal process, outside any model context, so it costs zero tokens — but it is not free. Amortised across every question afterwards."
   },
@@ -29,15 +29,15 @@
   },
   "totals": {
     "graphTokens": 5071,
-    "baselineTokens": 390101,
-    "baselineSkimTokens": 95674,
-    "ratio": 76.9,
+    "baselineTokens": 392215,
+    "baselineSkimTokens": 96068,
+    "ratio": 77.3,
     "savedPct": 98.7,
     "skimRatio": 18.9,
     "skimSavedPct": 94.7,
     "compressedGraphTokens": 4989,
     "compressedSavedPct": 1.6,
-    "compressedRatio": 78.2
+    "compressedRatio": 78.6
   },
   "questions": [
     {
@@ -306,15 +306,15 @@
         "procedure": "read-all",
         "summary": "A repo-wide question needs a repo-wide read: list every source file, then read all of them — you cannot know what a file exports, or whether anything uses it, without its text.",
         "steps": [
-          "find . → 144 source file(s)",
-          "read all 144"
+          "find . → 145 source file(s)",
+          "read all 145"
         ],
-        "filesRead": 144,
-        "bytesRead": 891829,
-        "toolOutputTokens": 1240,
-        "fileTokens": 238743,
-        "tokens": 239983,
-        "skimTokens": 63815
+        "filesRead": 145,
+        "bytesRead": 898020,
+        "toolOutputTokens": 1247,
+        "fileTokens": 240850,
+        "tokens": 242097,
+        "skimTokens": 64209
       },
       "compressed": {
         "tokens": 1330,
@@ -324,11 +324,11 @@
         "verdict": "no path list to factor"
       },
       "graphTokens": 1330,
-      "baselineTokens": 239983,
-      "baselineSkimTokens": 63815,
-      "filesRead": 144,
-      "ratio": 180.4,
-      "savedPct": 99.4,
+      "baselineTokens": 242097,
+      "baselineSkimTokens": 64209,
+      "filesRead": 145,
+      "ratio": 182,
+      "savedPct": 99.5,
       "graphWins": true
     }
   ]

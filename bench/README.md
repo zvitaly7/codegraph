@@ -39,8 +39,8 @@ exactly the kind of slop a benchmark should not have.
 
 ## The build cost, stated separately
 
-Building the graph on this repo takes **≈2 s of wall clock** — 2.21 s in the run
-recorded in `results.json`, and 2.48 s / 2.76 s / 2.80 s across three standalone
+Building the graph on this repo takes **≈3 s of wall clock** — 3.65 s in the run
+recorded in `results.json`, and 3.00 s / 3.09 s / 3.34 s across three standalone
 `loregraph regenerate` runs measured with `time`. That is all six layers plus the
 browser index.
 
@@ -281,9 +281,9 @@ Read these before quoting any number from this page.
 
 ## Results on this repo
 
-`node bench/run.mjs`, loregraph at 163 indexed files / 835 symbols / 265 exported
-symbols; 144 JS/TS files in the grep universe. Tokenizer: `gpt-tokenizer`,
-`o200k_base`. Graph build: **2.21 s wall clock, 0 tokens**, reported separately.
+`node bench/run.mjs`, loregraph at 168 indexed files / 846 symbols / 265 exported
+symbols; 145 JS/TS files in the grep universe. Tokenizer: `gpt-tokenizer`,
+`o200k_base`. Graph build: **3.65 s wall clock, 0 tokens**, reported separately.
 
 | question | graph tokens | baseline tokens | baseline, skim floor | files read | ratio | saved |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -293,11 +293,11 @@ symbols; 144 JS/TS files in the grep universe. Tokenizer: `gpt-tokenizer`,
 | `domain-deps` | 187 | 18501 | 3337 | 6 | 98.9x | 99% |
 | `file-declarations` | 1036 | 7436 | 511 | 1 | 7.2x | 86.1% |
 | `symbol-source` | 1131 | 2600 | 1634 | 1 | 2.3x | 56.5% |
-| `dead-exports` | 1330 | 239983 | 63815 | 144 | 180.4x | 99.4% |
-| **total** | **5071** | **390101** | **95674** | — | **76.9x** | **98.7%** |
+| `dead-exports` | 1330 | 242097 | 64209 | 145 | 182x | 99.5% |
+| **total** | **5071** | **392215** | **96068** | — | **77.3x** | **98.7%** |
 
 Against the skim floor the total is **18.9x** (94.7% saved). With
-`--compress-paths` on, the graph total is **4989** (78.2x) — see the compression
+`--compress-paths` on, the graph total is **4989** (78.6x) — see the compression
 section above for why that 1.6% is not the default.
 
 The graph won every question. The narrowest margin is `symbol-source` at 2.3x,

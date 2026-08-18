@@ -12,7 +12,7 @@
   <a href="https://github.com/zvitaly7/loregraph/blob/main/LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-black"></a>
 </p>
 <p>
-  <img alt="778 tests passing" src="https://img.shields.io/badge/tests-778%20passing-6E9F18?logo=vitest&logoColor=white">
+  <img alt="873 tests passing" src="https://img.shields.io/badge/tests-873%20passing-6E9F18?logo=vitest&logoColor=white">
   <img alt="Analysis scope: JavaScript / TypeScript" src="https://img.shields.io/badge/analysis-JavaScript%20%2F%20TypeScript-3178C6?logo=typescript&logoColor=white">
   <img alt="Runtime dependencies: typescript and ignore" src="https://img.shields.io/badge/runtime%20deps-typescript%20%2B%20ignore-8957E5">
 </p>
@@ -352,21 +352,21 @@ npm run bench
 
 It builds the graph into a temporary cache, then for seven real questions compares the tokens of loregraph's answer against the tokens of an explicit, documented file-reading procedure — counted with **`gpt-tokenizer`** (`o200k_base`), a bench-only devDependency. Not bytes, and not `chars / 4`, which undercuts the real count by 7–9% on these files.
 
-On this repo (145 indexed files, 682 symbols, 126 JS/TS files in the grep universe). The graph build is **2.88 s of wall clock and 0 tokens** — it happens outside the model's context — and is deliberately kept out of the per-question numbers:
+On this repo (168 indexed files, 846 symbols, 145 JS/TS files in the grep universe). The graph build is **3.65 s of wall clock and 0 tokens** — it happens outside the model's context — and is deliberately kept out of the per-question numbers:
 
 | Question | Graph | File-reading baseline | Skim floor | Ratio | |
 | :--- | ---: | ---: | ---: | ---: | :--- |
-| Blast radius of a file | 448 | 52,747 | 14,162 | **117.7x** | `███████▌` |
-| Who references an export | 308 | 25,413 | 6,806 | **82.5x** | `█████` |
-| What is this file wired to | 450 | 11,836 | 1,678 | **26.3x** | `█▌` |
-| What a module depends on | 183 | 15,579 | 3,271 | **85.1x** | `█████▌` |
-| What a file declares (`outline`) | 900 | 6,191 | 445 | **6.9x** | `▌` |
-| One symbol's implementation (`show`) | 1,131 | 2,399 | 1,433 | **2.1x** | `▏` |
-| Repo-wide dead exports | 1,004 | 188,959 | 55,362 | **188.2x** | `████████████` |
-| **Total** | **4,424** | **303,124** | **83,157** | **68.5x** | `████▌` |
+| Blast radius of a file | 515 | 69,842 | 16,287 | **135.6x** | `████████▌` |
+| Who references an export | 367 | 36,981 | 8,346 | **100.8x** | `██████` |
+| What is this file wired to | 505 | 14,758 | 1,744 | **29.2x** | `█▌` |
+| What a module depends on | 187 | 18,501 | 3,337 | **98.9x** | `██████` |
+| What a file declares (`outline`) | 1,036 | 7,436 | 511 | **7.2x** | `▌` |
+| One symbol's implementation (`show`) | 1,131 | 2,600 | 1,634 | **2.3x** | `▏` |
+| Repo-wide dead exports | 1,330 | 242,097 | 64,209 | **182x** | `███████████▌` |
+| **Total** | **5,071** | **392,215** | **96,068** | **77.3x** | `████▌` |
 
 > [!IMPORTANT]
-> **The baseline is a model of what a file-reading agent would read, not a measurement of one.** Nobody's context window was observed. Four of the seven rows compare answers that are not identical — and not always in the graph's favour. On *what is this file wired to* and *what a module depends on* the graph answers more than the baseline, which is therefore under-charged. On *what a file declares* the **baseline** answers more: the file text carries every body `outline` leaves out, so that row is a claim about navigation, not about understanding. The dead-exports row assumes an agent that reads every file rather than writing a script, so treat it as an upper bound on the naive path. The strictest row is *one symbol's implementation* at 2.1x, where both sides end up with the same text for what was asked. The "skim floor" column charges only the first 40 lines of each file — not a realistic way to answer anything, but a hard lower bound: even there the graph is 18.8x cheaper. Every procedure is written out in [`bench/README.md`](bench/README.md) so it can be argued with.
+> **The baseline is a model of what a file-reading agent would read, not a measurement of one.** Nobody's context window was observed. Four of the seven rows compare answers that are not identical — and not always in the graph's favour. On *what is this file wired to* and *what a module depends on* the graph answers more than the baseline, which is therefore under-charged. On *what a file declares* the **baseline** answers more: the file text carries every body `outline` leaves out, so that row is a claim about navigation, not about understanding. The dead-exports row assumes an agent that reads every file rather than writing a script, so treat it as an upper bound on the naive path. The strictest row is *one symbol's implementation* at 2.3x, where both sides end up with the same text for what was asked. The "skim floor" column charges only the first 40 lines of each file — not a realistic way to answer anything, but a hard lower bound: even there the graph is 18.9x cheaper. Every procedure is written out in [`bench/README.md`](bench/README.md) so it can be argued with.
 
 Separately, and **not** produced by that script: a one-off manual A/B gave two AI agents the same three questions about a 217-file demo project, one with the graph and one without. Both answered the blast-radius and symbol-usage questions identically and correctly, at **51,802 tokens with the graph vs 97,464 without (−47%)**. n = 1; the no-graph agent was unusually efficient (it wrote a TypeScript-compiler script instead of grepping), so a typical agent would likely cost more; and on the dead-exports question the two answers used different definitions (18 vs 44) with the no-graph answer being the more nuanced one. The distance between −47% there and the ratios above is the honest measure of how much a modelled baseline flatters the graph.
 
