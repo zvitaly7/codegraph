@@ -52,6 +52,7 @@ const DISTINCTIVE_FLAG = {
   show: '--context',
   impact: '--diff',
   cycles: '--scope file|domain|both',
+  check: 'exit 1',
   describe: '--budget-tokens',
   explorer: '--serve',
   docs: '--out-docs',
@@ -128,6 +129,7 @@ Commands:
   show         The source of exactly one symbol
   impact       Blast radius + likely tests for a diff
   cycles       Circular dependencies between files / domains
+  check        CI gate: fail the build on rules from loregraph.config
   describe     Cached, model-written descriptions (the only paid command)
   explorer     Build (and optionally serve) the browser index
   docs         Generate AGENTS.md + Markdown docs from the graph
