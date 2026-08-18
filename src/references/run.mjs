@@ -7,6 +7,8 @@ import { readInventorySources, readInventoryManifest } from '../lib/inventory_re
 import { TsconfigIndex } from '../lib/tsconfig_index.mjs';
 import { discoverWorkspaces, workspaceTsPaths } from '../lib/workspaces.mjs';
 import { collectEntryPoints } from '../lib/entry_points.mjs';
+import { entryReachableSymbols } from '../lib/reexports.mjs';
+import { resolveSpecifier } from '../imports/lib/resolver.mjs';
 import { changedFilesSince } from '../lib/changed_files.mjs';
 import {
   revisionOfArtifactManifest, loadImportersIndex, computeAffectedFiles,
@@ -151,6 +153,50 @@ function resolveReferences({ cfg, repoRoot, outDir, fileNames, options, symbolId
 }
 
 /**
+ * Which symbols the entry points expose through re-export chains, as
+ * `{ entryPoint, symId, hops }` records sorted for a stable artifact.
+ *
+ * The chain walk is parse-only (see lib/reexports.mjs) and specifiers resolve
+ * with the imports layer's resolver, so `export … from '@myorg/ui'` and a
+ * tsconfig alias land on the same file the IMPORTS edge would. Only symbols the
+ * symbols layer knows are dropped — an unresolvable chain simply exposes less.
+ */
+function collectExposures({
+  repoRoot, entryPoints, currentSourcePaths, exportedNamesByPath, tsconfigOverride, workspaces,
+}) {
+  if (entryPoints.length === 0) return [];
+  const tsconfigIndex = new TsconfigIndex({ repoRoot, tsconfigOverride });
+  const noNames = new Set();
+
+  const reached = entryReachableSymbols({
+    entryPoints,
+    readSource: (path) => {
+      try {
+        return readFileSync(join(repoRoot, path), 'utf8');
+      } catch {
+        return null; // listed in the inventory but unreadable now — expose less
+      }
+    },
+    resolveSpecifier: (fromPath, specifier) => {
+      const fromAbsFile = join(repoRoot, fromPath);
+      const r = resolveSpecifier(specifier, {
+        fromAbsFile,
+        repoRoot,
+        fileSet: currentSourcePaths,
+        tsconfig: tsconfigIndex.forFile(fromAbsFile),
+        workspaces: workspaces?.byName,
+      });
+      return r.kind === 'internal' ? r.targetId.slice('file:'.length) : null;
+    },
+    exportedNamesOf: (path) => exportedNamesByPath.get(path) ?? noNames,
+  });
+
+  return [...reached.entries()]
+    .map(([symId, { entryPoint, hops }]) => ({ entryPoint, symId, hops }))
+    .sort((a, b) => (a.symId < b.symId ? -1 : a.symId > b.symId ? 1 : 0));
+}
+
+/**
  * Layer 2c — references. Type-checks the repo and emits a file→symbol REFERENCES
  * graph: for each source, which declared Symbols (from the symbols layer) it
  * actually uses. Powers "most-used symbols" and "dead exports". Returns a
@@ -225,10 +271,16 @@ export async function run(argv) {
   const symbolIds = new Set();
   const symbolNodesById = new Map();
   const exportedBaseIds = new Set();
+  const exportedNamesByPath = new Map(); // path → Set<declared name>
   for (const node of symbolNodes) {
     symbolIds.add(node.id);
     symbolNodesById.set(node.id, node);
-    if (node.properties?.exported) exportedBaseIds.add(baseSymId(node.id));
+    if (node.properties?.exported) {
+      exportedBaseIds.add(baseSymId(node.id));
+      const path = node.properties.path ?? pathOfSymId(node.id);
+      if (!exportedNamesByPath.has(path)) exportedNamesByPath.set(path, new Set());
+      exportedNamesByPath.get(path).add(node.properties.name);
+    }
   }
 
   const currentSourcePaths = new Set(sources.map((row) => normPosix(row.path)));
@@ -246,26 +298,36 @@ export async function run(argv) {
   // (a CLI, a library entry, a Module-Federation remote). Their exports are held
   // back from the dead-export count, and the exclusion is reported rather than
   // silently applied.
+  const workspaces = discoverWorkspaces(repoRoot);
   const entryPoints = collectEntryPoints({
     repoRoot,
     patterns: cfg.entryPoints,
     filePaths: [...currentSourcePaths],
-    workspaces: discoverWorkspaces(repoRoot),
+    workspaces,
   });
   const entryPointPaths = new Set(entryPoints.paths);
 
+  // …and what those entry points RE-EXPORT. A barrel entry point declares
+  // nothing, so being an entry point would otherwise exclude nothing at all.
+  const exposures = collectExposures({
+    repoRoot, entryPoints: entryPoints.paths, currentSourcePaths, exportedNamesByPath,
+    tsconfigOverride: cfg.tsconfig, workspaces,
+  });
+  const exposedIds = new Set(exposures.map((x) => x.symId));
+
   const { nodes, edges, counts } = buildGraph({
-    references, symbolNodesById, entryPointPaths: entryPoints.paths,
+    references, symbolNodesById, entryPointPaths: entryPoints.paths, exposures,
   });
 
   // Dead exports: exported symbols with no CROSS-file incoming reference. A
-  // symbol used only inside its own file still leaves its `export` unused.
+  // symbol used only inside its own file still leaves its `export` unused —
+  // unless an entry point declares it, or re-exports it as public API.
   const crossFileReferenced = new Set(references.filter((r) => !r.sameFile).map((r) => r.symId));
   let deadExports = 0;
   let entryPointExclusions = 0;
   for (const id of exportedBaseIds) {
     if (crossFileReferenced.has(id)) continue;
-    if (entryPointPaths.has(pathOfSymId(id))) entryPointExclusions += 1;
+    if (entryPointPaths.has(pathOfSymId(id)) || exposedIds.has(id)) entryPointExclusions += 1;
     else deadExports += 1;
   }
 

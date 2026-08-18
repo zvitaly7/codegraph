@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadGraph } from '../../lib/graph_load.mjs';
@@ -264,6 +264,20 @@ describe('health.md', () => {
 
   it('says nothing about held-back exports when no entry point is marked', () => {
     expect(page('health').content).not.toMatch(/held back as entry points/);
+  });
+
+  it('holds back a symbol an entry point EXPOSES through a re-export chain', () => {
+    // src/orphan.ts is the entry point and re-exports checkout/cart.ts#cart, so
+    // `cart` is public API rather than dead — and both omissions are counted.
+    appendFileSync(
+      join(g.cacheDir, 'references', 'edges.jsonl'),
+      `\n${JSON.stringify(edge('EXPOSES', 'file:src/orphan.ts', 'sym:src/checkout/cart.ts#cart', { hops: 1 }))}`,
+    );
+    const reloaded = loadGraph(g.cacheDir);
+    reloaded.nodesById.get('file:src/orphan.ts').properties.entryPoint = true;
+    const c = renderDocs(reloaded).find((p) => p.kind === 'health').content;
+    expect(c).not.toContain('`cart`');
+    expect(c).toMatch(/2 .*held back as entry points/);
   });
 });
 

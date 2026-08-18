@@ -365,7 +365,8 @@ function domainFacts(graph) {
 /**
  * Exported symbols nothing outside their own file references. Symbols declared
  * in an entry-point file are held back — they are consumed across a boundary the
- * import graph cannot see — and counted separately so the omission is visible.
+ * import graph cannot see — and so are symbols an entry point RE-EXPORTS (an
+ * EXPOSES edge). Both are counted separately so the omission stays visible.
  */
 function deadExportRows(graph) {
   const exported = graph.byLabel('Symbol').filter((n) => n.properties?.exported === true);
@@ -373,7 +374,8 @@ function deadExportRows(graph) {
   const unreferenced = exported.filter((n) => (precise
     ? graph.neighbors(n.id, { dir: 'in', type: 'REFERENCES' }).every((e) => e.properties?.sameFile === true)
     : graph.neighbors(n.id, { dir: 'in' }).every((e) => e.type === 'DECLARES')));
-  const isEntryPoint = (n) => graph.getNode(`file:${n.properties?.path}`)?.properties?.entryPoint === true;
+  const isEntryPoint = (n) => graph.getNode(`file:${n.properties?.path}`)?.properties?.entryPoint === true
+    || graph.neighbors(n.id, { dir: 'in', type: 'EXPOSES' }).length > 0;
   const dead = unreferenced.filter((n) => !isEntryPoint(n));
   dead.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   return {

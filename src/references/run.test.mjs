@@ -268,11 +268,33 @@ describe('run() — entry-point reachability through re-export chains', () => {
     ]);
 
     expect(await run(outArg())).toBe(0);
-    // internalName is excluded; the decoy also called PublicName is still dead.
-    expect(manifest().counts.entryPointExclusions).toBe(1);
-    expect(manifest().counts.deadExports).toBe(1);
+    // The exposure names the DECLARED symbol, never the public label — the decoy
+    // in lib.js that happens to be called PublicName is untouched and stays dead.
     expect(edges().filter((e) => e.type === 'EXPOSES').map((e) => e.to))
       .toEqual(['sym:src/lib.js#internalName']);
+    expect(manifest().counts.deadExports).toBe(1); // src/lib.js#PublicName
+    // internalName is also cross-file REFERENCED: the checker reads the renamed
+    // specifier's left-hand side as a usage, which is why the `a as b` form was
+    // never the broken one. It is counted as referenced, not as an exclusion.
+    expect(manifest().counts.entryPointExclusions).toBe(0);
+  });
+
+  it('`export { default as X } from` excludes the real declaration behind `default`', async () => {
+    src('package.json', JSON.stringify({ name: 'defaulted', main: 'src/index.js' }));
+    src('src/index.js', 'export { default as Widget } from "./widget.js";\n');
+    src('src/widget.js', 'export default function realWidget() {}\n');
+    writeInventory(repo, ['src/index.js', 'src/widget.js'].map(invRow));
+    writeSymbols(repo, [symbolNode('src/widget.js', 'realWidget', true)]);
+
+    expect(await run(outArg())).toBe(0);
+    expect(manifest().counts.deadExports).toBe(0);
+    // The chain resolved `default` to the declaration the symbols layer knows.
+    // Like `a as b`, this form also leaves a real REFERENCES edge behind, so the
+    // symbol is counted as referenced rather than excluded — the exposure is
+    // recorded either way, and the exclusion path itself is covered by the plain
+    // `export { a } from` and `export * from` cases above.
+    expect(edges().filter((e) => e.type === 'EXPOSES').map((e) => e.to))
+      .toEqual(['sym:src/widget.js#realWidget']);
   });
 
   it('a re-export cycle terminates instead of hanging', async () => {

@@ -143,8 +143,12 @@ export function buildIndex(graph, options = {}) {
   const fileDomain = new Map();        // fileId  -> domainId
   const dependsOn = [];                // DEPENDS_ON edges (domain -> domain)
   const fileImports = [];              // internal IMPORTS edges (file -> file)
+  const exposedSymbols = new Set();    // symId   -> an entry point re-exports it
 
   for (const e of graph.edges ?? []) {
+    // EXPOSES is not a relation the SPA draws — it only records that an entry
+    // point re-exports a symbol, which the dead-export card must respect.
+    if (e.type === 'EXPOSES') { exposedSymbols.add(e.to); continue; }
     if (!SEMANTIC_EDGE_TYPES.has(e.type)) continue;
     semanticEdges.push(e);
     switch (e.type) {
@@ -261,9 +265,11 @@ export function buildIndex(graph, options = {}) {
   // id (no metric) for determinism; a sample is emitted with the full total.
   // Without the references layer, "unreferenced" is unknowable → empty.
   // Exports of an ENTRY-POINT file are held back (they are consumed across a
-  // boundary the import graph cannot see) and counted, never silently dropped.
+  // boundary the import graph cannot see) and counted, never silently dropped —
+  // and so are symbols an entry point re-exports, which an EXPOSES edge marks.
   const isEntryPointSymbol = (s) => nodesById
-    .get(`file:${s.properties?.path}`)?.properties?.entryPoint === true;
+    .get(`file:${s.properties?.path}`)?.properties?.entryPoint === true
+    || exposedSymbols.has(s.id);
   const unreferencedExports = !has('references') ? [] : symbols
     .filter((s) => s.properties?.exported === true && !crossFileRef.has(s.id));
   const deadExportsEntryPoints = unreferencedExports.filter(isEntryPointSymbol).length;

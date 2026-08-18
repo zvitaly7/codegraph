@@ -257,8 +257,11 @@ export function listSymbols(graph, { file } = {}) {
  *
  * Symbols declared in a file the references layer marked as an ENTRY POINT are
  * held back rather than reported: they are consumed across a boundary the import
- * graph cannot see. The count is always returned, and `includeEntryPoints` lists
- * them, so "not dead" is never confused with "hidden".
+ * graph cannot see. So are symbols an entry point RE-EXPORTS — an EXPOSES edge
+ * says the symbol is part of a package's public API even though it is declared
+ * somewhere ordinary. The count is always returned, and `includeEntryPoints`
+ * lists them (with the entry point they came from), so "not dead" is never
+ * confused with "hidden".
  */
 export function deadExports(graph, { limit = FIND_CAP, includeEntryPoints = false } = {}) {
   const precise = graph.loadedLayers.includes('references');
@@ -267,8 +270,10 @@ export function deadExports(graph, { limit = FIND_CAP, includeEntryPoints = fals
     ? (n) => graph.neighbors(n.id, { dir: 'in', type: 'REFERENCES' })
       .every((e) => e.properties?.sameFile === true)
     : (n) => graph.neighbors(n.id, { dir: 'in' }).every((e) => e.type === 'DECLARES');
+  const exposedBy = (n) => graph.neighbors(n.id, { dir: 'in', type: 'EXPOSES' })[0] ?? null;
   const isEntryPoint = (n) => graph
-    .getNode(`file:${n.properties?.path}`)?.properties?.entryPoint === true;
+    .getNode(`file:${n.properties?.path}`)?.properties?.entryPoint === true
+    || exposedBy(n) !== null;
 
   const unreferenced = exported.filter(isDead);
   const excluded = unreferenced.filter(isEntryPoint);
@@ -277,13 +282,22 @@ export function deadExports(graph, { limit = FIND_CAP, includeEntryPoints = fals
   candidates.sort(byId);
   excluded.sort(byId);
   const cap = Number.isInteger(limit) && limit > 0 ? limit : FIND_CAP;
-  const row = (n) => ({
-    id: n.id,
-    name: n.properties?.name,
-    kind: n.properties?.kind,
-    path: n.properties?.path,
-    line: n.properties?.line,
-  });
+  const row = (n) => {
+    const out = {
+      id: n.id,
+      name: n.properties?.name,
+      kind: n.properties?.kind,
+      path: n.properties?.path,
+      line: n.properties?.line,
+    };
+    // Only a re-exported symbol needs to say where it became public.
+    const via = exposedBy(n);
+    if (via) {
+      out.via = via.from.slice('file:'.length);
+      out.hops = via.properties?.hops;
+    }
+    return out;
+  };
   return {
     note: precise
       ? 'Exported symbols with no cross-file REFERENCES edge (same-file uses excluded). '
@@ -298,7 +312,7 @@ export function deadExports(graph, { limit = FIND_CAP, includeEntryPoints = fals
     truncated: candidates.length > cap,
     entryPointExclusions: excluded.length,
     ...(excluded.length > 0
-      ? { entryPointNote: `${excluded.length} further unreferenced export(s) live in entry-point files and are NOT listed — pass includeEntryPoints to see them.` }
+      ? { entryPointNote: `${excluded.length} further unreferenced export(s) live in — or are re-exported by — entry-point files and are NOT listed — pass includeEntryPoints to see them.` }
       : {}),
     ...(includeEntryPoints ? { entryPoints: excluded.map(row) } : {}),
     candidates: candidates.slice(0, cap).map(row),
