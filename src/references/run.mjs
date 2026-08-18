@@ -14,6 +14,7 @@ import {
   revisionOfArtifactManifest, loadImportersIndex, computeAffectedFiles,
   changedFilesRiskGlobals, buildIncrementalProgram, affectedFilesToWalk,
 } from '../lib/incremental.mjs';
+import { buildProgram } from '../lib/program_cache.mjs';
 import { extractReferences, defaultCompilerOptions } from './lib/reference_extractor.mjs';
 import { buildGraph } from './lib/graph_builder.mjs';
 
@@ -99,9 +100,30 @@ function loadCachedReferenceRecords(edgesPath) {
  * the affected files' cached records, re-extracts ONLY those files against a
  * whole-repo program, and merges — a result byte-identical to a full rebuild.
  * Every fallback prints a one-line note to stderr and yields the full extraction.
+ *
+ * `programCache`, when the orchestrator supplies one, is where the whole-repo
+ * program comes from — so the usages layer can reuse the very same one. Without
+ * a cache (this layer run standalone) the extractor builds its own, exactly as
+ * it always has.
  */
-function resolveReferences({ cfg, repoRoot, outDir, fileNames, options, symbolIds, currentSourcePaths }) {
-  const full = () => extractReferences({ fileNames, options, symbolIds, repoRoot });
+function resolveReferences({
+  cfg, repoRoot, outDir, fileNames, options, symbolIds, currentSourcePaths, programCache,
+}) {
+  // A cached program is built the same way the extractor would build it, so
+  // "shared" and "own" resolve identically.
+  const wholeRepoProgram = (kind, extra, build) => (
+    programCache
+      ? programCache.get({ kind, rootNames: fileNames, options, extra }, build).program
+      : undefined
+  );
+
+  const full = () => extractReferences({
+    fileNames,
+    options,
+    symbolIds,
+    repoRoot,
+    program: wholeRepoProgram('full', null, () => buildProgram({ rootNames: fileNames, options })),
+  });
   if (cfg.incremental !== 'incremental') return full();
 
   const fallback = (reason) => {
@@ -140,9 +162,12 @@ function resolveReferences({ cfg, repoRoot, outDir, fileNames, options, symbolId
   const walk = affectedFilesToWalk(affected, currentSourcePaths, repoRoot);
   let fresh = [];
   if (walk.length > 0) {
-    const program = buildIncrementalProgram({
-      rootNames: fileNames, options, tsBuildInfoFile: join(outDir, '.tsbuildinfo'),
-    });
+    const tsBuildInfoFile = join(outDir, '.tsbuildinfo');
+    const program = wholeRepoProgram(
+      'incremental',
+      { tsBuildInfoFile },
+      () => buildIncrementalProgram({ rootNames: fileNames, options, tsBuildInfoFile }),
+    ) ?? buildIncrementalProgram({ rootNames: fileNames, options, tsBuildInfoFile });
     fresh = extractReferences({ fileNames, options, symbolIds, repoRoot, program, walkFiles: walk });
   }
 
@@ -202,8 +227,13 @@ function collectExposures({
  * actually uses. Powers "most-used symbols" and "dead exports". Returns a
  * numeric exit code:
  *   0 success · 1 write failure · 2 usage / missing upstream artifact.
+ *
+ * `ctx.programCache` is an optional whole-repo program cache (see
+ * ../lib/program_cache.mjs). The orchestrator passes one so the usages layer can
+ * reuse this layer's program; run standalone, this argument is absent and the
+ * layer builds its own program exactly as before.
  */
-export async function run(argv) {
+export async function run(argv, ctx = {}) {
   const cwd = process.cwd();
 
   let cfg;
@@ -292,6 +322,7 @@ export async function run(argv) {
 
   const references = resolveReferences({
     cfg, repoRoot, outDir, fileNames, options, symbolIds, currentSourcePaths,
+    programCache: ctx.programCache,
   });
 
   // Entry points: files consumed across a boundary the import graph cannot see

@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { resolveConfig } from '../config/load.mjs';
 import { checkStaleness } from '../lib/staleness.mjs';
+import { createProgramCache } from '../lib/program_cache.mjs';
 
 /**
  * `loregraph regenerate` — the one-shot orchestrator. Runs every graph layer in
@@ -26,6 +27,14 @@ import { checkStaleness } from '../lib/staleness.mjs';
  * the type-checker, so on BIG repos the process may need a larger V8 heap — launch
  * it with `NODE_OPTIONS=--max-old-space-size=8192 loregraph regenerate ...`. This
  * is documented, not forced, so small repos stay light.
+ *
+ * Those two layers ask the SAME question of the SAME files, so the orchestrator
+ * hands them a shared program cache (../lib/program_cache.mjs): the first builds
+ * the program, the second reuses it. The cache only hands a program over when the
+ * request matches exactly — same roots, same options, same mode — so a layer that
+ * would have analysed a different file set still gets its own. The cache is
+ * dropped before the explorer step so the program is not held for the rest of the
+ * run. Run standalone, each layer builds its own program exactly as before.
  */
 
 // Each step is { name, load, heavy? }. `load` dynamically imports the layer
@@ -111,6 +120,10 @@ export async function run(argv) {
   emit(`regenerate: base cache=${outDir}`);
   if (!skipHeavy) emit(`regenerate: heavy layers mode=${cfg.incremental}`);
 
+  // One whole-repo TypeScript program, shared by the two heavy layers.
+  const programCache = createProgramCache();
+  const lastHeavy = [...steps].reverse().find((step) => step.heavy) ?? null;
+
   const pipelineStart = performance.now();
   for (const step of steps) {
     emit(`▶ ${step.name}`);
@@ -121,10 +134,13 @@ export async function run(argv) {
       ? [...baseArgv, '--incremental', cfg.incremental]
       : [...baseArgv];
 
+    // Only the heavy layers know what a program is; nobody else is offered one.
+    const stepCtx = step.heavy ? { programCache } : {};
+
     let code;
     try {
       const mod = await step.load();
-      code = await mod.run(stepArgv);
+      code = await mod.run(stepArgv, stepCtx);
     } catch (err) {
       emit(`✗ ${step.name} threw after ${fmtDuration(performance.now() - stepStart)}: ${err?.stack || err?.message || err}`);
       emit(`regenerate: pipeline aborted at "${step.name}" — cache may be partial`);
@@ -138,6 +154,15 @@ export async function run(argv) {
     }
 
     emit(`✓ ${step.name} (${fmtDuration(performance.now() - stepStart)})`);
+
+    // Both heavy layers are done: say whether the program was actually shared
+    // (a mismatch is a fact worth seeing, not something to hide), then drop it
+    // so a whole parsed repo is not held alive through the explorer step.
+    if (step === lastHeavy) {
+      const { builds, hits } = programCache.stats();
+      emit(`regenerate: TypeScript program${builds === 1 ? '' : 's'} built=${builds} reused=${hits}`);
+      programCache.clear();
+    }
   }
 
   const total = fmtDuration(performance.now() - pipelineStart);
