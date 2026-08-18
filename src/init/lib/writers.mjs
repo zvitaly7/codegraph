@@ -208,6 +208,29 @@ const KNOB_COMMENTS = {
 };
 
 /**
+ * Rules for `loregraph check`, shown as a commented worked example.
+ *
+ * Commented out on purpose: a gate nobody chose must not appear the day after
+ * `init`. But an unwritten block is an UNCHOSEN block, and `check` refuses to
+ * report a pass on one — so the rules are spelled out here rather than left to
+ * be discovered in the README.
+ */
+const CHECK_BLOCK = [
+  '  // `loregraph check` — the CI gate. Every rule is optional; only the ones',
+  '  // written here are evaluated, and an empty block verifies NOTHING (which',
+  '  // `check` says out loud instead of reporting a pass).',
+  '  // Exit codes: 0 all rules passed · 1 a rule was violated · 2 could not judge.',
+  '  // check: {',
+  '  //   noCycles: true,           // or { scope: \'file\' | \'domain\' | \'both\' }',
+  '  //   maxDeadExports: 0,        // fail above N unreferenced exports',
+  '  //   minResolutionRate: 0.95,  // fail when the imports layer resolved less',
+  '  //   // Architectural boundaries. A violation names the actual files.',
+  '  //   domainRules: [{ from: \'ui\', mustNotDependOn: [\'server\', \'db\'] }],',
+  '  // },',
+  '',
+];
+
+/**
  * Defaults for `loregraph describe`, shown as a commented worked example.
  *
  * The command form comes first on purpose: it is the one path that bills no API
@@ -264,9 +287,11 @@ export function renderConfigFile({ projectName, srcRoots, outDir }) {
     lines.push('');
   }
 
-  // `describe` is a nested object rather than a scalar default, so it gets a
-  // worked example instead of a `// describe: {}` line that teaches nothing.
-  // `command` leads because it is the path that costs no API tokens.
+  // `check` and `describe` are nested objects rather than scalar defaults, so
+  // each gets a worked example instead of a `// key: {}` line that teaches
+  // nothing. In `describe`, `command` leads: it is the path that costs no API
+  // tokens.
+  lines.push(...CHECK_BLOCK);
   lines.push(...DESCRIBE_BLOCK);
 
   lines[lines.length - 1] = '};';

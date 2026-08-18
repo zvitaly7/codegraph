@@ -203,6 +203,19 @@ describe('renderConfigFile', () => {
     expect(mod.default).toEqual({ srcRoots: ['src'], outDir: '.cache/graph' });
   });
 
+  it('documents the check knob so the CI gate is discoverable without the README', () => {
+    expect(rendered).toContain('// check: {');
+    for (const rule of ['noCycles', 'maxDeadExports', 'minResolutionRate', 'domainRules']) {
+      expect(rendered).toContain(rule);
+    }
+    // Commented out, so a fresh project is never gated on rules nobody chose.
+    for (const line of rendered.split('\n')) {
+      if (line.includes('check') || line.includes('noCycles') || line.includes('domainRules')) {
+        expect(line.trimStart().startsWith('//')).toBe(true);
+      }
+    }
+  });
+
   it('documents the describe knob, leading with the no-API-tokens path', () => {
     expect(rendered).toContain('// describe: {');
     expect(rendered).toContain('command:');
