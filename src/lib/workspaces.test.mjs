@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { discoverWorkspaces, readPackageManifest, workspaceTsPaths } from './workspaces.mjs';
@@ -173,5 +173,84 @@ describe('workspaceTsPaths', () => {
 
   it('is empty for a repo with no workspaces', () => {
     expect(workspaceTsPaths(discoverWorkspaces(root), root)).toEqual({});
+  });
+});
+
+// A workspace package is a symlink in node_modules pointing back into the repo.
+// The declaration that created it — a root package.json, a pnpm-workspace.yaml —
+// is not always reachable: it may sit above --repo-root when a subdirectory of a
+// larger monorepo is analyzed on its own, or the install may be per-application
+// with no root manifest at all. The link on disk is the fact; discovery must not
+// depend on finding the paperwork.
+describe('discoverWorkspaces — node_modules links', () => {
+  let root;
+
+  function pkg(dirRel, name, main = 'src/index.ts') {
+    mkdirSync(join(root, dirRel, 'src'), { recursive: true });
+    writeFileSync(join(root, dirRel, 'package.json'), JSON.stringify({ name, main }));
+    writeFileSync(join(root, dirRel, 'src', 'index.ts'), 'export const x = 1;');
+  }
+
+  function link(fromRel, toRel) {
+    const from = join(root, fromRel);
+    mkdirSync(join(from, '..'), { recursive: true });
+    symlinkSync(join(root, toRel), from, 'dir');
+  }
+
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'cg-ws-links-'));
+  });
+  afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+  it('finds a linked package with no declaration anywhere', () => {
+    pkg('packages/util', '@acme/util');
+    link('apps/web/node_modules/@acme/util', 'packages/util');
+    const d = discoverWorkspaces(root);
+    expect(d.byName.get('@acme/util')).toMatchObject({ name: '@acme/util', dir: 'packages/util' });
+    expect(d.sources).toContain('node_modules links');
+  });
+
+  it('finds an unscoped link too', () => {
+    pkg('packages/ui', 'ui');
+    link('apps/web/node_modules/ui', 'packages/ui');
+    expect(discoverWorkspaces(root).byName.has('ui')).toBe(true);
+  });
+
+  it('ignores a link that points outside the repo', () => {
+    const outside = mkdtempSync(join(tmpdir(), 'cg-ws-outside-'));
+    mkdirSync(join(outside, 'src'), { recursive: true });
+    writeFileSync(join(outside, 'package.json'), JSON.stringify({ name: 'stranger', main: 'src/index.ts' }));
+    mkdirSync(join(root, 'apps', 'web', 'node_modules'), { recursive: true });
+    symlinkSync(outside, join(root, 'apps', 'web', 'node_modules', 'stranger'), 'dir');
+    expect(discoverWorkspaces(root).byName.has('stranger')).toBe(false);
+    rmSync(outside, { recursive: true, force: true });
+  });
+
+  it('ignores a real directory — only links are packages of ours', () => {
+    mkdirSync(join(root, 'apps', 'web', 'node_modules', 'react'), { recursive: true });
+    writeFileSync(
+      join(root, 'apps', 'web', 'node_modules', 'react', 'package.json'),
+      JSON.stringify({ name: 'react', main: 'index.js' }),
+    );
+    expect(discoverWorkspaces(root).byName.has('react')).toBe(false);
+  });
+
+  it('survives a broken link', () => {
+    mkdirSync(join(root, 'node_modules'), { recursive: true });
+    symlinkSync(join(root, 'packages', 'gone'), join(root, 'node_modules', 'gone'), 'dir');
+    expect(() => discoverWorkspaces(root)).not.toThrow();
+  });
+
+  it('a declared workspace wins over a link of the same name', () => {
+    pkg('packages/util', '@acme/util');
+    pkg('vendor/util', '@acme/util');
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ workspaces: ['packages/*'] }));
+    link('apps/web/node_modules/@acme/util', 'vendor/util');
+    expect(discoverWorkspaces(root).byName.get('@acme/util').dir).toBe('packages/util');
+  });
+
+  it('a repo with neither declarations nor links is untouched', () => {
+    mkdirSync(join(root, 'src'), { recursive: true });
+    expect(discoverWorkspaces(root)).toEqual({ sources: [], packages: [], byName: new Map() });
   });
 });
