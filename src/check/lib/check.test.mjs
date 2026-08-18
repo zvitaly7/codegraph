@@ -6,6 +6,7 @@ import { loadGraph } from '../../lib/graph_load.mjs';
 import {
   evaluateCheck, renderCheck, unknownRuleKeys, missingPrerequisites, RULE_KEYS,
 } from './check.mjs';
+import { CHECK_RULE_KEYS } from '../../../bin/lib/help.mjs';
 
 function writeLayer(cache, layer, { nodes = [], edges = [] } = {}) {
   const dir = join(cache, layer);
@@ -120,7 +121,8 @@ describe('evaluateCheck — maxDeadExports', () => {
     const report = evaluateCheck(buildGraph(), { maxDeadExports: 0 });
     const rule = ruleById(report, 'maxDeadExports');
     expect(rule.ok).toBe(false);
-    expect(rule.detail).toMatch(/1/);
+    // `unusedThing` and `render` are both exported and referenced only same-file.
+    expect(rule.detail).toContain('2 dead exports vs a budget of 0');
     expect(rule.offenders.join('\n')).toContain('unusedThing');
   });
 
@@ -231,6 +233,12 @@ describe('config hygiene', () => {
   it('spots a mistyped rule name', () => {
     expect(unknownRuleKeys({ noCycles: true, maxDeadExport: 3 })).toEqual(['maxDeadExport']);
     expect(unknownRuleKeys({ noCycles: true })).toEqual([]);
+  });
+
+  it('keeps the CLI help\'s transcribed rule list in step with the real one', () => {
+    // help.mjs cannot import this module (it would drag in the TS compiler on
+    // every `loregraph` invocation), so the two lists are pinned to each other.
+    expect(CHECK_RULE_KEYS).toEqual(RULE_KEYS);
   });
 
   it('reports which layer a configured rule needs but the cache lacks', () => {

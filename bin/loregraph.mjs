@@ -15,6 +15,7 @@ const COMMANDS = {
   show: () => import('../src/show/run.mjs'),
   impact: () => import('../src/impact/run.mjs'),
   cycles: () => import('../src/cycles/run.mjs'),
+  check: () => import('../src/check/run.mjs'),
   describe: () => import('../src/describe/run.mjs'),
   explorer: () => import('../src/explorer/run.mjs'),
   docs: () => import('../src/docs/run.mjs'),

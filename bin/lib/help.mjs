@@ -40,6 +40,12 @@ const DOCS_LANGS = Object.keys(DOCS_STRINGS).join('|');
 const CYCLE_SCOPES = CYCLE_SCOPE_LIST.join('|');
 const CYCLES_DEFAULT_SCOPE = 'both';
 
+// The `check` rules, transcribed rather than imported: src/check/lib/check.mjs
+// pulls in the whole query layer (and, through it, the TypeScript compiler),
+// which this module — imported on EVERY `loregraph` invocation — must not.
+// `src/check/lib/check.test.mjs` asserts this list still matches `RULE_KEYS`.
+export const CHECK_RULE_KEYS = ['noCycles', 'maxDeadExports', 'minResolutionRate', 'domainRules'];
+
 // `brief` and `impact` list repo paths, so both take the same compression
 // switch. Which way round it reads depends on the measured default — see the
 // "Path prefix compression" section of bench/README.md.
@@ -53,7 +59,7 @@ const COMPRESS_HELP = COMPRESS_PATHS_DEFAULT
 // or dependency order used elsewhere.
 export const COMMAND_ORDER = [
   'init', 'regenerate', 'inventory', 'imports', 'symbols', 'references',
-  'usages', 'domains', 'brief', 'outline', 'show', 'impact', 'cycles',
+  'usages', 'domains', 'brief', 'outline', 'show', 'impact', 'cycles', 'check',
   'describe', 'explorer', 'docs', 'mcp',
 ];
 
@@ -201,6 +207,24 @@ export const COMMAND_HELP = {
     ],
     globals: ['repo-root', 'out', 'config'],
   },
+  check: {
+    summary: 'CI gate: fail the build on rules from loregraph.config',
+    usage: 'loregraph check [options]',
+    options: [
+      ['--cache DIR', 'graph cache to read (default: resolved --out)'],
+      ['--json', 'print the raw structured report instead of formatted text'],
+    ],
+    globals: ['repo-root', 'out', 'config'],
+    notes: [
+      `Rules live in the \`check\` block of loregraph.config.mjs: ${CHECK_RULE_KEYS.join(', ')}.`,
+      'With no rules configured it reports that nothing was verified and exits 0.',
+      '',
+      'Exit codes:',
+      '  exit 0  every configured rule passed (or none were configured)',
+      '  exit 1  at least one rule was violated',
+      '  exit 2  usage error: unknown rule name, missing graph layer, or no cache',
+    ],
+  },
   describe: {
     summary: 'Cached, model-written descriptions (the only paid command)',
     usage: 'loregraph describe [options]',
@@ -273,6 +297,7 @@ export function formatCommandHelp(name) {
   const parts = [`loregraph ${name} — ${entry.summary}`, '', `Usage: ${entry.usage}`];
   if (entry.options?.length) parts.push('', 'Options:', renderRows(entry.options));
   if (entry.globals?.length) parts.push('', 'Global:', renderRows(entry.globals.map((k) => GLOBAL_FLAGS[k])));
+  if (entry.notes?.length) parts.push('', ...entry.notes);
   return parts.join('\n');
 }
 
