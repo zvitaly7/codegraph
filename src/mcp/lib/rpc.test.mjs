@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { PassThrough, Writable } from 'node:stream';
 import { loadGraph } from '../../lib/graph_load.mjs';
 import { handleRequest, serve } from './rpc.mjs';
@@ -20,8 +21,13 @@ beforeEach(() => { g = tinyGraph(); });
 
 describe('handleRequest — protocol methods', () => {
   it('initialize returns serverInfo + tools capability', () => {
+    // The reported version is read from package.json rather than restated here,
+    // so a release bump can never leave the server lying about what it is.
+    const pkgVersion = JSON.parse(
+      readFileSync(fileURLToPath(new URL('../../../package.json', import.meta.url)), 'utf8'),
+    ).version;
     const r = handleRequest({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } }, g);
-    expect(r.result.serverInfo).toEqual({ name: 'loregraph', version: '0.1.0' });
+    expect(r.result.serverInfo).toEqual({ name: 'loregraph', version: pkgVersion });
     expect(r.result.capabilities).toEqual({ tools: {} });
     expect(r.result.protocolVersion).toBe('2025-06-18'); // echoes client's
   });
