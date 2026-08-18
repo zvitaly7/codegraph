@@ -364,21 +364,21 @@ npm run bench
 
 It builds the graph into a temporary cache, then for seven real questions compares the tokens of loregraph's answer against the tokens of an explicit, documented file-reading procedure — counted with **`gpt-tokenizer`** (`o200k_base`), a bench-only devDependency. Not bytes, and not `chars / 4`, which undercuts the real count by 7–9% on these files.
 
-On this repo (182 indexed files, 954 symbols, 159 JS/TS files in the grep universe). The graph build is **3.78 s of wall clock and 0 tokens** — it happens outside the model's context — and is deliberately kept out of the per-question numbers:
+On this repo (187 indexed files, 976 symbols, 164 JS/TS files in the grep universe). The graph build is **2.13 s of wall clock and 0 tokens** — it happens outside the model's context — and is deliberately kept out of the per-question numbers:
 
 | Question | Graph | File-reading baseline | Skim floor | Ratio | |
 | :--- | ---: | ---: | ---: | ---: | :--- |
-| Blast radius of a file | **11%** |
-| Who references an export | **5.3%** |
-| What is this file wired to | **2.5%** |
-| What a module depends on | 191 | 20,435 | 3,326 | **107x** | `██████` |
-| What a file declares (`outline`) | 1,086 | 8,180 | 512 | **7.5x** | `▌` |
-| One symbol's implementation (`show`) | 1,131 | 2,880 | 1,914 | **2.5x** | `▏` |
-| Repo-wide dead exports | 1,341 | 287,269 | 71,257 | **214.2x** | `████████████▌` |
-| **Total** | **5,302** | **464,784** | **108,360** | **87.7x** | `█████` |
+| Blast radius of a file | 580 | 81,584 | 19,251 | **140.7x** | `████████` |
+| Who references an export | 416 | 47,187 | 10,041 | **113.4x** | `██████▌` |
+| What is this file wired to | 566 | 20,157 | 2,260 | **35.6x** | `██` |
+| What a module depends on | 191 | 20,892 | 3,336 | **109.4x** | `██████▌` |
+| What a file declares (`outline`) | 1,095 | 8,337 | 522 | **7.6x** | `▌` |
+| One symbol's implementation (`show`) | 1,131 | 2,938 | 1,972 | **2.6x** | `▏` |
+| Repo-wide dead exports | 1,439 | 299,142 | 74,222 | **207.9x** | `████████████` |
+| **Total** | **5,418** | **480,237** | **111,604** | **88.6x** | `█████` |
 
 > [!IMPORTANT]
-> **The baseline is a model of what a file-reading agent would read, not a measurement of one.** Nobody's context window was observed. Four of the seven rows compare answers that are not identical — and not always in the graph's favour. On *what is this file wired to* and *what a module depends on* the graph answers more than the baseline, which is therefore under-charged. On *what a file declares* the **baseline** answers more: the file text carries every body `outline` leaves out, so that row is a claim about navigation, not about understanding. The dead-exports row assumes an agent that reads every file rather than writing a script, so treat it as an upper bound on the naive path. The strictest row is *one symbol's implementation* at 2.5x, where both sides end up with the same text for what was asked. The "skim floor" column charges only the first 40 lines of each file — not a realistic way to answer anything, but a hard lower bound: even there the graph is 20.4x cheaper. Every procedure is written out in [`bench/README.md`](bench/README.md) so it can be argued with.
+> **The baseline is a model of what a file-reading agent would read, not a measurement of one.** Nobody's context window was observed. Four of the seven rows compare answers that are not identical — and not always in the graph's favour. On *what is this file wired to* and *what a module depends on* the graph answers more than the baseline, which is therefore under-charged. On *what a file declares* the **baseline** answers more: the file text carries every body `outline` leaves out, so that row is a claim about navigation, not about understanding. The dead-exports row assumes an agent that reads every file rather than writing a script, so treat it as an upper bound on the naive path. The strictest row is *one symbol's implementation* at 2.6x, where both sides end up with the same text for what was asked. The "skim floor" column charges only the first 40 lines of each file — not a realistic way to answer anything, but a hard lower bound: even there the graph is 20.6x cheaper. Every procedure is written out in [`bench/README.md`](bench/README.md) so it can be argued with.
 
 Separately, and **not** produced by that script: a one-off manual A/B gave two AI agents the same three questions about a 217-file demo project, one with the graph and one without. Both answered the blast-radius and symbol-usage questions identically and correctly, at **51,802 tokens with the graph vs 97,464 without (−47%)**. n = 1; the no-graph agent was unusually efficient (it wrote a TypeScript-compiler script instead of grepping), so a typical agent would likely cost more; and on the dead-exports question the two answers used different definitions (18 vs 44) with the no-graph answer being the more nuanced one. The distance between −47% there and the ratios above is the honest measure of how much a modelled baseline flatters the graph.
 
@@ -388,9 +388,9 @@ Separately, and **not** produced by that script: a one-off manual A/B gave two A
 
 | Question | Saved by `--compress-paths` |
 | :--- | ---: |
-| Blast radius of a file | **10.3%** |
-| Who references an export | **4.9%** |
-| What is this file wired to | **2.2%** |
+| Blast radius of a file | **11%** |
+| Who references an export | **5.3%** |
+| What is this file wired to | **2.7%** |
 | The other four questions | 0% — no path list to factor |
 | **Whole set** | **1.9%** |
 
@@ -592,12 +592,24 @@ flowchart LR
 | `explorer` | `graph-index.json` plus the packaged SPA, written side by side under `<cache>/explorer/`. |
 
 > [!NOTE]
+> **The two heavy layers share one TypeScript program.** `references` and `usages` ask the same question of the same files, so under `regenerate` the first one builds the program and the second reuses it instead of parsing and binding the whole repo a second time. On this repo that takes `usages` from **0.84 s to 0.11 s** and the whole pipeline from **2.67 s to 1.99 s (−25%)**. The program is only handed over when the request matches exactly — same files, same compiler options, same mode — so a layer capped with a different `--max-files` still gets its own rather than quietly analysing the wrong set. Run a layer on its own and nothing changes: it builds its own program as always.
+
+> [!NOTE]
 > **Workspace monorepos need no configuration.** `package.json` `workspaces` (the array form and the `{ "packages": [...] }` form) and `pnpm-workspace.yaml` are read from the repo root, so an import of a sibling package — `@myorg/ui`, `@myorg/ui/button` — becomes an edge to the real file instead of a third-party `pkg:` node, and the type-checking layers follow it too. A `tsconfig` alias still wins wherever one is declared, and a package name that resolves to no source file stays external rather than inventing an edge.
 
 > [!NOTE]
 > **Entry points are not dead exports.** A CLI, a library entry or a module-federation remote is consumed across a boundary the import graph cannot see, so `references` holds its exports back instead of reporting them dead. `package.json` `main`/`module`/`exports`/`bin` — the root package and every workspace package — are detected automatically; add anything else with the `entryPoints` config globs. Everything held back is **counted** wherever dead exports appear, and `dead_exports` lists it on request, so "not dead" never quietly means "hidden".
 >
 > **Re-exports count too.** The `index.ts` a package's `main` points at usually declares nothing itself — it is a barrel — so being an entry point would otherwise hold back nothing at all. `references` follows the re-export chains out of every entry point (`export { a } from`, `export { a as b } from`, `export { default as Foo } from`, `export * from`, `export * as ns from`), transitively and terminating on cycles, and writes an `EXPOSES` edge from the entry point to each symbol it makes public. Those symbols are held back and counted exactly like the ones declared in the entry point, and `dead_exports` names the entry point each one came from. A barrel that is **not** an entry point saves nothing — re-exporting dead code does not make it alive.
+
+> [!WARNING]
+> **A computed dynamic import is a real edge nothing can follow — so it is counted.** `await import(pathToFileURL(x).href)` builds its specifier at runtime. No static analysis resolves that: not this tool, not the TypeScript type-checker, not a bundler. A module reached *only* that way therefore has no importer and its exports are reported dead. That cannot be fixed, so it is **stated** instead. The `imports` layer counts every such site while it is already reading each file, records the per-file count on the `File` node and the repo-wide total in its manifest, and prints it:
+>
+> ```
+> [loregraph] sources=167 internal=349 external=383 unresolved=0 rate=1.0000 computedDynamicImports=5 (in 4 files — unfollowable)
+> ```
+>
+> The count then travels to every answer it distorts — the `dead_exports` MCP tool, the `maxDeadExports` check rule, `health.md`, and the explorer's dead-exports card — each of which says how many sites it could not follow and that a symbol used only that way will appear in the list. This repo has **5, in 4 files**; one of them is how `bench/run.mjs` loads `bench/questions.mjs`, which is exactly why `QUESTIONS` is listed as a dead export and is not one. This does not make the graph more accurate. It makes the uncertainty visible.
 
 ### 🕸️ The graph itself
 
@@ -773,6 +785,8 @@ usages: incremental — re-extracted 4 file(s), reused 256 cached edge(s)
 
 > [!CAUTION]
 > Those differences are **within noise at this size**, because building the TypeScript program dominates. The mode is aimed at repos where walking every file is the expensive part; it was not measured on one, so no speedup is claimed here.
+>
+> Those are standalone layer runs, each building its own program. Under `regenerate` the two share one, so `usages` no longer pays that cost at all and only `references` still has a program build to dominate it.
 
 <a id="generated-docs"></a>
 
@@ -786,7 +800,7 @@ usages: incremental — re-extracted 4 file(s), reused 256 cached edge(s)
 | `<out-docs>/README.md` | Index of the generated pages. |
 | `<out-docs>/domains/<domain>.md` | One page per domain. |
 | `<out-docs>/dependencies.md` | Cross-domain map, external packages, biggest importers. |
-| `<out-docs>/health.md` | Dead exports (entry points held back and counted) and orphan candidates. |
+| `<out-docs>/health.md` | Dead exports (entry points held back and counted, computed dynamic imports counted) and orphan candidates. |
 
 Default locations are `<repo>/AGENTS.md` and `<repo>/docs/loregraph/`; `--agents-out` and `--out-docs` move them. On this repo the run produced 27 pages (`AGENTS.md`, three top-level pages, 23 domain pages).
 
