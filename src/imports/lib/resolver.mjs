@@ -94,8 +94,18 @@ function packageNameOf(specifier) {
  * expands with the same extension / `index.<ext>` candidates as everything else.
  */
 function workspaceBases(pkg, subpath) {
-  if (subpath === '') return [...pkg.entries, pkg.dir];
-  return [...(pkg.subpaths?.[subpath] ?? []), `${pkg.dir}/${subpath}`];
+  // Declared targets first, then the conventions. A package that publishes
+  // build output names `dist` in its manifest, and `dist` is generated rather
+  // than authored, so the inventory does not carry it — the declared entry then
+  // points at a file the graph will never contain. The source layout is the
+  // only place left that can keep the dependency visible, and a candidate still
+  // has to land on an indexed file to win.
+  if (subpath === '') return [...pkg.entries, `${pkg.dir}/src`, pkg.dir];
+  return [
+    ...(pkg.subpaths?.[subpath] ?? []),
+    `${pkg.dir}/src/${subpath}`,
+    `${pkg.dir}/${subpath}`,
+  ];
 }
 
 /**
