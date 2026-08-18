@@ -194,6 +194,39 @@ describe('run() — entry points are not dead exports', () => {
   });
 });
 
+describe('run() — workspace packages are followed by the type-checker', () => {
+  it('records a cross-package REFERENCES edge for a workspace-name import', async () => {
+    src('package.json', JSON.stringify({ name: 'root', private: true, workspaces: ['packages/*'] }));
+    src('packages/ui/package.json', JSON.stringify({ name: '@myorg/ui', main: 'src/index.ts' }));
+    src('packages/ui/src/index.ts', "export function Button() { return 'b'; }\n");
+    src('packages/app/package.json', JSON.stringify({ name: '@myorg/app' }));
+    src('packages/app/src/main.ts', "import { Button } from '@myorg/ui';\nexport const App = () => Button();\n");
+
+    writeInventory(repo, [
+      { id: 'file:packages/app/src/main.ts', path: 'packages/app/src/main.ts', language: 'TypeScript', kind: 'code' },
+      { id: 'file:packages/ui/src/index.ts', path: 'packages/ui/src/index.ts', language: 'TypeScript', kind: 'code' },
+    ]);
+    writeSymbols(repo, [
+      symbolNode('packages/ui/src/index.ts', 'Button', true),
+      symbolNode('packages/app/src/main.ts', 'App', true),
+    ]);
+
+    expect(await run(outArg())).toBe(0);
+    const edges = readLines(join(repo, '.kg-cache', 'references', 'edges.jsonl'));
+    expect(edges).toContainEqual({
+      id: 'edge:file:packages/app/src/main.ts:REFERENCES:sym:packages/ui/src/index.ts#Button',
+      type: 'REFERENCES',
+      from: 'file:packages/app/src/main.ts',
+      to: 'sym:packages/ui/src/index.ts#Button',
+      properties: { sameFile: false },
+    });
+    // Button is used across packages, so it is not a dead export; the entry
+    // point (ui's `main`) accounts for nothing extra here.
+    const manifest = JSON.parse(readFileSync(join(repo, '.kg-cache', 'references', 'manifest.json'), 'utf8'));
+    expect(manifest.counts.deadExports).toBe(1); // only App
+  });
+});
+
 describe('run() exit codes & flags', () => {
   it('missing inventory manifest → 2', async () => {
     const code = await run(outArg());

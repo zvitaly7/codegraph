@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { discoverWorkspaces, readPackageManifest } from './workspaces.mjs';
+import { discoverWorkspaces, readPackageManifest, workspaceTsPaths } from './workspaces.mjs';
 
 let root;
 
@@ -159,5 +159,19 @@ describe('readPackageManifest — entry targets', () => {
 
   it('returns null when there is no readable package.json', () => {
     expect(readPackageManifest(root, 'nope')).toBe(null);
+  });
+});
+
+describe('workspaceTsPaths', () => {
+  it('maps each package name and subpath to absolute candidates', () => {
+    w('package.json', { name: 'root', workspaces: ['packages/*'] });
+    w('packages/ui/package.json', { name: '@myorg/ui', main: 'src/index.ts' });
+    const paths = workspaceTsPaths(discoverWorkspaces(root), root);
+    expect(paths['@myorg/ui']).toEqual([join(root, 'packages/ui/src/index.ts'), join(root, 'packages/ui')]);
+    expect(paths['@myorg/ui/*']).toEqual([join(root, 'packages/ui/*')]);
+  });
+
+  it('is empty for a repo with no workspaces', () => {
+    expect(workspaceTsPaths(discoverWorkspaces(root), root)).toEqual({});
   });
 });
