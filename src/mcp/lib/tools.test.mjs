@@ -224,6 +224,53 @@ describe('dead_exports', () => {
       { id: 'sym:src/checkout/pay.ts#pay', name: 'pay', kind: 'function', path: 'src/checkout/pay.ts', line: 1 },
     ]);
   });
+
+  it('excludes a symbol an entry point EXPOSES through a re-export chain', () => {
+    // `format` is declared in a plain file but re-exported by the entry point,
+    // so it is public API. `pay` is reachable from nothing and stays a candidate.
+    writeLayer(g.cacheDir, 'references', {
+      nodes: [fileNode('src/core/index.ts', { entryPoint: true })],
+      edges: [
+        {
+          id: 'edge:file:src/core/index.ts:EXPOSES:sym:src/core/util.ts#format',
+          type: 'EXPOSES',
+          from: 'file:src/core/index.ts',
+          to: 'sym:src/core/util.ts#format',
+          properties: { hops: 1 },
+        },
+      ],
+    });
+    const r = deadExports(loadGraph(g.cacheDir));
+    expect(r.candidates.map((c) => c.name)).toEqual(['pay']);
+    expect(r.entryPointExclusions).toBe(2); // setup (declared in the entry) + format (re-exported)
+  });
+
+  it('names the entry point a re-exported symbol came from', () => {
+    writeLayer(g.cacheDir, 'references', {
+      nodes: [fileNode('src/core/index.ts', { entryPoint: true })],
+      edges: [
+        {
+          id: 'edge:file:src/core/index.ts:EXPOSES:sym:src/core/util.ts#format',
+          type: 'EXPOSES',
+          from: 'file:src/core/index.ts',
+          to: 'sym:src/core/util.ts#format',
+          properties: { hops: 2 },
+        },
+      ],
+    });
+    const r = deadExports(loadGraph(g.cacheDir), { includeEntryPoints: true });
+    expect(r.entryPoints).toContainEqual({
+      id: 'sym:src/core/util.ts#format',
+      name: 'format',
+      kind: 'function',
+      path: 'src/core/util.ts',
+      line: 1,
+      via: 'src/core/index.ts',
+      hops: 2,
+    });
+    // A symbol declared IN the entry point needs no `via` — nothing re-exported it.
+    expect(r.entryPoints.find((e) => e.name === 'setup')?.via).toBeUndefined();
+  });
 });
 
 describe('domain tools', () => {

@@ -236,6 +236,26 @@ describe('buildIndex — insights', () => {
     expect(deadExportsEntryPoints).toBe(1);
   });
 
+  it('deadExports skips a symbol an entry point EXPOSES through a re-export chain', () => {
+    // src/b.ts is the entry point and re-exports src/a.ts#deadFn, so deadFn is
+    // public API rather than dead — and the exclusion is still counted.
+    const g = sampleGraph();
+    g.nodesById.get('file:src/b.ts').properties.entryPoint = true;
+    g.edges.push(edge('EXPOSES', 'file:src/b.ts', 'sym:src/a.ts#deadFn', { hops: 1 }));
+    const { deadExports, deadExportsTotal, deadExportsEntryPoints } = buildIndex(g, FIXED).insights;
+    expect(deadExports).toEqual([]);
+    expect(deadExportsTotal).toBe(0);
+    expect(deadExportsEntryPoints).toBe(1);
+  });
+
+  it('an EXPOSES edge never enters the index edge list or the edge count', () => {
+    const g = sampleGraph();
+    g.edges.push(edge('EXPOSES', 'file:src/b.ts', 'sym:src/a.ts#deadFn', { hops: 1 }));
+    const idx = buildIndex(g, FIXED);
+    expect(idx.stats.edges).toBe(26);
+    expect(idx.edges.some((e) => e.type === 'EXPOSES')).toBe(false);
+  });
+
   it('cycles counts circular dependencies and samples them for the card', () => {
     const { cycles, cyclesTotal, fileCyclesTotal, domainCyclesTotal } = buildIndex(sampleGraph(), FIXED).insights;
     // The fixture is acyclic on files, but core ↔ ui is a domain cycle.

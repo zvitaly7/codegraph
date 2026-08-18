@@ -194,6 +194,147 @@ describe('run() — entry points are not dead exports', () => {
   });
 });
 
+describe('run() — entry-point reachability through re-export chains', () => {
+  const manifest = () => JSON.parse(
+    readFileSync(join(repo, '.kg-cache', 'references', 'manifest.json'), 'utf8'),
+  );
+  const edges = () => readLines(join(repo, '.kg-cache', 'references', 'edges.jsonl'));
+  const invRow = (path) => ({ id: `file:${path}`, path, language: 'JavaScript', kind: 'code' });
+
+  it('a symbol re-exported by the package main is public API, not a dead export', async () => {
+    // The reported bug, verbatim: `main` re-exports renderCart, so it is not
+    // dead; trulyUnused is reachable from nothing and stays dead.
+    src('package.json', JSON.stringify({ name: 'reex', version: '1.0.0', main: 'src/index.js' }));
+    src('src/cart.js', 'export const renderCart = () => 1;\n');
+    src('src/orphan.js', 'export const trulyUnused = () => 2;\n');
+    src('src/index.js', 'export { renderCart } from "./cart.js";\n');
+    writeInventory(repo, ['src/cart.js', 'src/index.js', 'src/orphan.js'].map(invRow));
+    writeSymbols(repo, [
+      symbolNode('src/cart.js', 'renderCart', true),
+      symbolNode('src/orphan.js', 'trulyUnused', true),
+    ]);
+
+    expect(await run(outArg())).toBe(0);
+    expect(manifest().counts.deadExports).toBe(1);          // only src/orphan.js#trulyUnused
+    expect(manifest().counts.entryPointExclusions).toBe(1); // renderCart, via the re-export
+    expect(manifest().entryPoints).toEqual([{ path: 'src/index.js', reason: 'package.json' }]);
+
+    // The exclusion is visible in the graph, and it names the entry point it came from.
+    expect(edges()).toContainEqual({
+      id: 'edge:file:src/index.js:EXPOSES:sym:src/cart.js#renderCart',
+      type: 'EXPOSES',
+      from: 'file:src/index.js',
+      to: 'sym:src/cart.js#renderCart',
+      properties: { hops: 1 },
+    });
+  });
+
+  it('follows a chain two hops deep', async () => {
+    src('package.json', JSON.stringify({ name: 'chain', main: 'src/index.js' }));
+    src('src/index.js', 'export { deep } from "./feature/index.js";\n');
+    src('src/feature/index.js', 'export { deep } from "./impl.js";\n');
+    src('src/feature/impl.js', 'export const deep = () => 1;\n');
+    writeInventory(repo, ['src/feature/impl.js', 'src/feature/index.js', 'src/index.js'].map(invRow));
+    writeSymbols(repo, [symbolNode('src/feature/impl.js', 'deep', true)]);
+
+    expect(await run(outArg())).toBe(0);
+    expect(manifest().counts.deadExports).toBe(0);
+    expect(manifest().counts.entryPointExclusions).toBe(1);
+    expect(edges().find((e) => e.type === 'EXPOSES')).toMatchObject({
+      from: 'file:src/index.js', to: 'sym:src/feature/impl.js#deep', properties: { hops: 2 },
+    });
+  });
+
+  it('`export * from` carries every export of the target', async () => {
+    src('package.json', JSON.stringify({ name: 'star', main: 'src/index.js' }));
+    src('src/index.js', 'export * from "./lib.js";\n');
+    src('src/lib.js', 'export const a = 1;\nexport const b = 2;\n');
+    writeInventory(repo, ['src/index.js', 'src/lib.js'].map(invRow));
+    writeSymbols(repo, [symbolNode('src/lib.js', 'a', true), symbolNode('src/lib.js', 'b', true)]);
+
+    expect(await run(outArg())).toBe(0);
+    expect(manifest().counts.deadExports).toBe(0);
+    expect(manifest().counts.entryPointExclusions).toBe(2);
+  });
+
+  it('a renamed re-export excludes the DECLARED name, not the public one', async () => {
+    src('package.json', JSON.stringify({ name: 'renamed', main: 'src/index.js' }));
+    src('src/index.js', 'export { internalName as PublicName } from "./lib.js";\n');
+    src('src/lib.js', 'export const internalName = 1;\nexport const PublicName = 2;\n');
+    writeInventory(repo, ['src/index.js', 'src/lib.js'].map(invRow));
+    writeSymbols(repo, [
+      symbolNode('src/lib.js', 'internalName', true),
+      symbolNode('src/lib.js', 'PublicName', true),
+    ]);
+
+    expect(await run(outArg())).toBe(0);
+    // internalName is excluded; the decoy also called PublicName is still dead.
+    expect(manifest().counts.entryPointExclusions).toBe(1);
+    expect(manifest().counts.deadExports).toBe(1);
+    expect(edges().filter((e) => e.type === 'EXPOSES').map((e) => e.to))
+      .toEqual(['sym:src/lib.js#internalName']);
+  });
+
+  it('a re-export cycle terminates instead of hanging', async () => {
+    src('package.json', JSON.stringify({ name: 'cyclic', main: 'src/index.js' }));
+    src('src/index.js', 'export * from "./a.js";\n');
+    src('src/a.js', 'export * from "./b.js";\nexport const fromA = 1;\n');
+    src('src/b.js', 'export * from "./a.js";\nexport const fromB = 2;\n');
+    writeInventory(repo, ['src/a.js', 'src/b.js', 'src/index.js'].map(invRow));
+    writeSymbols(repo, [symbolNode('src/a.js', 'fromA', true), symbolNode('src/b.js', 'fromB', true)]);
+
+    expect(await run(outArg())).toBe(0);
+    expect(manifest().counts.entryPointExclusions).toBe(2);
+    expect(manifest().counts.deadExports).toBe(0);
+  });
+
+  it('does NOT over-exclude: a barrel that is not an entry point saves nothing', async () => {
+    // src/barrel.js re-exports hidden, but nothing is an entry point and nobody
+    // imports the barrel — hidden is still dead, and so is the barrel's own file.
+    src('src/barrel.js', 'export { hidden } from "./impl.js";\n');
+    src('src/impl.js', 'export const hidden = 1;\n');
+    writeInventory(repo, ['src/barrel.js', 'src/impl.js'].map(invRow));
+    writeSymbols(repo, [symbolNode('src/impl.js', 'hidden', true)]);
+
+    expect(await run(outArg())).toBe(0);
+    expect(manifest().counts.deadExports).toBe(1);
+    expect(manifest().counts.entryPointExclusions).toBe(0);
+    expect(manifest().entryPoints).toEqual([]);
+    expect(edges().filter((e) => e.type === 'EXPOSES')).toEqual([]);
+  });
+
+  it('a repo with no re-exports produces byte-identical artifacts', async () => {
+    // Golden bytes captured before re-export reachability existed: the feature
+    // must be invisible to every repo that does not re-export.
+    src('src/a.ts', 'export function foo() {}\n');
+    src('src/b.ts', "import { foo } from './a';\nexport const useFoo = () => foo();\n");
+    writeInventory(repo, [
+      { id: 'file:src/a.ts', path: 'src/a.ts', language: 'TypeScript', kind: 'code' },
+      { id: 'file:src/b.ts', path: 'src/b.ts', language: 'TypeScript', kind: 'code' },
+    ]);
+    writeSymbols(repo, [
+      { id: 'file:src/a.ts', labels: ['File'], properties: { path: 'src/a.ts' } },
+      symbolNode('src/a.ts', 'foo', true),
+      symbolNode('src/b.ts', 'useFoo', true),
+    ]);
+
+    expect(await run(outArg())).toBe(0);
+    const out = join(repo, '.kg-cache', 'references');
+    expect(readFileSync(join(out, 'nodes.jsonl'), 'utf8')).toBe(
+      '{"id":"file:src/b.ts","labels":["File"],"properties":{"path":"src/b.ts"}}\n'
+      + '{"id":"sym:src/a.ts#foo","labels":["Symbol"],"properties":'
+      + '{"exported":true,"kind":"function","line":1,"name":"foo","path":"src/a.ts"}}',
+    );
+    expect(readFileSync(join(out, 'edges.jsonl'), 'utf8')).toBe(
+      '{"from":"file:src/b.ts","id":"edge:file:src/b.ts:REFERENCES:sym:src/a.ts#foo",'
+      + '"properties":{"sameFile":false},"to":"sym:src/a.ts#foo","type":"REFERENCES"}',
+    );
+    expect(manifest().counts).toEqual({
+      files: 1, symbolsReferenced: 1, edges: 1, deadExports: 1, entryPointExclusions: 0,
+    });
+  });
+});
+
 describe('run() — workspace packages are followed by the type-checker', () => {
   it('records a cross-package REFERENCES edge for a workspace-name import', async () => {
     src('package.json', JSON.stringify({ name: 'root', private: true, workspaces: ['packages/*'] }));

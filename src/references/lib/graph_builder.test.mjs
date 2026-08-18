@@ -53,6 +53,52 @@ describe('buildGraph — nodes, edges, shapes', () => {
   });
 });
 
+describe('buildGraph — EXPOSES edges from entry points', () => {
+  const exposure = (entryPoint, symId, hops) => ({ entryPoint, symId, hops });
+
+  it('emits one EXPOSES edge per exposure, carrying the hop count', () => {
+    const g = buildGraph({
+      references: [],
+      entryPointPaths: ['src/index.js'],
+      exposures: [exposure('src/index.js', 'sym:src/cart.js#renderCart', 1)],
+    });
+    expect(g.edges).toContainEqual({
+      id: 'edge:file:src/index.js:EXPOSES:sym:src/cart.js#renderCart',
+      type: 'EXPOSES', from: 'file:src/index.js', to: 'sym:src/cart.js#renderCart',
+      properties: { hops: 1 },
+    });
+  });
+
+  it('emits the exposed Symbol node so the artifact stands on its own', () => {
+    const full = {
+      id: 'sym:src/cart.js#renderCart', labels: ['Symbol'],
+      properties: { name: 'renderCart', kind: 'variable', exported: true, path: 'src/cart.js', line: 1 },
+    };
+    const g = buildGraph({
+      references: [],
+      symbolNodesById: new Map([[full.id, full]]),
+      entryPointPaths: ['src/index.js'],
+      exposures: [exposure('src/index.js', full.id, 1)],
+    });
+    expect(g.nodes).toContainEqual(full);
+  });
+
+  it('counts an exposure as an edge but never as a referenced symbol or a referencing file', () => {
+    const g = buildGraph({
+      references: [],
+      entryPointPaths: ['src/index.js'],
+      exposures: [exposure('src/index.js', 'sym:src/cart.js#renderCart', 1)],
+    });
+    expect(g.counts).toEqual({ files: 0, symbolsReferenced: 0, edges: 1 });
+  });
+
+  it('no exposures → exactly the graph it always built', () => {
+    const withKey = buildGraph({ references: [ref('b.ts', 'sym:a.ts#foo', false)], exposures: [] });
+    const without = buildGraph({ references: [ref('b.ts', 'sym:a.ts#foo', false)] });
+    expect(JSON.stringify(withKey)).toBe(JSON.stringify(without));
+  });
+});
+
 describe('buildGraph — dedupe & determinism', () => {
   it('dedupes duplicate (file,symbol) reference records into one edge', () => {
     const g = buildGraph({
