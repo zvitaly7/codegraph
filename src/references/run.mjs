@@ -5,6 +5,8 @@ import { writeJsonAtomic, writeJsonlAtomic } from '../inventory/write.mjs';
 import { normPosix } from '../inventory/schema.mjs';
 import { readInventorySources, readInventoryManifest } from '../lib/inventory_reader.mjs';
 import { TsconfigIndex } from '../lib/tsconfig_index.mjs';
+import { discoverWorkspaces } from '../lib/workspaces.mjs';
+import { collectEntryPoints } from '../lib/entry_points.mjs';
 import { changedFilesSince } from '../lib/changed_files.mjs';
 import {
   revisionOfArtifactManifest, loadImportersIndex, computeAffectedFiles,
@@ -32,6 +34,13 @@ function readJsonl(path) {
 /** Strip a within-file collision ordinal (`~2`) to the canonical base id. */
 function baseSymId(id) {
   return id.replace(/~\d+$/, '');
+}
+
+/** The declaring file of a `sym:<path>#<name>` id. */
+function pathOfSymId(id) {
+  const body = id.slice('sym:'.length);
+  const hash = body.lastIndexOf('#');
+  return hash === -1 ? body : body.slice(0, hash);
 }
 
 /**
@@ -223,21 +232,39 @@ export async function run(argv) {
     cfg, repoRoot, outDir, fileNames, options, symbolIds, currentSourcePaths,
   });
 
-  const { nodes, edges, counts } = buildGraph({ references, symbolNodesById });
+  // Entry points: files consumed across a boundary the import graph cannot see
+  // (a CLI, a library entry, a Module-Federation remote). Their exports are held
+  // back from the dead-export count, and the exclusion is reported rather than
+  // silently applied.
+  const entryPoints = collectEntryPoints({
+    repoRoot,
+    patterns: cfg.entryPoints,
+    filePaths: [...currentSourcePaths],
+    workspaces: discoverWorkspaces(repoRoot),
+  });
+  const entryPointPaths = new Set(entryPoints.paths);
+
+  const { nodes, edges, counts } = buildGraph({
+    references, symbolNodesById, entryPointPaths: entryPoints.paths,
+  });
 
   // Dead exports: exported symbols with no CROSS-file incoming reference. A
   // symbol used only inside its own file still leaves its `export` unused.
   const crossFileReferenced = new Set(references.filter((r) => !r.sameFile).map((r) => r.symId));
   let deadExports = 0;
+  let entryPointExclusions = 0;
   for (const id of exportedBaseIds) {
-    if (!crossFileReferenced.has(id)) deadExports += 1;
+    if (crossFileReferenced.has(id)) continue;
+    if (entryPointPaths.has(pathOfSymId(id))) entryPointExclusions += 1;
+    else deadExports += 1;
   }
 
   const manifest = {
     schemaVersion: SCHEMA_VERSION,
     generatedAt: new Date().toISOString(),
     basedOnSnapshot: invManifest?.snapshotId ?? 'unknown',
-    counts: { ...counts, deadExports },
+    counts: { ...counts, deadExports, entryPointExclusions },
+    entryPoints: entryPoints.paths.map((path) => ({ path, reason: entryPoints.reasons[path] })),
   };
 
   const outBase = join(outDir, 'references');
@@ -252,7 +279,8 @@ export async function run(argv) {
 
   console.log(
     `[loregraph] refFiles=${counts.files} symbolsReferenced=${counts.symbolsReferenced} `
-    + `edges=${counts.edges} deadExports=${deadExports} out=${outBase}`,
+    + `edges=${counts.edges} deadExports=${deadExports} `
+    + `entryPoints=${entryPoints.paths.length} (excluded ${entryPointExclusions}) out=${outBase}`,
   );
 
   return 0;

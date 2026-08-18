@@ -202,6 +202,9 @@ const KNOB_COMMENTS = {
   incremental: 'Rebuild mode for the heavy type-checking layers.',
   compressPaths: 'Factor shared directory prefixes out of the path lists brief/impact print '
     + '(lossless; worth ~26-57% on a deep monorepo, ~2-10% on a shallow tree).',
+  entryPoints: 'Globs whose exports are never reported as dead — files consumed across a '
+    + 'boundary the import graph cannot see (module-federation remotes, dynamic imports). '
+    + 'package.json main/module/exports/bin are detected on top of these.',
 };
 
 /**

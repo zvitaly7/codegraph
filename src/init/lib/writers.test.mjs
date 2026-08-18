@@ -182,8 +182,11 @@ describe('renderConfigFile', () => {
   it('documents every remaining knob commented out at its real default', () => {
     for (const [key, value] of Object.entries(DEFAULTS)) {
       if (key === 'srcRoots') continue;
-      const literal = typeof value === 'string' ? `'${value}'` : String(value);
-      expect(rendered).toContain(`// ${key}: ${literal},`);
+      const lit = (v) => {
+        if (Array.isArray(v)) return `[${v.map(lit).join(', ')}]`;
+        return typeof v === 'string' ? `'${v}'` : String(v);
+      };
+      expect(rendered).toContain(`// ${key}: ${lit(value)},`);
     }
   });
 

@@ -33,14 +33,19 @@ function minimalSymbolNode(symId) {
  * @param {object} args
  * @param {Array<{fromPath:string, symId:string, sameFile:boolean}>} args.references
  * @param {Map<string, object>} [args.symbolNodesById] full Symbol nodes to reuse.
+ * @param {string[]} [args.entryPointPaths] files whose exports are never dead.
+ *   Their File nodes carry `entryPoint: true` and are emitted even when the file
+ *   references nothing, so every reader of the graph can see the exclusion.
  */
-export function buildGraph({ references, symbolNodesById }) {
+export function buildGraph({ references, symbolNodesById, entryPointPaths = [] }) {
   const fileNodes = new Map();   // fileId → node
   const symbolNodes = new Map(); // symId → node
   const edges = new Map();       // edge id → edge
+  const referencingFiles = new Set();
 
   for (const r of references) {
     const fromId = fileId(r.fromPath);
+    referencingFiles.add(fromId);
     if (!fileNodes.has(fromId)) {
       fileNodes.set(fromId, { id: fromId, labels: ['File'], properties: { path: r.fromPath } });
     }
@@ -52,6 +57,13 @@ export function buildGraph({ references, symbolNodesById }) {
     if (!edges.has(e.id)) edges.set(e.id, e);
   }
 
+  for (const path of entryPointPaths) {
+    const id = fileId(path);
+    const existing = fileNodes.get(id);
+    if (existing) existing.properties.entryPoint = true;
+    else fileNodes.set(id, { id, labels: ['File'], properties: { path, entryPoint: true } });
+  }
+
   const nodes = [...fileNodes.values(), ...symbolNodes.values()].sort(byId);
   const edgeList = [...edges.values()].sort(byId);
 
@@ -59,7 +71,9 @@ export function buildGraph({ references, symbolNodesById }) {
     nodes,
     edges: edgeList,
     counts: {
-      files: fileNodes.size,
+      // `files` stays what it always meant: files that reference something. An
+      // entry point with no references adds a node, not a referencing file.
+      files: referencingFiles.size,
       symbolsReferenced: symbolNodes.size,
       edges: edgeList.length,
     },

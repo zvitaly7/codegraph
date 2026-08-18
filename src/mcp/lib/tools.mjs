@@ -253,17 +253,36 @@ export function listSymbols(graph, { file } = {}) {
  * `sameFile`, so an export used only by its own module still counts as dead
  * (nobody imports it). Without that layer we fall back to "no incoming edge
  * other than DECLARES", which cannot see symbol-level usage at all.
+ *
+ * Symbols declared in a file the references layer marked as an ENTRY POINT are
+ * held back rather than reported: they are consumed across a boundary the import
+ * graph cannot see. The count is always returned, and `includeEntryPoints` lists
+ * them, so "not dead" is never confused with "hidden".
  */
-export function deadExports(graph, { limit = FIND_CAP } = {}) {
+export function deadExports(graph, { limit = FIND_CAP, includeEntryPoints = false } = {}) {
   const precise = graph.loadedLayers.includes('references');
   const exported = graph.byLabel('Symbol').filter((n) => n.properties?.exported === true);
   const isDead = precise
     ? (n) => graph.neighbors(n.id, { dir: 'in', type: 'REFERENCES' })
       .every((e) => e.properties?.sameFile === true)
     : (n) => graph.neighbors(n.id, { dir: 'in' }).every((e) => e.type === 'DECLARES');
-  const candidates = exported.filter(isDead);
-  candidates.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const isEntryPoint = (n) => graph
+    .getNode(`file:${n.properties?.path}`)?.properties?.entryPoint === true;
+
+  const unreferenced = exported.filter(isDead);
+  const excluded = unreferenced.filter(isEntryPoint);
+  const candidates = unreferenced.filter((n) => !isEntryPoint(n));
+  const byId = (a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  candidates.sort(byId);
+  excluded.sort(byId);
   const cap = Number.isInteger(limit) && limit > 0 ? limit : FIND_CAP;
+  const row = (n) => ({
+    id: n.id,
+    name: n.properties?.name,
+    kind: n.properties?.kind,
+    path: n.properties?.path,
+    line: n.properties?.line,
+  });
   return {
     note: precise
       ? 'Exported symbols with no cross-file REFERENCES edge (same-file uses excluded). '
@@ -276,13 +295,12 @@ export function deadExports(graph, { limit = FIND_CAP } = {}) {
     total: candidates.length,
     returned: Math.min(candidates.length, cap),
     truncated: candidates.length > cap,
-    candidates: candidates.slice(0, cap).map((n) => ({
-      id: n.id,
-      name: n.properties?.name,
-      kind: n.properties?.kind,
-      path: n.properties?.path,
-      line: n.properties?.line,
-    })),
+    entryPointExclusions: excluded.length,
+    ...(excluded.length > 0
+      ? { entryPointNote: `${excluded.length} further unreferenced export(s) live in entry-point files and are NOT listed — pass includeEntryPoints to see them.` }
+      : {}),
+    ...(includeEntryPoints ? { entryPoints: excluded.map(row) } : {}),
+    candidates: candidates.slice(0, cap).map(row),
   };
 }
 
@@ -567,8 +585,15 @@ export const TOOLS = [
   },
   {
     name: 'dead_exports',
-    description: 'Exported symbols nothing outside their own file references (precise when the references layer is loaded).',
-    inputSchema: { type: 'object', properties: { limit: { type: 'integer', description: 'Max candidates (default 50).' } } },
+    description: 'Exported symbols nothing outside their own file references (precise when the references layer is loaded). '
+      + 'Exports of entry-point files are held back and counted separately.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        limit: { type: 'integer', description: 'Max candidates (default 50).' },
+        includeEntryPoints: { type: 'boolean', description: 'Also list the unreferenced exports that were held back because they live in an entry-point file.' },
+      },
+    },
   },
   {
     name: 'brief',

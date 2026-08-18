@@ -76,7 +76,9 @@ describe('run() happy path', () => {
     expect(manifest.basedOnSnapshot).toBe('snapshot:demo:rev1');
     expect(typeof manifest.generatedAt).toBe('string');
     // b references a#foo (cross-file). foo is referenced; useFoo is a dead export.
-    expect(manifest.counts).toEqual({ files: 1, symbolsReferenced: 1, edges: 1, deadExports: 1 });
+    expect(manifest.counts).toEqual({
+      files: 1, symbolsReferenced: 1, edges: 1, deadExports: 1, entryPointExclusions: 0,
+    });
 
     const edges = readLines(join(out, 'edges.jsonl'));
     expect(edges).toContainEqual({

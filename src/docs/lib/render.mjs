@@ -101,6 +101,7 @@ export const STRINGS = {
     healthDead: 'Dead / unused exports',
     healthDeadLine: '{total} of {exported} exported symbols have no cross-file reference.',
     healthDeadImprecise: 'No references layer is loaded, so this list is a guess — run `loregraph regenerate` for a precise answer.',
+    healthDeadEntryPoints: 'A further {n} unreferenced exports were held back as entry points (`package.json` `main`/`module`/`exports`/`bin`, plus the `entryPoints` config globs) and are not listed above.',
     healthOrphans: 'Orphaned files',
     healthOrphansLine: '{total} source files have no importer and do not look like entry points.',
 
@@ -185,6 +186,7 @@ export const STRINGS = {
     healthDead: 'Мёртвые / неиспользуемые экспорты',
     healthDeadLine: 'Из {exported} экспортируемых символов {total} не имеют ссылок из других файлов.',
     healthDeadImprecise: 'Слой references не загружен, поэтому список приблизительный — выполните `loregraph regenerate` для точного ответа.',
+    healthDeadEntryPoints: 'Ещё {n} экспортов без ссылок исключены как точки входа (`main`/`module`/`exports`/`bin` из `package.json` и глобы из настройки `entryPoints`) и выше не перечислены.',
     healthOrphans: 'Файлы-сироты',
     healthOrphansLine: 'Исходных файлов без импортёров и не похожих на точки входа: {total}.',
 
@@ -360,15 +362,26 @@ function domainFacts(graph) {
     .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
 
-/** Exported symbols nothing outside their own file references. */
+/**
+ * Exported symbols nothing outside their own file references. Symbols declared
+ * in an entry-point file are held back — they are consumed across a boundary the
+ * import graph cannot see — and counted separately so the omission is visible.
+ */
 function deadExportRows(graph) {
   const exported = graph.byLabel('Symbol').filter((n) => n.properties?.exported === true);
   const precise = graph.loadedLayers.includes('references');
-  const dead = exported.filter((n) => (precise
+  const unreferenced = exported.filter((n) => (precise
     ? graph.neighbors(n.id, { dir: 'in', type: 'REFERENCES' }).every((e) => e.properties?.sameFile === true)
     : graph.neighbors(n.id, { dir: 'in' }).every((e) => e.type === 'DECLARES')));
+  const isEntryPoint = (n) => graph.getNode(`file:${n.properties?.path}`)?.properties?.entryPoint === true;
+  const dead = unreferenced.filter((n) => !isEntryPoint(n));
   dead.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  return { precise, exportedTotal: exported.length, dead };
+  return {
+    precise,
+    exportedTotal: exported.length,
+    dead,
+    entryPoints: unreferenced.length - dead.length,
+  };
 }
 
 /** Source files with no importer that do not look like entry points. */
@@ -685,7 +698,7 @@ function renderDependencies(graph, ctx) {
 
 function renderHealth(graph, ctx) {
   const { t, rev } = ctx;
-  const { precise, exportedTotal, dead } = deadExportRows(graph);
+  const { precise, exportedTotal, dead, entryPoints } = deadExportRows(graph);
   const orphans = orphanFiles(graph);
 
   const deadShown = dead.slice(0, SAMPLE_N);
@@ -702,6 +715,7 @@ function renderHealth(graph, ctx) {
     '',
     ...(precise ? [] : [t('healthDeadImprecise'), '']),
     t('healthDeadLine', { total: dead.length, exported: exportedTotal }),
+    ...(entryPoints > 0 ? ['', t('healthDeadEntryPoints', { n: entryPoints })] : []),
     '',
     table(
       [t('colSymbol'), t('colKind'), t('colLocation')],

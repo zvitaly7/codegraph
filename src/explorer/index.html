@@ -480,6 +480,7 @@
       colHooks: "Hooks",
       colComponents: "Components",
       cardDeadExports: "Dead / unused exports",
+      cardDeadExportsEntry: "{n} more held back as entry points",
       cardMostDependedPackages: "Most-depended-on packages",
       cardBiggestImporters: "Biggest importers",
 
@@ -565,6 +566,7 @@
       colHooks: "Хуки",
       colComponents: "Компоненты",
       cardDeadExports: "Мёртвые / неиспользуемые экспорты",
+      cardDeadExportsEntry: "Ещё {n} исключены как точки входа",
       cardMostDependedPackages: "Самые востребованные пакеты",
       cardBiggestImporters: "Крупнейшие импортёры",
 
@@ -1016,7 +1018,10 @@
     grid.append(listCard(t("cardMostUsedSymbols"), ins.mostUsedSymbols, (r) => focusRow(r.id, { metric: r.files, metricLabel: t("wordFiles"), sub: subFor(r.id) })));
     grid.append(listCard(t("cardMostConnectedSymbols"), ins.mostConnectedSymbols, (r) => focusRow(r.id, { metric: r.degree, metricLabel: t("wordDegree"), sub: subFor(r.id) })));
     grid.append(hooksCard(ins.hooks || [], ins.components || []));
-    grid.append(listCard(t("cardDeadExports"), ins.deadExports, (r) => focusRow(r.id, { sub: subFor(r.id) }), { badge: fmt(ins.deadExportsTotal || 0) }));
+    grid.append(listCard(t("cardDeadExports"), ins.deadExports, (r) => focusRow(r.id, { sub: subFor(r.id) }), {
+      badge: fmt(ins.deadExportsTotal || 0),
+      note: ins.deadExportsEntryPoints ? t("cardDeadExportsEntry", { n: fmt(ins.deadExportsEntryPoints) }) : null,
+    }));
     grid.append(listCard(t("cardMostDependedPackages"), ins.mostDependedPackages, (r) => focusRow("pkg:" + r.name, { metric: r.files, metricLabel: t("wordFiles") })));
     grid.append(listCard(t("cardBiggestImporters"), ins.biggestImporters, (r) => focusRow("file:" + r.file, { metric: r.imports, metricLabel: t("wordImports"), sub: r.file })));
 
@@ -1036,6 +1041,7 @@
       for (const r of rows) list.append(rowFn(r));
       card.append(list);
     }
+    if (opts.note) card.append(h("div", { class: "card-none", text: opts.note }));
     return card;
   }
 
