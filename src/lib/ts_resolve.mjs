@@ -20,12 +20,36 @@ import { normPosix } from '../inventory/schema.mjs';
  * The sensible bundler-ish default when a repo ships no tsconfig: accept JS,
  * resolve like a bundler, don't type-check JS or emit anything. Callers may
  * substitute options parsed from a real tsconfig.
+ *
+ * Two of these options are there purely for speed, and both are safe for a
+ * reason specific to what this tool extracts — not because TypeScript says so:
+ *
+ *   `skipLibCheck`  skips type-CHECKING the bodies of `.d.ts` files. Every
+ *     `.d.ts` is still parsed, bound and RESOLVED. We never ask for a
+ *     diagnostic — we ask "where was this identifier declared" — so the work it
+ *     skips is work we were throwing away.
+ *
+ *   `types: []`  stops `@types/*` packages being auto-loaded. A global declared
+ *     in one lives OUTSIDE the repo, so it can never be a Symbol node: with the
+ *     package the identifier resolves into `node_modules` and is dropped, and
+ *     without it the identifier does not resolve at all and is dropped. Where a
+ *     repo declaration MERGES with an `@types` one, the repo's is a root file
+ *     and stays first in `symbol.declarations`, so it wins either way. Both
+ *     claims are pinned by ./ts_resolve.test.mjs.
+ *
+ * Worth knowing about `types: []`: TypeScript resolves automatic `@types`
+ * inclusion against the PROCESS working directory, not against `--repo-root`, so
+ * before this flag a run launched from elsewhere already loaded a different set
+ * of ambient types than a run launched from inside the repo. It no longer loads
+ * either, which is one fewer thing that depends on where you were standing.
  */
 export function defaultCompilerOptions() {
   return {
     allowJs: true,
     checkJs: false,
     noEmit: true,
+    skipLibCheck: true,
+    types: [],
     module: ts.ModuleKind.ESNext,
     moduleResolution: ts.ModuleResolutionKind.Bundler,
     target: ts.ScriptTarget.ESNext,
