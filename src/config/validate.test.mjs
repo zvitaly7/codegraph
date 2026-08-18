@@ -85,6 +85,19 @@ describe('validateConfig — types', () => {
     expect(validateConfig({ vcs: 'none' })).toEqual([]);
   });
 
+  it('accepts a tsconfig-shaped paths table', () => {
+    expect(validateConfig({ paths: { '@lib/*': ['packages/*/src'] }, pathsBase: '.' })).toEqual([]);
+  });
+
+  it('rejects a paths table that is not a map of string arrays', () => {
+    expect(validateConfig({ paths: { '@lib/*': 'packages/lib' } })[0].key).toBe('paths');
+    expect(validateConfig({ paths: 'packages' })[0].key).toBe('paths');
+  });
+
+  it('rejects a non-string pathsBase', () => {
+    expect(validateConfig({ pathsBase: 42 })[0].key).toBe('pathsBase');
+  });
+
   it('rejects non-numeric describe pricing', () => {
     expect(validateConfig({ describe: { pricing: { input: 'three' } } })[0].key)
       .toBe('describe.pricing.input');

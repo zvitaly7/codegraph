@@ -123,3 +123,66 @@ describe('TsconfigIndex — explicit override', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 });
+
+// Not every repository carries a tsconfig. Monorepos whose build tooling lives
+// outside the checkout have none at all, and without a declared alias table the
+// cross-package imports they do have cannot be resolved to files. `configPaths`
+// lets loregraph.config supply that table directly.
+describe('TsconfigIndex — configPaths fallback', () => {
+  let dir;
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), 'cg-tsx-cfgpaths-'));
+    mkdirSync(join(dir, 'apps', 'web'), { recursive: true });
+    writeFileSync(join(dir, 'apps', 'web', 'a.ts'), 'export const x=1;');
+  });
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  it('supplies the alias table when no tsconfig exists', () => {
+    const idx = new TsconfigIndex({
+      repoRoot: dir,
+      configPaths: { '@lib/*': ['packages/*/src'] },
+    });
+    const view = idx.forFile(join(dir, 'apps', 'web', 'a.ts'));
+    expect(view.paths).toEqual({ '@lib/*': ['packages/*/src'] });
+    expect(view.pathsBase).toBe(dir);
+  });
+
+  it('resolves configPathsBase against the repo root', () => {
+    const idx = new TsconfigIndex({
+      repoRoot: dir,
+      configPaths: { '@lib/*': ['*/src'] },
+      configPathsBase: 'packages',
+    });
+    expect(idx.forFile(join(dir, 'apps', 'web', 'a.ts')).pathsBase).toBe(join(dir, 'packages'));
+  });
+
+  it('leaves a tsconfig that declares its own paths in charge', () => {
+    const withCfg = mkdtempSync(join(tmpdir(), 'cg-tsx-cfgpaths-win-'));
+    mkdirSync(join(withCfg, 'src'), { recursive: true });
+    writeFileSync(join(withCfg, 'src', 'a.ts'), 'export const x=1;');
+    writeFileSync(
+      join(withCfg, 'tsconfig.json'),
+      JSON.stringify({ compilerOptions: { baseUrl: '.', paths: { '~/*': ['src/*'] } } }),
+    );
+    const idx = new TsconfigIndex({ repoRoot: withCfg, configPaths: { '@lib/*': ['packages/*'] } });
+    expect(idx.forFile(join(withCfg, 'src', 'a.ts')).paths).toEqual({ '~/*': ['src/*'] });
+    rmSync(withCfg, { recursive: true, force: true });
+  });
+
+  it('fills in for a tsconfig that declares no paths of its own', () => {
+    const noPaths = mkdtempSync(join(tmpdir(), 'cg-tsx-cfgpaths-fill-'));
+    mkdirSync(join(noPaths, 'src'), { recursive: true });
+    writeFileSync(join(noPaths, 'src', 'a.ts'), 'export const x=1;');
+    writeFileSync(join(noPaths, 'tsconfig.json'), JSON.stringify({ compilerOptions: { strict: true } }));
+    const idx = new TsconfigIndex({ repoRoot: noPaths, configPaths: { '@lib/*': ['packages/*'] } });
+    expect(idx.forFile(join(noPaths, 'src', 'a.ts')).paths).toEqual({ '@lib/*': ['packages/*'] });
+    rmSync(noPaths, { recursive: true, force: true });
+  });
+
+  it('no configPaths → behaviour is exactly what it was', () => {
+    const idx = new TsconfigIndex({ repoRoot: dir });
+    expect(idx.forFile(join(dir, 'apps', 'web', 'a.ts'))).toEqual({
+      paths: {}, pathsBase: undefined, baseUrl: undefined, configPath: null,
+    });
+  });
+});

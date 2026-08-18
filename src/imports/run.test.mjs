@@ -84,6 +84,53 @@ describe('run() happy path', () => {
     });
   });
 
+  // A monorepo whose build tooling lives outside the checkout can have neither
+  // package.json nor tsconfig.json. Its cross-package imports are then written
+  // by package name with nothing to resolve them, and every one of them lands
+  // on a pkg: node — an internal dependency recorded as a third party, which
+  // silently empties the domain layer and shortens every blast radius.
+  it('config paths resolve cross-package imports with no tsconfig and no package.json', async () => {
+    src('apps/web/entry.ts', "import { u } from '@lib/util';");
+    src('packages/util/src/index.ts', 'export const u = 1;');
+    writeFileSync(join(repo, 'loregraph.config.json'), JSON.stringify({
+      paths: { '@lib/*': ['packages/*/src'] },
+    }));
+    writeInventory(repo, [
+      { id: 'file:apps/web/entry.ts', path: 'apps/web/entry.ts', language: 'TypeScript', kind: 'code' },
+      { id: 'file:packages/util/src/index.ts', path: 'packages/util/src/index.ts', language: 'TypeScript', kind: 'code' },
+    ]);
+    const code = await run(['--repo-root', repo, '--out', join(repo, '.kg-cache')]);
+    expect(code).toBe(0);
+    const edges = readLines(join(repo, '.kg-cache', 'imports', 'edges.jsonl'));
+    expect(edges).toContainEqual({
+      id: 'edge:file:apps/web/entry.ts:IMPORTS:file:packages/util/src/index.ts',
+      type: 'IMPORTS',
+      from: 'file:apps/web/entry.ts',
+      to: 'file:packages/util/src/index.ts',
+      properties: { specifier: '@lib/util', kind: 'internal' },
+    });
+    // and nothing was recorded as a third-party package
+    expect(edges.some((e) => e.to.startsWith('pkg:'))).toBe(false);
+  });
+
+  it('a tsconfig with its own paths stays in charge of the aliases', async () => {
+    writeFileSync(join(repo, 'tsconfig.json'), JSON.stringify({
+      compilerOptions: { baseUrl: '.', paths: { '@app/*': ['src/app/*'] } },
+    }));
+    writeFileSync(join(repo, 'loregraph.config.json'), JSON.stringify({
+      paths: { '@app/*': ['nowhere/*'] },
+    }));
+    src('src/entry.ts', "import { u } from '@app/util';");
+    src('src/app/util.ts', 'export const u = 1;');
+    writeInventory(repo, [
+      { id: 'file:src/entry.ts', path: 'src/entry.ts', language: 'TypeScript', kind: 'code' },
+      { id: 'file:src/app/util.ts', path: 'src/app/util.ts', language: 'TypeScript', kind: 'code' },
+    ]);
+    expect(await run(['--repo-root', repo, '--out', join(repo, '.kg-cache')])).toBe(0);
+    const edges = readLines(join(repo, '.kg-cache', 'imports', 'edges.jsonl'));
+    expect(edges.map((e) => e.to)).toContain('file:src/app/util.ts');
+  });
+
   it('basedOnSnapshot falls back to "unknown" when inventory manifest lacks a snapshotId', async () => {
     src('src/a.ts', 'export const a = 1;');
     writeInventory(repo, [{ id: 'file:src/a.ts', path: 'src/a.ts', language: 'TypeScript', kind: 'code' }], {});
