@@ -416,7 +416,7 @@ Separately, and **not** produced by that script: a one-off manual A/B gave two A
 | `path_between` | `from`, `to` (both required), `maxDepth` |
 | `domain_dependencies` | `domain` (required) |
 | `domain_crossings` | — |
-| `dead_exports` | `limit` |
+| `dead_exports` | `limit`, `includeEntryPoints` |
 
 **Context packs**
 
@@ -571,12 +571,18 @@ flowchart LR
 | Layer | What it produces |
 | :--- | :--- |
 | `inventory` | Every file and directory: path, size, language, kind, trust, SHA-256, plus the VCS revision of the snapshot. |
-| `imports` | `IMPORTS` edges from each source to the files and packages it imports, resolved through `tsconfig` `baseUrl`/`paths` when present. |
+| `imports` | `IMPORTS` edges from each source to the files and packages it imports, resolved through `tsconfig` `baseUrl`/`paths` when present, then through the repo's workspace packages. |
 | `symbols` | `DECLARES` edges from each source to its top-level declarations (parse-only, no type-checking). |
 | `domains` | `Domain` nodes, `BELONGS_TO` for every file, and weighted `DEPENDS_ON` edges aggregated from the import graph. |
-| `references` | `REFERENCES` edges from a file to the symbols it actually uses. Type-checked — this is a heavy layer. |
+| `references` | `REFERENCES` edges from a file to the symbols it actually uses, plus the entry-point files whose exports are never counted dead. Type-checked — this is a heavy layer. |
 | `usages` | `USES` edges from a symbol to the other symbols its body touches. Type-checked — heavy. |
 | `explorer` | `graph-index.json` plus the packaged SPA, written side by side under `<cache>/explorer/`. |
+
+> [!NOTE]
+> **Workspace monorepos need no configuration.** `package.json` `workspaces` (the array form and the `{ "packages": [...] }` form) and `pnpm-workspace.yaml` are read from the repo root, so an import of a sibling package — `@myorg/ui`, `@myorg/ui/button` — becomes an edge to the real file instead of a third-party `pkg:` node, and the type-checking layers follow it too. A `tsconfig` alias still wins wherever one is declared, and a package name that resolves to no source file stays external rather than inventing an edge.
+
+> [!NOTE]
+> **Entry points are not dead exports.** A CLI, a library entry or a module-federation remote is consumed across a boundary the import graph cannot see, so `references` holds its exports back instead of reporting them dead. `package.json` `main`/`module`/`exports`/`bin` — the root package and every workspace package — are detected automatically; add anything else with the `entryPoints` config globs. Everything held back is **counted** wherever dead exports appear, and `dead_exports` lists it on request, so "not dead" never quietly means "hidden".
 
 ### 🕸️ The graph itself
 
@@ -657,6 +663,7 @@ Optional `loregraph.config.mjs` (default export) or `loregraph.config.json` at t
 | `domains` | `null` | `null` auto-derives the overlay. Otherwise an inline object or a path to a module exporting `CANONICAL_DOMAINS`, `ALIASES` and `AREA_BUCKETS`. |
 | `incremental` | `'off'` | `'off'` or `'incremental'` — rebuild mode for the heavy layers. |
 | `compressPaths` | `false` | Factor shared directory prefixes out of the path lists `brief` and `impact` print. `--compress-paths` / `--no-compress-paths` override it per call. |
+| `entryPoints` | `[]` | Globs whose exports are never reported as dead — files consumed across a boundary the import graph cannot see (module-federation remotes, dynamic-import targets). `package.json` `main`/`module`/`exports`/`bin`, and the same fields of every workspace package, are detected on top of these. |
 | `describe` | `{}` | Defaults for `loregraph describe`: `command`, `model`, `scope`, `top`, `timeoutMs`, and `pricing: { input, output }` in USD per million tokens. |
 
 `loregraph docs` additionally reads a `lang` key (`'en'` or `'ru'`, default `'en'`); `--lang` overrides it.
@@ -743,7 +750,7 @@ usages: incremental — re-extracted 4 file(s), reused 256 cached edge(s)
 | `<out-docs>/README.md` | Index of the generated pages. |
 | `<out-docs>/domains/<domain>.md` | One page per domain. |
 | `<out-docs>/dependencies.md` | Cross-domain map, external packages, biggest importers. |
-| `<out-docs>/health.md` | Dead exports and orphan candidates. |
+| `<out-docs>/health.md` | Dead exports (entry points held back and counted) and orphan candidates. |
 
 Default locations are `<repo>/AGENTS.md` and `<repo>/docs/loregraph/`; `--agents-out` and `--out-docs` move them. On this repo the run produced 27 pages (`AGENTS.md`, three top-level pages, 23 domain pages).
 

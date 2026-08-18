@@ -256,8 +256,14 @@ Read these before quoting any number from this page.
   pays almost nothing (that is exactly what happened in the manual A/B below).
   Treat it as an upper bound on the naive path, not as a claim about good agents.
   The two paths also disagree on what "dead" means — loregraph counts an export
-  with no cross-file `REFERENCES` edge, which misses dynamic and string-keyed
-  access and any non-TS entry point.
+  with no cross-file `REFERENCES` edge, which still misses dynamic and
+  string-keyed access. Declared entry points are no longer part of that gap: the
+  `package.json` `main`/`module`/`exports`/`bin` targets (root and per workspace
+  package) and the `entryPoints` config globs are held back from the count and
+  reported separately. On THIS repo that changes nothing — its one entry point,
+  `bin/loregraph.mjs`, exports nothing — so the row below is unaffected. On a
+  library or a module-federation host it is the difference between a list you can
+  act on and a list of false positives.
 - **The graph is not a superset of the baseline's answer.** On `blast-radius` the
   procedure opens more files than `impact` names, and the extra ones —
   `bin/loregraph.test.mjs` and `src/mcp/run.test.mjs` — are genuine dependents
