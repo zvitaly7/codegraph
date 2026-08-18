@@ -149,9 +149,13 @@ export function resolveSpecifier(specifier, { fromAbsFile, repoRoot, fileSet, ts
 
   const packageName = packageNameOf(specifier);
 
-  // 4. A sibling workspace package is internal, not third-party — but only when
-  //    it lands on a file the inventory actually knows. An unresolvable name
-  //    falls through to step 5 rather than inventing an edge.
+  // 4. A sibling workspace package is internal, not third-party. When it lands
+  //    on a file the inventory knows, that file is the edge. When it does not —
+  //    a package that publishes only build output, say — the answer is
+  //    `unresolved`, never `external`: the name is already known to be ours, and
+  //    calling it a third party would throw that away, drop the dependency from
+  //    the domain layer and score a miss as a success in the resolution rate.
+  //    No edge is invented either way.
   const pkg = workspaces?.get(packageName);
   if (pkg) {
     const subpath = specifier.slice(packageName.length).replace(/^\//, '');
@@ -159,6 +163,7 @@ export function resolveSpecifier(specifier, { fromAbsFile, repoRoot, fileSet, ts
       const rel = matchSource(resolvePath(repoRoot, relBase), repoRoot, fileSet);
       if (rel) return { kind: 'internal', targetId: fileId(rel) };
     }
+    return { kind: 'unresolved', targetId: null };
   }
 
   // 5. Bare specifier — external package.
