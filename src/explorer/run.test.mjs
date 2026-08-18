@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { run } from './run.mjs';
+import { run, startStaticServer } from './run.mjs';
 
 /** The packaged SPA that `explorer` must copy into <cache>/explorer/. */
 const SPA_HTML = fileURLToPath(new URL('./index.html', import.meta.url));
@@ -148,5 +148,57 @@ describe('explorer run()', () => {
     const cache = seedCache(join(tmp, 'port'));
     const code = await run(['--cache', cache, '--serve', '--port', 'abc']);
     expect(code).toBe(2);
+  });
+
+  it('bad --host → exit 2', async () => {
+    const cache = seedCache(join(tmp, 'host'));
+    const code = await run(['--cache', cache, '--serve', '--host', '']);
+    expect(code).toBe(2);
+  });
+});
+
+// The explorer index exposes every path and symbol name in the repository.
+// Binding it to every interface publishes that to the local network, so the
+// default must stay on the loopback and going wider must be a deliberate act.
+describe('explorer static server binding', () => {
+  let tmp;
+  let servers;
+
+  beforeAll(() => {
+    tmp = mkdtempSync(join(tmpdir(), 'cg-explorer-bind-'));
+  });
+
+  beforeEach(() => {
+    servers = [];
+  });
+
+  afterEach(async () => {
+    await Promise.all(servers.map((s) => new Promise((res) => s.close(res))));
+  });
+
+  async function serve(opts) {
+    const dir = join(tmp, 'root');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'index.html'), '<h1>hi</h1>');
+    const server = await startStaticServer(dir, 0, opts);
+    servers.push(server);
+    return server;
+  }
+
+  it('binds the loopback interface by default', async () => {
+    const server = await serve();
+    expect(server.address().address).toBe('127.0.0.1');
+  });
+
+  it('binds a wider interface only when asked', async () => {
+    const server = await serve({ host: '0.0.0.0' });
+    expect(server.address().address).toBe('0.0.0.0');
+  });
+
+  it('still serves the index over the loopback', async () => {
+    const server = await serve();
+    const res = await fetch(`http://127.0.0.1:${server.address().port}/`);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe('<h1>hi</h1>');
   });
 });
