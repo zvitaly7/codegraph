@@ -250,8 +250,9 @@ export const COMMAND_HELP = {
     options: [
       ['--cache DIR', 'graph cache to read/write (default: resolved --out)'],
       ['--serve', 'serve <cache>/explorer/ over HTTP until Ctrl+C'],
-      // Keep in sync with DEFAULT_PORT in src/explorer/run.mjs.
+      // Keep in sync with DEFAULT_PORT / DEFAULT_HOST in src/explorer/run.mjs.
       ['--port N', 'HTTP port for --serve (default: 8765)'],
+      ['--host ADDR', 'interface for --serve (default: 127.0.0.1; 0.0.0.0 exposes the index to your network)'],
     ],
     globals: ['repo-root', 'out', 'config'],
   },

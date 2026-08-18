@@ -23,6 +23,11 @@ import { buildIndex } from './lib/build_index.mjs';
 
 const DEFAULT_PORT = 8765;
 
+// The index names every file and symbol in the repository. Binding to every
+// interface would publish that to the local network, so the default is the
+// loopback and anything wider has to be asked for with --host.
+const DEFAULT_HOST = '127.0.0.1';
+
 /** Packaged SPA shipped beside this module; copied into <cache>/explorer/. */
 const SPA_HTML_PATH = fileURLToPath(new URL('./index.html', import.meta.url));
 
@@ -42,8 +47,12 @@ const CONTENT_TYPES = {
 /**
  * Minimal read-only static file server rooted at `rootDir`. Resolves with the
  * listening server once bound; rejects if the port cannot be bound.
+ *
+ * @param {string} rootDir directory to serve.
+ * @param {number} port port to bind (0 picks a free one).
+ * @param {{host?: string}} [opts] `host` defaults to the loopback.
  */
-function startStaticServer(rootDir, port) {
+export function startStaticServer(rootDir, port, { host = DEFAULT_HOST } = {}) {
   const root = resolve(rootDir);
   return new Promise((resolvePromise, reject) => {
     const server = createServer((req, res) => {
@@ -74,14 +83,14 @@ function startStaticServer(rootDir, port) {
       createReadStream(abs).pipe(res);
     });
     server.on('error', reject);
-    server.listen(port, () => resolvePromise(server));
+    server.listen(port, host, () => resolvePromise(server));
   });
 }
 
-/** Serve `dir` on `port` until SIGINT/SIGTERM; resolves once the server closes. */
-async function serveUntilSignal(dir, port) {
-  const server = await startStaticServer(dir, port);
-  const url = `http://localhost:${port}/`;
+/** Serve `dir` on `host:port` until SIGINT/SIGTERM; resolves once it closes. */
+async function serveUntilSignal(dir, port, host) {
+  const server = await startStaticServer(dir, port, { host });
+  const url = `http://${host === DEFAULT_HOST ? 'localhost' : host}:${port}/`;
   // The URL goes to stderr so stdout stays a clean summary line.
   process.stderr.write(`[loregraph] explorer serving ${dir} at ${url} (Ctrl+C to stop)\n`);
   await new Promise((resolvePromise) => {
@@ -103,6 +112,7 @@ export async function run(argv) {
         cache: { type: 'string' },
         serve: { type: 'boolean' },
         port: { type: 'string' },
+        host: { type: 'string' },
       },
     });
   } catch (err) {
@@ -120,6 +130,15 @@ export async function run(argv) {
       console.error(`explorer: --port must be an integer 0-65535, got ${flags.port}`);
       return 2;
     }
+  }
+
+  let host = DEFAULT_HOST;
+  if (flags.host !== undefined) {
+    if (typeof flags.host !== 'string' || flags.host.trim().length === 0) {
+      console.error('explorer: --host must be a non-empty address, e.g. 127.0.0.1 or 0.0.0.0');
+      return 2;
+    }
+    host = flags.host.trim();
   }
 
   if (!existsSync(cache)) {
@@ -161,9 +180,9 @@ export async function run(argv) {
 
   if (flags.serve) {
     try {
-      await serveUntilSignal(explorerDir, port);
+      await serveUntilSignal(explorerDir, port, host);
     } catch (err) {
-      console.error(`explorer: failed to start server on port ${port}: ${err.message}`);
+      console.error(`explorer: failed to start server on ${host}:${port}: ${err.message}`);
       return 1;
     }
   }
