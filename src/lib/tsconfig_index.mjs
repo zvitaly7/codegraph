@@ -145,12 +145,26 @@ export class TsconfigIndex {
   }
 
   /**
-   * A tsconfig that declares its own `paths` stays in charge — two alias tables
-   * competing per specifier would make resolution impossible to reason about.
-   * The config table only fills the gap where there is none.
+   * Precedence is per alias pattern, not all-or-nothing: a tsconfig keeps every
+   * pattern it declares, and the config table supplies the ones it never
+   * mentioned. A per-package tsconfig typically maps that package's own
+   * internal aliases and says nothing about its siblings, so an all-or-nothing
+   * rule would silence the config table exactly where it is needed.
+   *
+   * Both tables share one `pathsBase`, so the config entries are pre-rebased
+   * onto the tsconfig's base when the two differ.
    */
   _withConfigPaths(view) {
-    if (!this._configPaths || Object.keys(view.paths ?? {}).length > 0) return view;
-    return { ...view, paths: this._configPaths, pathsBase: this._configPathsBase };
+    if (!this._configPaths) return view;
+    const own = view.paths ?? {};
+    const base = view.pathsBase ?? this._configPathsBase;
+    const merged = { ...own };
+    for (const [pattern, targets] of Object.entries(this._configPaths)) {
+      if (pattern in own) continue; // the tsconfig said it first
+      merged[pattern] = base === this._configPathsBase
+        ? targets
+        : targets.map((t) => relative(base, resolve(this._configPathsBase, t)) || '.');
+    }
+    return { ...view, paths: merged, pathsBase: base };
   }
 }
