@@ -91,6 +91,19 @@ function checkTypes(cfg) {
   oneOf('vcs', VCS_MODES);
   oneOf('lang', LANGS);
 
+  // `paths` mirrors tsconfig's own shape: alias pattern → list of targets.
+  if (cfg.paths !== undefined && cfg.paths !== null) {
+    const table = cfg.paths;
+    const shaped = isPlainObject(table)
+      && Object.values(table).every((v) => isStringArray(v));
+    if (!shaped) {
+      problems.push(problem('paths', 'paths must map an alias pattern to an array of target paths, e.g. { "@lib/*": ["packages/*/src"] }'));
+    }
+  }
+  if (cfg.pathsBase !== undefined && cfg.pathsBase !== null && typeof cfg.pathsBase !== 'string') {
+    problems.push(problem('pathsBase', 'pathsBase must be a path string, relative to the repo root'));
+  }
+
   if (cfg.describe !== undefined && !isPlainObject(cfg.describe)) {
     problems.push(problem('describe', 'describe must be an object'));
   }

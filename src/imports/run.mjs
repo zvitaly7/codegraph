@@ -75,7 +75,12 @@ export async function run(argv) {
   sources.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   if (maxFiles !== null) sources = sources.slice(0, maxFiles);
 
-  const tsconfigIndex = new TsconfigIndex({ repoRoot, tsconfigOverride: cfg.tsconfig });
+  const tsconfigIndex = new TsconfigIndex({
+    repoRoot,
+    tsconfigOverride: cfg.tsconfig,
+    configPaths: cfg.paths,
+    configPathsBase: cfg.pathsBase,
+  });
   const workspaces = discoverWorkspaces(repoRoot);
 
   const files = [];

@@ -95,8 +95,24 @@ function contains(base, dir) {
 }
 
 export class TsconfigIndex {
-  /** @param {{repoRoot:string, tsconfigOverride?:string|null}} opts */
-  constructor({ repoRoot, tsconfigOverride = null } = {}) {
+  /**
+   * @param {object} opts
+   * @param {string} opts.repoRoot
+   * @param {string|null} [opts.tsconfigOverride]
+   * @param {object|null} [opts.configPaths] alias table from loregraph.config,
+   *   same shape as tsconfig `paths`. Used for the files whose nearest tsconfig
+   *   declares no paths of its own — including repositories that have no
+   *   tsconfig at all, where it is the only way to state the mapping.
+   * @param {string|null} [opts.configPathsBase] base for `configPaths`,
+   *   resolved against the repo root; defaults to the repo root itself.
+   */
+  constructor({
+    repoRoot, tsconfigOverride = null, configPaths = null, configPathsBase = null,
+  } = {}) {
+    this._configPaths = configPaths && Object.keys(configPaths).length > 0 ? configPaths : null;
+    this._configPathsBase = this._configPaths
+      ? resolve(repoRoot, configPathsBase ?? '.')
+      : null;
     if (tsconfigOverride) {
       this._override = parseTsconfig(resolve(repoRoot, tsconfigOverride));
       this._entries = [];
@@ -116,15 +132,25 @@ export class TsconfigIndex {
     for (const entry of this._entries) {
       if (contains(entry.configDir, fileDir)) return this._view(entry);
     }
-    return DEFAULT_CONFIG;
+    return this._withConfigPaths(DEFAULT_CONFIG);
   }
 
   _view(entry) {
-    return {
+    return this._withConfigPaths({
       paths: entry.paths,
       pathsBase: entry.pathsBase,
       baseUrl: entry.baseUrl,
       configPath: entry.configPath,
-    };
+    });
+  }
+
+  /**
+   * A tsconfig that declares its own `paths` stays in charge — two alias tables
+   * competing per specifier would make resolution impossible to reason about.
+   * The config table only fills the gap where there is none.
+   */
+  _withConfigPaths(view) {
+    if (!this._configPaths || Object.keys(view.paths ?? {}).length > 0) return view;
+    return { ...view, paths: this._configPaths, pathsBase: this._configPathsBase };
   }
 }

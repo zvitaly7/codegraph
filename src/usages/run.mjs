@@ -42,10 +42,12 @@ function readJsonl(path) {
  * without the node_modules symlinks a fresh checkout may not have. A repo with
  * no workspaces gets exactly the options it always got.
  */
-function compilerOptions(repoRoot, tsconfigOverride) {
+function compilerOptions(repoRoot, tsconfigOverride, configPaths, configPathsBase) {
   const options = defaultCompilerOptions();
   try {
-    const view = new TsconfigIndex({ repoRoot, tsconfigOverride }).forFile(join(repoRoot, '__root__.ts'));
+    const view = new TsconfigIndex({
+      repoRoot, tsconfigOverride, configPaths, configPathsBase,
+    }).forFile(join(repoRoot, '__root__.ts'));
     if (view.paths && Object.keys(view.paths).length > 0) {
       options.paths = view.paths;
       options.baseUrl = view.baseUrl ?? view.pathsBase;
@@ -250,7 +252,7 @@ export async function run(argv, ctx = {}) {
     .map((row) => join(repoRoot, normPosix(row.path)))
     .filter((abs) => existsSync(abs));
 
-  const options = compilerOptions(repoRoot, cfg.tsconfig);
+  const options = compilerOptions(repoRoot, cfg.tsconfig, cfg.paths, cfg.pathsBase);
 
   const usages = resolveUsages({
     cfg, repoRoot, outDir, fileNames, options, symbolIds, currentSourcePaths,

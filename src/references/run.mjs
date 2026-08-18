@@ -56,10 +56,12 @@ function pathOfSymId(id) {
  * without the node_modules symlinks a fresh checkout may not have. A repo with
  * no workspaces gets exactly the options it always got.
  */
-function compilerOptions(repoRoot, tsconfigOverride) {
+function compilerOptions(repoRoot, tsconfigOverride, configPaths, configPathsBase) {
   const options = defaultCompilerOptions();
   try {
-    const view = new TsconfigIndex({ repoRoot, tsconfigOverride }).forFile(join(repoRoot, '__root__.ts'));
+    const view = new TsconfigIndex({
+      repoRoot, tsconfigOverride, configPaths, configPathsBase,
+    }).forFile(join(repoRoot, '__root__.ts'));
     if (view.paths && Object.keys(view.paths).length > 0) {
       options.paths = view.paths;
       options.baseUrl = view.baseUrl ?? view.pathsBase;
@@ -188,9 +190,10 @@ function resolveReferences({
  */
 function collectExposures({
   repoRoot, entryPoints, currentSourcePaths, exportedNamesByPath, tsconfigOverride, workspaces,
+  configPaths, configPathsBase,
 }) {
   if (entryPoints.length === 0) return [];
-  const tsconfigIndex = new TsconfigIndex({ repoRoot, tsconfigOverride });
+  const tsconfigIndex = new TsconfigIndex({ repoRoot, tsconfigOverride, configPaths, configPathsBase });
   const noNames = new Set();
 
   const reached = entryReachableSymbols({
@@ -318,7 +321,7 @@ export async function run(argv, ctx = {}) {
     .map((row) => join(repoRoot, normPosix(row.path)))
     .filter((abs) => existsSync(abs));
 
-  const options = compilerOptions(repoRoot, cfg.tsconfig);
+  const options = compilerOptions(repoRoot, cfg.tsconfig, cfg.paths, cfg.pathsBase);
 
   const references = resolveReferences({
     cfg, repoRoot, outDir, fileNames, options, symbolIds, currentSourcePaths,
@@ -343,6 +346,7 @@ export async function run(argv, ctx = {}) {
   const exposures = collectExposures({
     repoRoot, entryPoints: entryPoints.paths, currentSourcePaths, exportedNamesByPath,
     tsconfigOverride: cfg.tsconfig, workspaces,
+    configPaths: cfg.paths, configPathsBase: cfg.pathsBase,
   });
   const exposedIds = new Set(exposures.map((x) => x.symId));
 
