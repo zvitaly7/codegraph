@@ -181,15 +181,30 @@ describe('workspace packages', () => {
   // the first: the dependency stops looking internal, the domain layer loses the
   // edge, and the resolution rate counts a miss as a success. `unresolved` says
   // what actually happened — the same answer the tsconfig-alias branch gives.
+  // Reporting the miss is not enough on its own: something has to say WHICH
+  // package could not be reached, or the count is a number nobody can act on.
+  it('names the package it could not reach', () => {
+    const r = makeWs(
+      ['packages/app/src/main.ts'],
+      [{ name: '@myorg/ui', dir: 'packages/ui', entries: ['packages/ui/dist/index.js'], subpaths: {} }],
+    );
+    expect(r('@myorg/ui/button', 'packages/app/src/main.ts')).toEqual({
+      kind: 'unresolved',
+      targetId: null,
+      reason: 'workspace-unresolved',
+      packageName: '@myorg/ui',
+    });
+  });
+
   it('a workspace package that resolves to no file is unresolved, not third-party', () => {
     const r = makeWs(
       ['packages/app/src/main.ts'],
       [{ name: '@myorg/ui', dir: 'packages/ui', entries: ['packages/ui/dist/index.js'], subpaths: {} }],
     );
     expect(r('@myorg/ui', 'packages/app/src/main.ts'))
-      .toEqual({ kind: 'unresolved', targetId: null });
+      .toMatchObject({ kind: 'unresolved', targetId: null });
     expect(r('@myorg/ui/ghost', 'packages/app/src/main.ts'))
-      .toEqual({ kind: 'unresolved', targetId: null });
+      .toMatchObject({ kind: 'unresolved', targetId: null });
   });
 
   it('leaves a genuine third-party package alone', () => {

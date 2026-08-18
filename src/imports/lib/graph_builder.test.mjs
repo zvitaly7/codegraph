@@ -36,7 +36,7 @@ describe('buildGraph nodes/edges/counts', () => {
 
     expect(g.counts).toEqual({
       files: 2, packages: 1, edges: 2, internal: 1, external: 1, unresolved: 1,
-      computedDynamicImports: 0,
+      unresolvedPackages: {}, computedDynamicImports: 0,
     });
   });
 
@@ -131,5 +131,45 @@ describe('tsconfig alias integration', () => {
       properties: { specifier: '@app/util', kind: 'internal' },
     });
     expect(g.counts.internal).toBe(1);
+  });
+});
+
+// A count of unresolved imports is a number nobody can act on. The names behind
+// it are the actionable part: they say which packages the graph is missing, and
+// therefore which mappings would bring those dependencies back.
+describe('unresolved workspace packages are reported by name', () => {
+  const ws = new Map([
+    ['@myorg/ui', { name: '@myorg/ui', dir: 'packages/ui', entries: ['packages/ui/dist/index.js'], subpaths: {} }],
+    ['@myorg/core', { name: '@myorg/core', dir: 'packages/core', entries: ['packages/core/dist/index.js'], subpaths: {} }],
+  ]);
+
+  function buildWs(files) {
+    return buildGraph({ files, repoRoot: REPO, tsconfigIndex: NO_TS_INDEX, workspaces: ws });
+  }
+
+  it('counts the imports behind each package that could not be reached', () => {
+    const g = buildWs([
+      file('apps/a/src/main.ts', ['@myorg/ui', '@myorg/ui/button', '@myorg/core']),
+      file('apps/b/src/main.ts', ['@myorg/ui', 'react']),
+    ]);
+    expect(g.counts.unresolvedPackages).toEqual({ '@myorg/ui': 3, '@myorg/core': 1 });
+  });
+
+  it('says nothing when every workspace package resolves', () => {
+    const okWs = new Map([
+      ['@myorg/ui', { name: '@myorg/ui', dir: 'packages/ui', entries: ['packages/ui/src/index.ts'], subpaths: {} }],
+    ]);
+    const g = buildGraph({
+      files: [file('apps/a/src/main.ts', ['@myorg/ui']), file('packages/ui/src/index.ts', [])],
+      repoRoot: REPO,
+      tsconfigIndex: NO_TS_INDEX,
+      workspaces: okWs,
+    });
+    expect(g.counts.unresolvedPackages).toEqual({});
+  });
+
+  it('a genuine third party is never listed as one of ours', () => {
+    const g = buildWs([file('apps/a/src/main.ts', ['react', 'lodash'])]);
+    expect(g.counts.unresolvedPackages).toEqual({});
   });
 });

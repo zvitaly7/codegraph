@@ -55,7 +55,7 @@ describe('run() happy path', () => {
     expect(manifest.schemaVersion).toBe(1);
     expect(manifest.basedOnSnapshot).toBe('snapshot:demo:rev1');
     expect(typeof manifest.generatedAt).toBe('string');
-    expect(manifest.counts).toEqual({ files: 2, packages: 1, edges: 2, internal: 1, external: 1, unresolved: 1, computedDynamicImports: 0 });
+    expect(manifest.counts).toEqual({ files: 2, packages: 1, edges: 2, internal: 1, external: 1, unresolved: 1, unresolvedPackages: {}, computedDynamicImports: 0 });
     expect(manifest.resolutionRate).toBeCloseTo(0.5, 5);
 
     const nodes = readLines(join(out, 'nodes.jsonl'));
@@ -203,6 +203,39 @@ describe('run() — workspace monorepos', () => {
     expect(edges.some((e) => e.to === 'file:packages/ui/src/index.ts')).toBe(true);
   });
 
+  // Losing a dependency quietly is the failure mode that matters: the graph
+  // still looks complete, and nothing on screen says which packages fell out of
+  // it. The run has to name them every time, not only when someone runs `init`.
+  it('names the unreachable packages on stderr, worst first', async () => {
+    src('package.json', JSON.stringify({ name: 'root', private: true, workspaces: ['packages/*'] }));
+    src('packages/ghost/package.json', JSON.stringify({ name: '@myorg/ghost', main: 'dist/index.js' }));
+    src('packages/spectre/package.json', JSON.stringify({ name: '@myorg/spectre', main: 'dist/index.js' }));
+    src('packages/app/src/main.ts',
+      "import a from '@myorg/ghost'; import b from '@myorg/ghost/x'; import c from '@myorg/spectre';");
+    writeInventory(repo, [INV[0]]);
+
+    const warn = [];
+    console.error.mockImplementation((m) => warn.push(String(m)));
+    await run(['--repo-root', repo, '--out', join(repo, '.kg-cache')]);
+    console.error.mockImplementation(() => {});
+
+    const text = warn.join('\n');
+    expect(text).toMatch(/@myorg\/ghost/);
+    expect(text).toMatch(/@myorg\/spectre/);
+    expect(text).toMatch(/paths/); // says how to fix it
+    // worst offender first: ghost has two imports, spectre one
+    expect(text.indexOf('@myorg/ghost')).toBeLessThan(text.indexOf('@myorg/spectre'));
+  });
+
+  it('says nothing about unreachable packages when there are none', async () => {
+    monorepo({ rootPkg: { name: 'root', private: true, workspaces: ['packages/*'] } });
+    const warn = [];
+    console.error.mockImplementation((m) => warn.push(String(m)));
+    await run(['--repo-root', repo, '--out', join(repo, '.kg-cache')]);
+    console.error.mockImplementation(() => {});
+    expect(warn.join('\n')).not.toMatch(/could not be resolved|unreachable/i);
+  });
+
   it('a workspace name that resolves to no real file yields no third-party edge', async () => {
     src('package.json', JSON.stringify({ name: 'root', private: true, workspaces: ['packages/*'] }));
     src('packages/ghost/package.json', JSON.stringify({ name: '@myorg/ghost', main: 'dist/index.js' }));
@@ -246,7 +279,7 @@ describe('run() — workspace monorepos', () => {
       '{"id":"pkg:react","labels":["Package"],"properties":{"name":"react","scope":null}}',
     ].join('\n'));
     const manifest = JSON.parse(readFileSync(join(out, 'imports', 'manifest.json'), 'utf8'));
-    expect(manifest.counts).toEqual({ files: 2, packages: 2, edges: 3, internal: 1, external: 2, unresolved: 0, computedDynamicImports: 0 });
+    expect(manifest.counts).toEqual({ files: 2, packages: 2, edges: 3, internal: 1, external: 2, unresolved: 0, unresolvedPackages: {}, computedDynamicImports: 0 });
   });
 });
 
