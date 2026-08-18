@@ -694,6 +694,8 @@ Optional `loregraph.config.mjs` (default export) or `loregraph.config.json` at t
 | `outDir` | `'.kg-cache'` | Base cache directory for all artifacts. |
 | `domains` | `null` | `null` auto-derives the overlay. Otherwise an inline object or a path to a module exporting `CANONICAL_DOMAINS`, `ALIASES` and `AREA_BUCKETS`. |
 | `incremental` | `'off'` | `'off'` or `'incremental'` — rebuild mode for the heavy layers. |
+| `paths` | `null` | tsconfig-shaped alias table (`{ "@lib/*": ["packages/*/src"] }`) for repositories that ship no `tsconfig.json`. Applies only where the nearest tsconfig declares no `paths` of its own. |
+| `pathsBase` | `null` | Base for `paths`, relative to the repo root. `null` means the repo root. |
 | `compressPaths` | `false` | Factor shared directory prefixes out of the path lists `brief` and `impact` print. `--compress-paths` / `--no-compress-paths` override it per call. |
 | `entryPoints` | `[]` | Globs whose exports are never reported as dead — files consumed across a boundary the import graph cannot see (module-federation remotes, dynamic-import targets). What such a file re-exports is held back too, through the whole chain of barrels. `package.json` `main`/`module`/`exports`/`bin`, and the same fields of every workspace package, are detected on top of these. |
 | `check` | `{}` | Rules for `loregraph check`, the CI gate: `noCycles`, `maxDeadExports`, `minResolutionRate`, `domainRules`. Empty means nothing is verified — and the command says so rather than reporting a pass. |
