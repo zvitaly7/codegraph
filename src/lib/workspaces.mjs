@@ -17,8 +17,8 @@
 // The result is plain data — repo-relative POSIX paths, packages sorted by name
 // — so the import resolver stays a pure lexical function over the inventory.
 
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
+import { join, resolve, relative, isAbsolute } from 'node:path';
 import { normPosix } from '../inventory/schema.mjs';
 
 const SKIP_DIRS = new Set(['node_modules', '.git']);
@@ -288,6 +288,94 @@ function expandPattern(repoRoot, pattern) {
  *   `sources` names the declaration files that contributed (empty → not a
  *   workspace repo, and every caller must behave exactly as it did before).
  */
+/** Directories never worth descending into while hunting for `node_modules`. */
+const NEVER_DESCEND = new Set(['node_modules', '.git', '.hg', '.svn']);
+
+/**
+ * Every `node_modules` directory inside the repo, found without descending into
+ * any of them: the tree above them is small, the tree inside is not.
+ */
+function nodeModulesDirs(repoRoot) {
+  const found = [];
+  const queue = ['.'];
+  while (queue.length > 0) {
+    const rel = queue.pop();
+    let entries;
+    try {
+      entries = readdirSync(rel === '.' ? repoRoot : join(repoRoot, rel), { withFileTypes: true });
+    } catch { continue; }
+    for (const e of entries) {
+      if (!e.isDirectory() && !e.isSymbolicLink()) continue;
+      const childRel = rel === '.' ? e.name : `${rel}/${e.name}`;
+      if (e.name === 'node_modules') { found.push(childRel); continue; }
+      // A symlinked directory elsewhere in the tree is not ours to walk into.
+      if (NEVER_DESCEND.has(e.name) || e.isSymbolicLink()) continue;
+      queue.push(childRel);
+    }
+  }
+  return found;
+}
+
+/**
+ * The package links of one `node_modules`: a symlink at depth 1, or at depth 2
+ * under an `@scope`. Only links whose target lands back inside the repo count —
+ * anything else is a genuine third party, however it got there.
+ *
+ * The link name is the key, not the manifest's `name`: an import specifier is
+ * resolved by the path it takes through `node_modules`, and the two can differ.
+ */
+function linksIn(repoRoot, nmRel) {
+  const out = [];
+  // Both sides must be real paths before they can be compared: a checkout
+  // reached through a symlink (macOS /tmp and /var are, routinely) would
+  // otherwise look like it lives outside itself.
+  let realRoot;
+  try { realRoot = realpathSync(repoRoot); } catch { realRoot = repoRoot; }
+  const scan = (dirRel, prefix) => {
+    let entries;
+    try { entries = readdirSync(join(repoRoot, dirRel), { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (e.name.startsWith('.')) continue;
+      const childRel = `${dirRel}/${e.name}`;
+      if (!prefix && e.name.startsWith('@') && e.isDirectory() && !e.isSymbolicLink()) {
+        scan(childRel, `${e.name}/`);
+        continue;
+      }
+      if (!e.isSymbolicLink()) continue;
+      let target;
+      try { target = realpathSync(join(repoRoot, childRel)); } catch { continue; } // broken link
+      const rel = relative(realRoot, target);
+      if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) continue; // outside the repo
+      out.push({ name: `${prefix}${e.name}`, dir: normPosix(rel) });
+    }
+  };
+  scan(nmRel, '');
+  return out;
+}
+
+/**
+ * Workspace packages as they exist on disk: symlinks in `node_modules` pointing
+ * back into the repo. Discovery cannot rely on the declaration that created
+ * them — it may sit above `--repo-root` when a subdirectory of a larger
+ * monorepo is analyzed on its own, or the install may be per-application with
+ * no root manifest at all. The link is the fact; the paperwork is optional.
+ *
+ * @param {string} repoRoot absolute repo root.
+ * @returns {Map<string, object>} package records by the name they are linked as.
+ */
+export function discoverLinkedPackages(repoRoot) {
+  const byName = new Map();
+  for (const nmRel of nodeModulesDirs(repoRoot)) {
+    for (const { name, dir } of linksIn(repoRoot, nmRel)) {
+      if (byName.has(name)) continue;
+      const manifest = readPackageManifest(repoRoot, dir);
+      if (!manifest) continue; // no package.json inside the repo → nothing to point at
+      byName.set(name, { ...manifest, name, dir });
+    }
+  }
+  return byName;
+}
+
 export function discoverWorkspaces(repoRoot) {
   const sources = [];
   const patterns = [];
@@ -302,8 +390,6 @@ export function discoverWorkspaces(repoRoot) {
     sources.push('pnpm-workspace.yaml');
     patterns.push(...fromPnpm);
   }
-
-  if (patterns.length === 0) return { sources: [], packages: [], byName: new Map() };
 
   const included = new Set();
   const excluded = new Set();
@@ -321,6 +407,19 @@ export function discoverWorkspaces(repoRoot) {
     packages.push(pkg);
     byName.set(pkg.name, pkg);
   }
+  // Links fill in what no declaration reached us. A declared package always
+  // wins: the manifest says where the package is meant to live, the link only
+  // says where this one install happened to put it.
+  const linked = discoverLinkedPackages(repoRoot);
+  let fromLinks = 0;
+  for (const [name, pkg] of linked) {
+    if (byName.has(name)) continue;
+    byName.set(name, pkg);
+    packages.push(pkg);
+    fromLinks += 1;
+  }
+  if (fromLinks > 0) sources.push('node_modules links');
+
   packages.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
   return { sources, packages, byName };
