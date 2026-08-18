@@ -163,7 +163,11 @@ export function resolveSpecifier(specifier, { fromAbsFile, repoRoot, fileSet, ts
       const rel = matchSource(resolvePath(repoRoot, relBase), repoRoot, fileSet);
       if (rel) return { kind: 'internal', targetId: fileId(rel) };
     }
-    return { kind: 'unresolved', targetId: null };
+    // Named, so a report can say which package went missing rather than only
+    // how many imports did.
+    return {
+      kind: 'unresolved', targetId: null, reason: 'workspace-unresolved', packageName,
+    };
   }
 
   // 5. Bare specifier — external package.

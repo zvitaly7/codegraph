@@ -139,6 +139,26 @@ export async function run(argv) {
     + `unresolved=${counts.unresolved} rate=${resolutionRate.toFixed(4)}${wsNote}${dynNote} out=${outBase}`,
   );
 
+  // Packages the repo owns that no import could be traced into. Left unsaid,
+  // this is the failure that looks like success: the graph reads as complete
+  // while every dependency on those packages is missing from it, so the report
+  // names them and how to map them, on every run rather than at setup time.
+  const unreachable = Object.entries(counts.unresolvedPackages ?? {});
+  if (unreachable.length > 0) {
+    const total = unreachable.reduce((sum, [, n]) => sum + n, 0);
+    console.error(
+      `imports: ${unreachable.length} package(s) belong to this repo but no import could be `
+      + `resolved into them (${total} import(s) lost from the graph):`,
+    );
+    for (const [name, n] of unreachable) {
+      console.error(`  ${name} — ${n} import(s)`);
+    }
+    console.error(
+      '  their entry points name build output the graph does not index; '
+      + 'map them with the `paths` config key to restore the dependencies',
+    );
+  }
+
   // Policy gate runs after artifacts are written.
   if (requireRate !== null && resolutionRate < requireRate) {
     console.error(`imports: resolution rate ${resolutionRate.toFixed(4)} < required ${requireRate}`);

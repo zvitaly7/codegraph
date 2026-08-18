@@ -31,6 +31,10 @@ export function buildGraph({ files, repoRoot, tsconfigIndex, workspaces }) {
   const packages = new Map(); // name → node
   const edges = new Map();     // edge id → edge
   const counts = { internal: 0, external: 0, unresolved: 0 };
+  // Which of our own packages an import could not be traced into, and how many
+  // imports each one swallowed. The count alone says data is missing; the names
+  // say what would bring it back.
+  const unresolvedPackages = new Map();
 
   for (const f of sortedFiles) {
     const fromId = fileId(f.path);
@@ -47,7 +51,12 @@ export function buildGraph({ files, repoRoot, tsconfigIndex, workspaces }) {
       });
       counts[res.kind] += 1;
 
-      if (res.kind === 'unresolved') continue;
+      if (res.kind === 'unresolved') {
+        if (res.reason === 'workspace-unresolved') {
+          unresolvedPackages.set(res.packageName, (unresolvedPackages.get(res.packageName) ?? 0) + 1);
+        }
+        continue;
+      }
 
       if (res.kind === 'external' && !packages.has(res.packageName)) {
         packages.set(res.packageName, {
@@ -93,6 +102,11 @@ export function buildGraph({ files, repoRoot, tsconfigIndex, workspaces }) {
       internal: counts.internal,
       external: counts.external,
       unresolved: counts.unresolved,
+      // Sorted by weight, then name: the package that swallowed the most
+      // imports is the one worth mapping first.
+      unresolvedPackages: Object.fromEntries(
+        [...unresolvedPackages.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)),
+      ),
       computedDynamicImports,
     },
   };
