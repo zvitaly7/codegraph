@@ -76,6 +76,35 @@ describe('resolveConfig', () => {
     expect(fromFlag.incremental).toBe('off');
   });
 
+  // A key nobody reads is a setting that silently does nothing. The run must
+  // stop and name it rather than proceed at a default the user did not choose.
+  it('refuses a config file with an unknown key, naming it and the file', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cg-cfg-unknown-'));
+    writeFileSync(join(dir, 'loregraph.config.json'), JSON.stringify({ srcRoot: ['lib'] }), 'utf8');
+
+    await expect(resolveConfig({ cwd: dir, argv: ['--repo-root', dir] }))
+      .rejects.toThrow(/srcRoot.*srcRoots/s);
+  });
+
+  it('names the offending config file in the error', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cg-cfg-unknown-path-'));
+    writeFileSync(join(dir, 'loregraph.config.json'), JSON.stringify({ nope: 1 }), 'utf8');
+
+    await expect(resolveConfig({ cwd: dir, argv: ['--repo-root', dir] }))
+      .rejects.toThrow(/loregraph\.config\.json/);
+  });
+
+  it('accepts a config file that only uses known keys', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cg-cfg-known-'));
+    writeFileSync(
+      join(dir, 'loregraph.config.json'),
+      JSON.stringify({ srcRoots: ['lib'], describe: { top: 5 } }),
+      'utf8',
+    );
+    const cfg = await resolveConfig({ cwd: dir, argv: ['--repo-root', dir] });
+    expect(cfg.srcRoots).toEqual(['lib']);
+  });
+
   it('exposes bare arguments as _positionals, in order and free of flags', async () => {
     const cfg = await resolveConfig({
       cwd: '/tmp/x',
