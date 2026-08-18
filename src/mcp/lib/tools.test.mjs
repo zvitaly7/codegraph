@@ -6,7 +6,8 @@ import { loadGraph } from '../../lib/graph_load.mjs';
 import {
   findNode, nodeInfo, importsOf, importedBy, impactOf, pathBetween,
   listSymbols, deadExports, domainOf, domainDependencies, domainCrossings,
-  brief, impact, outline, show, describe as describeTool, callTool, TOOLS, TOOL_NAMES,
+  brief, impact, outline, show, describe as describeTool, cycles as cyclesTool,
+  callTool, TOOLS, TOOL_NAMES,
 } from './tools.mjs';
 import { writeDescriptions } from '../../describe/lib/store.mjs';
 
@@ -440,12 +441,42 @@ describe('brief + descriptions', () => {
   });
 });
 
+describe('cycles', () => {
+  it('reports none on the acyclic fixture graph', () => {
+    const r = cyclesTool(g, {});
+    expect(r.scope).toBe('both');
+    expect(r.total).toBe(0);
+  });
+
+  it('finds a file cycle and a weighted domain cycle', () => {
+    const cache = mkdtempSync(join(tmpdir(), 'cg-mcp-cycles-'));
+    writeLayer(cache, 'inventory', { nodes: [fileNode('src/a.ts'), fileNode('src/b.ts')] });
+    writeLayer(cache, 'imports', {
+      edges: [
+        imp('src/a.ts', 'file:src/b.ts', 'internal', './b'),
+        imp('src/b.ts', 'file:src/a.ts', 'internal', './a'),
+      ],
+    });
+    writeLayer(cache, 'domains', {
+      nodes: [domainNode('ui'), domainNode('server')],
+      edges: [dependsOn('ui', 'server', 4), dependsOn('server', 'ui', 2)],
+    });
+    const cyclic = loadGraph(cache);
+    const r = cyclesTool(cyclic, {});
+    expect(r.file.cycles[0].members).toEqual(['src/a.ts', 'src/b.ts']);
+    expect(r.domain.cycles[0].members).toEqual(['server', 'ui']);
+    expect(r.domain.cycles[0].minWeight).toBe(2);
+    expect(cyclesTool(cyclic, { scope: 'file' }).domain).toBeUndefined();
+  });
+});
+
 describe('callTool + registry', () => {
-  it('exposes exactly 16 tools', () => {
-    expect(TOOLS).toHaveLength(16);
+  it('exposes exactly 17 tools', () => {
+    expect(TOOLS).toHaveLength(17);
     expect(TOOL_NAMES.has('outline')).toBe(true);
     expect(TOOL_NAMES.has('show')).toBe(true);
     expect(TOOL_NAMES.has('describe')).toBe(true);
+    expect(TOOL_NAMES.has('cycles')).toBe(true);
   });
   it('every TOOLS spec has a matching dispatch entry and vice versa', () => {
     expect(TOOLS.map((t) => t.name).sort()).toEqual([...TOOL_NAMES].sort());

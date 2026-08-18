@@ -236,6 +236,28 @@ describe('buildIndex — insights', () => {
     expect(deadExportsEntryPoints).toBe(1);
   });
 
+  it('cycles counts circular dependencies and samples them for the card', () => {
+    const { cycles, cyclesTotal, fileCyclesTotal, domainCyclesTotal } = buildIndex(sampleGraph(), FIXED).insights;
+    // The fixture is acyclic on files, but core ↔ ui is a domain cycle.
+    expect(fileCyclesTotal).toBe(0);
+    expect(domainCyclesTotal).toBe(1);
+    expect(cyclesTotal).toBe(1);
+    expect(cycles).toEqual([{
+      scope: 'domain', id: 'domain:core', members: ['core', 'ui'], length: 2, weight: 4,
+    }]);
+  });
+
+  it('cycles picks up file import cycles too', () => {
+    const g = sampleGraph();
+    g.edges.push(edge('IMPORTS', 'file:src/a.ts', 'file:src/b.ts', { kind: 'internal' }));
+    const { cycles, fileCyclesTotal, cyclesTotal } = buildIndex(g, FIXED).insights;
+    expect(fileCyclesTotal).toBe(1);
+    expect(cyclesTotal).toBe(2);
+    expect(cycles[0]).toEqual({
+      scope: 'file', id: 'file:src/a.ts', members: ['src/a.ts', 'src/b.ts'], length: 2,
+    });
+  });
+
   it('mostDependedPackages ranks external packages by importing files', () => {
     const { mostDependedPackages } = buildIndex(sampleGraph(), FIXED).insights;
     expect(mostDependedPackages).toEqual([
