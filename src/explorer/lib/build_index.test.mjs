@@ -221,9 +221,19 @@ describe('buildIndex — insights', () => {
   });
 
   it('deadExports = exported symbols with zero cross-file references', () => {
-    const { deadExports, deadExportsTotal } = buildIndex(sampleGraph(), FIXED).insights;
+    const { deadExports, deadExportsTotal, deadExportsEntryPoints } = buildIndex(sampleGraph(), FIXED).insights;
     expect(deadExports).toEqual([{ id: 'sym:src/a.ts#deadFn', name: 'deadFn', kind: 'function' }]);
     expect(deadExportsTotal).toBe(1);
+    expect(deadExportsEntryPoints).toBe(0);
+  });
+
+  it('deadExports skips symbols declared in an entry-point file, and counts the exclusion', () => {
+    const g = sampleGraph();
+    g.nodesById.get('file:src/a.ts').properties.entryPoint = true;
+    const { deadExports, deadExportsTotal, deadExportsEntryPoints } = buildIndex(g, FIXED).insights;
+    expect(deadExports).toEqual([]);
+    expect(deadExportsTotal).toBe(0);
+    expect(deadExportsEntryPoints).toBe(1);
   });
 
   it('mostDependedPackages ranks external packages by importing files', () => {
@@ -298,6 +308,7 @@ describe('buildIndex — determinism & graceful degradation', () => {
     expect(idx.insights.components).toEqual([]);
     expect(idx.insights.deadExports).toEqual([]);
     expect(idx.insights.deadExportsTotal).toBe(0);
+    expect(idx.insights.deadExportsEntryPoints).toBe(0);
 
     // Layer-independent insights still populated.
     expect(idx.insights.productMap.length).toBeGreaterThan(0);

@@ -193,6 +193,35 @@ describe('dead_exports', () => {
     expect(r.note).not.toMatch(/Best-effort/);
     expect(r.candidates.map((c) => c.name).sort()).toEqual(['format', 'pay']);
     expect(r.exportedSymbols).toBe(3);
+    expect(r.entryPointExclusions).toBe(0);
+  });
+
+  it('excludes exports of a file the references layer marked as an entry point', () => {
+    writeLayer(g.cacheDir, 'references', {
+      nodes: [fileNode('src/checkout/pay.ts', { entryPoint: true })],
+      edges: [
+        { id: 'r1', type: 'REFERENCES', from: 'file:src/ui/button.tsx', to: 'sym:src/core/index.ts#setup', properties: { sameFile: false } },
+      ],
+    });
+    const r = deadExports(loadGraph(g.cacheDir));
+    // `pay` lives in an entry point; `format` is a genuine dead export.
+    expect(r.candidates.map((c) => c.name)).toEqual(['format']);
+    expect(r.total).toBe(1);
+    expect(r.entryPointExclusions).toBe(1);
+    expect(r.note).toMatch(/entry point/i);
+    // Not listed unless asked for — the count alone says the exclusion happened.
+    expect(r.entryPoints).toBeUndefined();
+  });
+
+  it('lists the excluded entry-point symbols on request', () => {
+    writeLayer(g.cacheDir, 'references', {
+      nodes: [fileNode('src/checkout/pay.ts', { entryPoint: true })],
+      edges: [],
+    });
+    const r = deadExports(loadGraph(g.cacheDir), { includeEntryPoints: true });
+    expect(r.entryPoints).toEqual([
+      { id: 'sym:src/checkout/pay.ts#pay', name: 'pay', kind: 'function', path: 'src/checkout/pay.ts', line: 1 },
+    ]);
   });
 });
 

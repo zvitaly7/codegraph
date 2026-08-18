@@ -253,6 +253,18 @@ describe('health.md', () => {
     // an entry-like file with no importers is not reported as an orphan
     expect(c).not.toContain('src/core/index.ts');
   });
+
+  it('holds back entry-point exports and says how many', () => {
+    g.nodesById.get('file:src/orphan.ts').properties.entryPoint = true;
+    const c = renderDocs(g).find((p) => p.kind === 'health').content;
+    expect(c).toContain('`cart`');                      // still dead
+    expect(c).not.toContain('`lonely`');                // held back as an entry point
+    expect(c).toMatch(/1 .*held back as entry points/);
+  });
+
+  it('says nothing about held-back exports when no entry point is marked', () => {
+    expect(page('health').content).not.toMatch(/held back as entry points/);
+  });
 });
 
 describe('i18n', () => {

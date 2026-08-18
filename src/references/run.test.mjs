@@ -109,6 +109,89 @@ describe('run() happy path', () => {
   });
 });
 
+describe('run() — entry points are not dead exports', () => {
+  const INV = [
+    { id: 'file:src/entry.ts', path: 'src/entry.ts', language: 'TypeScript', kind: 'code' },
+    { id: 'file:src/lib.ts', path: 'src/lib.ts', language: 'TypeScript', kind: 'code' },
+  ];
+
+  function twoUnusedExports() {
+    // Neither export is imported anywhere: both are dead-export candidates.
+    // `lib.ts` uses its own export, so it gets a File node (same-file uses do
+    // not save an export from being dead).
+    src('src/entry.ts', 'export function mount() {}\n');
+    src('src/lib.ts', 'export function helper() {}\nexport const alias = () => helper();\n');
+    writeInventory(repo, INV);
+    writeSymbols(repo, [
+      symbolNode('src/entry.ts', 'mount', true),
+      symbolNode('src/lib.ts', 'helper', true),
+    ]);
+  }
+
+  const manifest = () => JSON.parse(
+    readFileSync(join(repo, '.kg-cache', 'references', 'manifest.json'), 'utf8'),
+  );
+
+  it('a file listed in entryPoints has its exports excluded, and the count is reported', async () => {
+    twoUnusedExports();
+    writeFileSync(join(repo, 'loregraph.config.json'), JSON.stringify({ entryPoints: ['src/entry.ts'] }));
+
+    expect(await run(outArg())).toBe(0);
+    expect(manifest().counts.deadExports).toBe(1);          // only src/lib.ts#helper
+    expect(manifest().counts.entryPointExclusions).toBe(1); // src/entry.ts#mount
+    expect(manifest().entryPoints).toEqual([{ path: 'src/entry.ts', reason: 'config' }]);
+  });
+
+  it('a package.json bin target is auto-excluded with no config at all', async () => {
+    twoUnusedExports();
+    writeFileSync(join(repo, 'package.json'), JSON.stringify({ name: 'app', bin: { app: './src/entry.ts' } }));
+
+    expect(await run(outArg())).toBe(0);
+    expect(manifest().counts.deadExports).toBe(1);
+    expect(manifest().counts.entryPointExclusions).toBe(1);
+    expect(manifest().entryPoints).toEqual([{ path: 'src/entry.ts', reason: 'package.json' }]);
+  });
+
+  it('a package.json main target is auto-excluded too', async () => {
+    twoUnusedExports();
+    writeFileSync(join(repo, 'package.json'), JSON.stringify({ name: 'app', main: 'src/entry.ts' }));
+
+    expect(await run(outArg())).toBe(0);
+    expect(manifest().counts.deadExports).toBe(1);
+    expect(manifest().counts.entryPointExclusions).toBe(1);
+  });
+
+  it('does not over-exclude: with no entry points both exports stay dead', async () => {
+    twoUnusedExports();
+    expect(await run(outArg())).toBe(0);
+    expect(manifest().counts.deadExports).toBe(2);
+    expect(manifest().counts.entryPointExclusions).toBe(0);
+    expect(manifest().entryPoints).toEqual([]);
+  });
+
+  it('globs match as expected', async () => {
+    twoUnusedExports();
+    writeFileSync(join(repo, 'loregraph.config.json'), JSON.stringify({ entryPoints: ['src/entry.*'] }));
+    expect(await run(outArg())).toBe(0);
+    expect(manifest().counts.entryPointExclusions).toBe(1);
+  });
+
+  it('marks the entry-point File node, even when it references nothing', async () => {
+    twoUnusedExports();
+    writeFileSync(join(repo, 'loregraph.config.json'), JSON.stringify({ entryPoints: ['src/entry.ts'] }));
+    expect(await run(outArg())).toBe(0);
+
+    const nodes = readLines(join(repo, '.kg-cache', 'references', 'nodes.jsonl'));
+    expect(nodes).toContainEqual({
+      id: 'file:src/entry.ts',
+      labels: ['File'],
+      properties: { path: 'src/entry.ts', entryPoint: true },
+    });
+    // A non-entry file's node is untouched.
+    expect(nodes.find((n) => n.id === 'file:src/lib.ts')?.properties.entryPoint).toBeUndefined();
+  });
+});
+
 describe('run() exit codes & flags', () => {
   it('missing inventory manifest → 2', async () => {
     const code = await run(outArg());
