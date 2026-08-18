@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { detectVcs, collectVcsMetadata } from './detect.mjs';
@@ -53,5 +53,28 @@ describe('collectVcsMetadata', () => {
 
   it('mode git forces git collection', () => {
     expect(collectVcsMetadata(gitRepo, 'git').type).toBe('git');
+  });
+});
+
+describe('a repoRoot inside a checkout (monorepo service dir, workspace package)', () => {
+  it('detects git even though only the top level carries a .git', () => {
+    const root = mkdtempSync(join(tmpdir(), 'cg-sub-'));
+    const g = (...a) => execFileSync('git', ['-C', root, ...a], { stdio: 'pipe' });
+    g('init', '-q', '-b', 'main');
+    g('config', 'user.email', 't@t');
+    g('config', 'user.name', 't');
+    const nested = join(root, 'services', 'myapp');
+    mkdirSync(nested, { recursive: true });
+    writeFileSync(join(nested, 'a.txt'), 'hi');
+    g('add', '-A');
+    g('commit', '-q', '-m', 'init');
+
+    expect(existsSync(join(nested, '.git'))).toBe(false);
+    expect(detectVcs(nested)).toBe('git');
+
+    const meta = collectVcsMetadata(nested, 'auto');
+    expect(meta.type).toBe('git');
+    expect(meta.available).toBe(true);
+    expect(meta.revision).toMatch(/^[0-9a-f]{40}$/);
   });
 });

@@ -4,7 +4,14 @@ import { collectGitMetadata } from './git.mjs';
 
 /** @returns {'git'|'none'} */
 export function detectVcs(repoRoot) {
-  return existsSync(join(repoRoot, '.git')) ? 'git' : 'none';
+  // Fast path: repoRoot is itself the top of a checkout.
+  if (existsSync(join(repoRoot, '.git'))) return 'git';
+  // repoRoot may sit *inside* a checkout — a service directory in a large
+  // monorepo, or one package of a workspace. Only the top level carries a
+  // `.git`, so guessing from its presence silently drops the revision (and
+  // with it staleness detection and incremental rebuilds) for those repos.
+  // git resolves this by walking up, so ask git instead of guessing.
+  return collectGitMetadata(repoRoot).available ? 'git' : 'none';
 }
 
 function noneMetadata() {
@@ -21,7 +28,9 @@ function noneMetadata() {
  * (after resolving 'auto') yields the 'none' shape.
  */
 export function collectVcsMetadata(repoRoot, mode = 'auto') {
-  const resolved = mode === 'auto' ? detectVcs(repoRoot) : mode;
-  if (resolved === 'git') return collectGitMetadata(repoRoot);
-  return noneMetadata();
+  if (mode === 'git') return collectGitMetadata(repoRoot);
+  if (mode !== 'auto') return noneMetadata();
+  // auto: collect once and reuse, rather than detecting and collecting again.
+  const git = collectGitMetadata(repoRoot);
+  return git.available ? git : noneMetadata();
 }
