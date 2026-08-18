@@ -8,10 +8,26 @@
 // response, and a handler failure becomes a JSON-RPC error response.
 
 import readline from 'node:readline';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { TOOLS, TOOL_NAMES, callTool } from './tools.mjs';
 
 const JSONRPC = '2.0';
-const SERVER_INFO = { name: 'loregraph', version: '0.1.0' };
+
+/**
+ * Clients log and gate on `serverInfo.version`, so it is read from the package
+ * manifest rather than restated here — a release bump cannot leave it stale.
+ */
+function packageVersion() {
+  try {
+    const path = fileURLToPath(new URL('../../../package.json', import.meta.url));
+    return JSON.parse(readFileSync(path, 'utf8')).version ?? '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
+
+const SERVER_INFO = { name: 'loregraph', version: packageVersion() };
 /** Protocol version echoed to a client that omits its own. */
 const DEFAULT_PROTOCOL_VERSION = '2024-11-05';
 
