@@ -18,7 +18,7 @@
 // — so the import resolver stays a pure lexical function over the inventory.
 
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { normPosix } from '../inventory/schema.mjs';
 
 const SKIP_DIRS = new Set(['node_modules', '.git']);
@@ -324,4 +324,30 @@ export function discoverWorkspaces(repoRoot) {
   packages.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
   return { sources, packages, byName };
+}
+
+/**
+ * The discovered packages as TypeScript `paths` entries, so the type-checking
+ * layers (references, usages) can follow `@myorg/ui` the same way the import
+ * layer now does. Without this TS falls back to node resolution, which needs
+ * the node_modules symlinks a checkout may not have — and every cross-package
+ * export would look dead.
+ *
+ * Substitutions are ABSOLUTE, so they are correct whatever `baseUrl` a repo's
+ * tsconfig happens to set (TS resolves a rooted substitution as-is).
+ *
+ * @param {{packages: object[]}} discovered `discoverWorkspaces` result.
+ * @param {string} repoRoot absolute repo root.
+ * @returns {Record<string, string[]>} empty for a repo with no workspaces.
+ */
+export function workspaceTsPaths(discovered, repoRoot) {
+  const paths = {};
+  for (const pkg of discovered?.packages ?? []) {
+    const abs = (rel) => resolve(repoRoot, rel);
+    // The declared entries first, then the package directory — which lets TS
+    // apply its own `index.*` / package.json resolution inside it.
+    paths[pkg.name] = [...pkg.entries.map(abs), abs(pkg.dir)];
+    paths[`${pkg.name}/*`] = [abs(`${pkg.dir}/*`)];
+  }
+  return paths;
 }

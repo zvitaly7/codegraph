@@ -5,6 +5,7 @@ import { writeJsonAtomic, writeJsonlAtomic } from '../inventory/write.mjs';
 import { normPosix } from '../inventory/schema.mjs';
 import { readInventorySources, readInventoryManifest } from '../lib/inventory_reader.mjs';
 import { TsconfigIndex } from '../lib/tsconfig_index.mjs';
+import { discoverWorkspaces, workspaceTsPaths } from '../lib/workspaces.mjs';
 import { defaultCompilerOptions } from '../lib/ts_resolve.mjs';
 import { changedFilesSince } from '../lib/changed_files.mjs';
 import {
@@ -34,6 +35,11 @@ function readJsonl(path) {
  * Compiler options for the whole-repo program: the sensible bundler default,
  * augmented with baseUrl/paths from the nearest tsconfig (via TsconfigIndex) so
  * path-aliased imports resolve on repos that ship one. No tsconfig → pure default.
+ *
+ * Workspace packages are added as `paths` entries underneath whatever the
+ * tsconfig declares (an explicit alias always wins), so `@myorg/ui` resolves
+ * without the node_modules symlinks a fresh checkout may not have. A repo with
+ * no workspaces gets exactly the options it always got.
  */
 function compilerOptions(repoRoot, tsconfigOverride) {
   const options = defaultCompilerOptions();
@@ -47,6 +53,11 @@ function compilerOptions(repoRoot, tsconfigOverride) {
     }
   } catch {
     // tsconfig discovery is best-effort; fall back to the plain default.
+  }
+  const wsPaths = workspaceTsPaths(discoverWorkspaces(repoRoot), repoRoot);
+  if (Object.keys(wsPaths).length > 0) {
+    options.paths = { ...wsPaths, ...(options.paths ?? {}) };
+    options.baseUrl = options.baseUrl ?? repoRoot;
   }
   return options;
 }
