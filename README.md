@@ -85,6 +85,9 @@ Builds a deterministic map of a JavaScript/TypeScript codebase — files, symbol
 
 Search covers files, symbols, packages and domains, and every edge type has its own toggle — so the map can be narrowed to just imports, just declarations, or just the dependencies between domains.
 
+> [!IMPORTANT]
+> The index names every file and symbol in the repository, so `--serve` binds **`127.0.0.1` only**. Reaching it from another machine takes a deliberate `--host 0.0.0.0` — the exposure is never the default.
+
 <a id="install"></a>
 
 ## 🧰 Install & setup
@@ -210,7 +213,7 @@ Global flags on every command: `--repo-root PATH`, `--out DIR`, `--config FILE`,
 | `cycles` | Circular dependencies, found with Tarjan's SCC — each knot reported once, domain cycles with their hop weights. | `--scope file\|domain\|both` (both), `--cache DIR`, `--limit N` (20), `--json` |
 | `check` | **CI gate.** Evaluates the `check` block of the config and exits non-zero on a violation. | `--cache DIR`, `--json` |
 | `describe` | Cached, model-written descriptions of domains / files / symbols. **The only command that can cost money.** | `--scope domains\|files\|symbols\|all`, `--top N`, `--command CMD`, `--model NAME`, `--dry-run`, `--yes`, `--budget N`, `--budget-tokens N`, `--force`, `--timeout MS`, `--json` |
-| `explorer` | Builds `graph-index.json` + the SPA, optionally serves them. | `--cache DIR`, `--serve`, `--port N` (8765) |
+| `explorer` | Builds `graph-index.json` + the SPA, optionally serves them. | `--cache DIR`, `--serve`, `--port N` (8765), `--host ADDR` (127.0.0.1) |
 | `docs` | Generates `AGENTS.md` and Markdown pages from the graph. | `--cache DIR`, `--out-docs DIR`, `--agents-out FILE`, `--lang en\|ru`, `--force` |
 | `mcp` | Starts the stdio MCP server over the cached graph. | `--cache DIR` |
 
@@ -699,6 +702,16 @@ Optional `loregraph.config.mjs` (default export) or `loregraph.config.json` at t
 `loregraph docs` additionally reads a `lang` key (`'en'` or `'ru'`, default `'en'`); `--lang` overrides it.
 
 Precedence is **flag → config file → default**. See [`examples/example.domains.config.mjs`](examples/example.domains.config.mjs) for a commented domains override.
+
+> [!IMPORTANT]
+> **Unknown keys are an error, not a shrug.** A key nothing reads is a setting that silently does nothing, and under `describe` that means spending money at a default you did not choose. Every command validates the config file before doing any work and exits **2** naming the offending key — with the key it probably meant:
+>
+> ```
+> inventory: usage error: invalid config in /repo/loregraph.config.mjs:
+>   unknown config key "srcRoot" — did you mean "srcRoots"?
+> ```
+>
+> Values are shape-checked too: `srcRoots` and `entryPoints` must be arrays of strings, `incremental` / `vcs` / `lang` must be one of their allowed values, and `describe.pricing.{input,output}` must be numbers.
 
 ```js
 // loregraph.config.mjs
