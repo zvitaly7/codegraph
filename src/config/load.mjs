@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { DEFAULTS } from './defaults.mjs';
+import { validateConfig, formatProblems } from './validate.mjs';
 
 const OPTIONS = {
   'repo-root': { type: 'string' },
@@ -36,6 +37,9 @@ export async function resolveConfig({ cwd, argv, extraOptions = {} }) {
       const mod = await import(pathToFileURL(configPath).href);
       fileCfg = mod.default ?? {};
     }
+    // A key nobody reads would silently do nothing; for `describe`, at a price.
+    const problems = validateConfig(fileCfg);
+    if (problems.length > 0) throw new Error(formatProblems(problems, configPath));
   }
 
   return {
