@@ -220,6 +220,13 @@ export function evaluateCheck(graph, check = {}, opts = {}) {
     cfg.domainRules.forEach((rule, i) => rules.push(evalDomainRule(graph, rule, i, max)));
   }
 
+  // Offenders are evidence for a verdict of FAIL. A passing rule keeps its
+  // count (`offendersTotal` — "3 dead exports, budget 5" is worth knowing) but
+  // drops the list, so a green report stays readable.
+  for (const rule of rules) {
+    if (rule.ok) rule.offenders = [];
+  }
+
   const failed = rules.filter((r) => !r.ok).length;
   const report = {
     configured: rules.length > 0,
@@ -263,9 +270,11 @@ export function renderCheck(report) {
     lines.push(`${rule.ok ? 'PASS' : 'FAIL'}  ${rule.title}`);
     lines.push(`      ${rule.detail}`);
     if (rule.note) lines.push(`      note: ${rule.note}`);
-    for (const offender of rule.offenders) lines.push(`      - ${offender}`);
-    const hidden = rule.offendersTotal - rule.offenders.length;
-    if (hidden > 0) lines.push(`      … +${hidden} more`);
+    if (!rule.ok) {
+      for (const offender of rule.offenders) lines.push(`      - ${offender}`);
+      const hidden = rule.offendersTotal - rule.offenders.length;
+      if (hidden > 0) lines.push(`      … +${hidden} more`);
+    }
     lines.push('');
   }
   lines.push(report.ok ? 'CHECK PASSED' : `CHECK FAILED — ${failed} rule${failed === 1 ? '' : 's'} violated`);

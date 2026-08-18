@@ -210,6 +210,19 @@ describe('evaluateCheck — offender caps and totals', () => {
   });
 });
 
+describe('evaluateCheck — a passing rule is quiet', () => {
+  it('lists no offenders, and the render prints none, when a rule passes', () => {
+    const report = evaluateCheck(buildGraph(), { maxDeadExports: 5 });
+    const rule = ruleById(report, 'maxDeadExports');
+    expect(rule.ok).toBe(true);
+    expect(rule.offenders).toEqual([]);
+    expect(rule.offendersTotal).toBe(2); // the count is still reported
+    const text = renderCheck(report);
+    expect(text).not.toContain('unusedThing');
+    expect(text).not.toContain('more');
+  });
+});
+
 describe('evaluateCheck — every rule at once', () => {
   it('reports each rule with its verdict and totals the failures', () => {
     const report = evaluateCheck(buildGraph(), {
