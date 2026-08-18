@@ -156,6 +156,24 @@ describe('TsconfigIndex — configPaths fallback', () => {
     expect(idx.forFile(join(dir, 'apps', 'web', 'a.ts')).pathsBase).toBe(join(dir, 'packages'));
   });
 
+  it('fills only the patterns a tsconfig does not define itself', () => {
+    const both = mkdtempSync(join(tmpdir(), 'cg-tsx-cfgpaths-merge-'));
+    mkdirSync(join(both, 'src'), { recursive: true });
+    writeFileSync(join(both, 'src', 'a.ts'), 'export const x=1;');
+    writeFileSync(
+      join(both, 'tsconfig.json'),
+      JSON.stringify({ compilerOptions: { baseUrl: '.', paths: { '~/*': ['src/*'] } } }),
+    );
+    const idx = new TsconfigIndex({ repoRoot: both, configPaths: { '@lib/*': ['packages/*/src'] } });
+    // The tsconfig keeps its own alias, and the cross-package one it never
+    // mentioned is added rather than dropped.
+    expect(idx.forFile(join(both, 'src', 'a.ts')).paths).toEqual({
+      '~/*': ['src/*'],
+      '@lib/*': ['packages/*/src'],
+    });
+    rmSync(both, { recursive: true, force: true });
+  });
+
   it('leaves a tsconfig that declares its own paths in charge', () => {
     const withCfg = mkdtempSync(join(tmpdir(), 'cg-tsx-cfgpaths-win-'));
     mkdirSync(join(withCfg, 'src'), { recursive: true });
@@ -164,7 +182,7 @@ describe('TsconfigIndex — configPaths fallback', () => {
       join(withCfg, 'tsconfig.json'),
       JSON.stringify({ compilerOptions: { baseUrl: '.', paths: { '~/*': ['src/*'] } } }),
     );
-    const idx = new TsconfigIndex({ repoRoot: withCfg, configPaths: { '@lib/*': ['packages/*'] } });
+    const idx = new TsconfigIndex({ repoRoot: withCfg, configPaths: { '~/*': ['nowhere/*'] } });
     expect(idx.forFile(join(withCfg, 'src', 'a.ts')).paths).toEqual({ '~/*': ['src/*'] });
     rmSync(withCfg, { recursive: true, force: true });
   });
