@@ -260,10 +260,12 @@ Read these before quoting any number from this page.
   string-keyed access. Declared entry points are no longer part of that gap: the
   `package.json` `main`/`module`/`exports`/`bin` targets (root and per workspace
   package) and the `entryPoints` config globs are held back from the count and
-  reported separately. On THIS repo that changes nothing — its one entry point,
-  `bin/loregraph.mjs`, exports nothing — so the row below is unaffected. On a
-  library or a module-federation host it is the difference between a list you can
-  act on and a list of false positives.
+  reported separately, and so is everything those entry points re-export, through
+  the whole chain of barrels. On THIS repo that changes nothing — its one entry
+  point, `bin/loregraph.mjs`, neither exports nor re-exports anything, and no
+  source file here uses `export … from` at all — so the row below is unaffected.
+  On a library or a module-federation host it is the difference between a list you
+  can act on and a list of false positives.
 - **The graph is not a superset of the baseline's answer.** On `blast-radius` the
   procedure opens more files than `impact` names, and the extra ones —
   `bin/loregraph.test.mjs` and `src/mcp/run.test.mjs` — are genuine dependents

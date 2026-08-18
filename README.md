@@ -195,7 +195,7 @@ Global flags on every command: `--repo-root PATH`, `--out DIR`, `--config FILE`,
 | `inventory` | Layer 1 — files and directories, with size, language, kind and SHA-256. | `--no-hash`, `--require-vcs`, `--require-clean`, `--project-name NAME` |
 | `imports` | Layer 2a — file → file/package `IMPORTS` edges. | `--inventory DIR`, `--require-resolution-rate N`, `--max-files N` |
 | `symbols` | Layer 2b — top-level declarations, `DECLARES` edges (parse-only). | `--inventory DIR`, `--max-files N` |
-| `references` | Layer 2c — file → symbol `REFERENCES` edges. Uses the type-checker. | `--inventory DIR`, `--symbols DIR`, `--max-files N`, `--incremental off\|incremental` |
+| `references` | Layer 2c — file → symbol `REFERENCES` edges, plus `EXPOSES` for what an entry point re-exports. Uses the type-checker. | `--inventory DIR`, `--symbols DIR`, `--max-files N`, `--incremental off\|incremental` |
 | `usages` | Layer 2d — symbol → symbol `USES` edges. Uses the type-checker. | `--inventory DIR`, `--symbols DIR`, `--max-files N`, `--incremental off\|incremental` |
 | `domains` | Layer 3 — domain overlay: `Domain` nodes, `BELONGS_TO`, weighted `DEPENDS_ON`. | `--inventory DIR`, `--imports DIR` |
 
@@ -587,7 +587,7 @@ flowchart LR
 | `imports` | `IMPORTS` edges from each source to the files and packages it imports, resolved through `tsconfig` `baseUrl`/`paths` when present, then through the repo's workspace packages. |
 | `symbols` | `DECLARES` edges from each source to its top-level declarations (parse-only, no type-checking). |
 | `domains` | `Domain` nodes, `BELONGS_TO` for every file, and weighted `DEPENDS_ON` edges aggregated from the import graph. |
-| `references` | `REFERENCES` edges from a file to the symbols it actually uses, plus the entry-point files whose exports are never counted dead. Type-checked — this is a heavy layer. |
+| `references` | `REFERENCES` edges from a file to the symbols it actually uses, plus the entry-point files whose exports are never counted dead and the `EXPOSES` edges for what those entry points re-export. Type-checked — this is a heavy layer. |
 | `usages` | `USES` edges from a symbol to the other symbols its body touches. Type-checked — heavy. |
 | `explorer` | `graph-index.json` plus the packaged SPA, written side by side under `<cache>/explorer/`. |
 
@@ -596,6 +596,8 @@ flowchart LR
 
 > [!NOTE]
 > **Entry points are not dead exports.** A CLI, a library entry or a module-federation remote is consumed across a boundary the import graph cannot see, so `references` holds its exports back instead of reporting them dead. `package.json` `main`/`module`/`exports`/`bin` — the root package and every workspace package — are detected automatically; add anything else with the `entryPoints` config globs. Everything held back is **counted** wherever dead exports appear, and `dead_exports` lists it on request, so "not dead" never quietly means "hidden".
+>
+> **Re-exports count too.** The `index.ts` a package's `main` points at usually declares nothing itself — it is a barrel — so being an entry point would otherwise hold back nothing at all. `references` follows the re-export chains out of every entry point (`export { a } from`, `export { a as b } from`, `export { default as Foo } from`, `export * from`, `export * as ns from`), transitively and terminating on cycles, and writes an `EXPOSES` edge from the entry point to each symbol it makes public. Those symbols are held back and counted exactly like the ones declared in the entry point, and `dead_exports` names the entry point each one came from. A barrel that is **not** an entry point saves nothing — re-exporting dead code does not make it alive.
 
 ### 🕸️ The graph itself
 
@@ -612,6 +614,7 @@ flowchart LR
     File -->|IMPORTS| Pkg
     File -->|DECLARES| Sym
     File -->|REFERENCES| Sym
+    File -->|EXPOSES| Sym
     Sym -->|USES| Sym
     File -->|BELONGS_TO| Dom
     Dom -->|"DEPENDS_ON (weighted)"| Dom
@@ -633,6 +636,7 @@ flowchart LR
 | `BELONGS_TO` | File → Domain | `domains` |
 | `DEPENDS_ON` | Domain → Domain, weighted | `domains` |
 | `REFERENCES` | File → Symbol | `references` |
+| `EXPOSES` | File (entry point) → Symbol it re-exports | `references` |
 | `USES` | Symbol → Symbol | `usages` |
 
 Node labels: `Project`, `Snapshot`, `Directory`, `File`, `Package`, `Symbol`, `Domain`.
@@ -676,7 +680,7 @@ Optional `loregraph.config.mjs` (default export) or `loregraph.config.json` at t
 | `domains` | `null` | `null` auto-derives the overlay. Otherwise an inline object or a path to a module exporting `CANONICAL_DOMAINS`, `ALIASES` and `AREA_BUCKETS`. |
 | `incremental` | `'off'` | `'off'` or `'incremental'` — rebuild mode for the heavy layers. |
 | `compressPaths` | `false` | Factor shared directory prefixes out of the path lists `brief` and `impact` print. `--compress-paths` / `--no-compress-paths` override it per call. |
-| `entryPoints` | `[]` | Globs whose exports are never reported as dead — files consumed across a boundary the import graph cannot see (module-federation remotes, dynamic-import targets). `package.json` `main`/`module`/`exports`/`bin`, and the same fields of every workspace package, are detected on top of these. |
+| `entryPoints` | `[]` | Globs whose exports are never reported as dead — files consumed across a boundary the import graph cannot see (module-federation remotes, dynamic-import targets). What such a file re-exports is held back too, through the whole chain of barrels. `package.json` `main`/`module`/`exports`/`bin`, and the same fields of every workspace package, are detected on top of these. |
 | `check` | `{}` | Rules for `loregraph check`, the CI gate: `noCycles`, `maxDeadExports`, `minResolutionRate`, `domainRules`. Empty means nothing is verified — and the command says so rather than reporting a pass. |
 | `describe` | `{}` | Defaults for `loregraph describe`: `command`, `model`, `scope`, `top`, `timeoutMs`, and `pricing: { input, output }` in USD per million tokens. |
 
