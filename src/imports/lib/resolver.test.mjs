@@ -176,15 +176,20 @@ describe('workspace packages', () => {
       .toEqual({ kind: 'internal', targetId: 'file:packages/ui/src/index.ts' });
   });
 
-  it('stays external when the workspace name resolves to no real file', () => {
+  // Knowing the package is ours and not knowing which file the import lands on
+  // are two different answers. Reporting the second as "third-party" throws away
+  // the first: the dependency stops looking internal, the domain layer loses the
+  // edge, and the resolution rate counts a miss as a success. `unresolved` says
+  // what actually happened — the same answer the tsconfig-alias branch gives.
+  it('a workspace package that resolves to no file is unresolved, not third-party', () => {
     const r = makeWs(
       ['packages/app/src/main.ts'],
       [{ name: '@myorg/ui', dir: 'packages/ui', entries: ['packages/ui/dist/index.js'], subpaths: {} }],
     );
     expect(r('@myorg/ui', 'packages/app/src/main.ts'))
-      .toEqual({ kind: 'external', targetId: 'pkg:@myorg/ui', packageName: '@myorg/ui' });
+      .toEqual({ kind: 'unresolved', targetId: null });
     expect(r('@myorg/ui/ghost', 'packages/app/src/main.ts'))
-      .toEqual({ kind: 'external', targetId: 'pkg:@myorg/ui', packageName: '@myorg/ui' });
+      .toEqual({ kind: 'unresolved', targetId: null });
   });
 
   it('leaves a genuine third-party package alone', () => {

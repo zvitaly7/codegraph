@@ -203,18 +203,14 @@ describe('run() — workspace monorepos', () => {
     expect(edges.some((e) => e.to === 'file:packages/ui/src/index.ts')).toBe(true);
   });
 
-  it('a workspace name that resolves to no real file stays external', async () => {
+  it('a workspace name that resolves to no real file yields no third-party edge', async () => {
     src('package.json', JSON.stringify({ name: 'root', private: true, workspaces: ['packages/*'] }));
     src('packages/ghost/package.json', JSON.stringify({ name: '@myorg/ghost', main: 'dist/index.js' }));
     writeInventory(repo, [INV[0]]);
     const edges = await edgesFor("import x from '@myorg/ghost';");
-    expect(edges).toContainEqual({
-      id: 'edge:file:packages/app/src/main.ts:IMPORTS:pkg:@myorg/ghost',
-      type: 'IMPORTS',
-      from: 'file:packages/app/src/main.ts',
-      to: 'pkg:@myorg/ghost',
-      properties: { specifier: '@myorg/ghost', kind: 'external' },
-    });
+    // It is ours and it did not resolve — counted as unresolved, never written
+    // out as a package the repository depends on from outside.
+    expect(edges.some((e) => e.to === 'pkg:@myorg/ghost')).toBe(false);
   });
 
   it('a tsconfig-alias monorepo still resolves exactly as before', async () => {
