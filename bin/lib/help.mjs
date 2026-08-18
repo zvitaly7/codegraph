@@ -24,6 +24,7 @@ import { USAGE as INIT_USAGE } from '../../src/init/lib/usage.mjs';
 import { SCOPES as DESCRIBE_SCOPES, DEFAULT_SCOPE as DESCRIBE_DEFAULT_SCOPE } from '../../src/describe/lib/targets.mjs';
 import { DEFAULT_TIMEOUT_MS as DESCRIBE_TIMEOUT } from '../../src/describe/lib/provider.mjs';
 import { COMPRESS_PATHS_DEFAULT } from '../../src/lib/answer_render.mjs';
+import { SCOPES as CYCLE_SCOPE_LIST, DEFAULT_LIMIT as CYCLES_LIMIT } from '../../src/lib/cycles.mjs';
 
 // The three global flags every `resolveConfig`-based command accepts, keyed for
 // reuse in each command's `globals` list below. `init` does not use these (it
@@ -35,6 +36,9 @@ const GLOBAL_FLAGS = {
 };
 
 const DOCS_LANGS = Object.keys(DOCS_STRINGS).join('|');
+
+const CYCLE_SCOPES = CYCLE_SCOPE_LIST.join('|');
+const CYCLES_DEFAULT_SCOPE = 'both';
 
 // `brief` and `impact` list repo paths, so both take the same compression
 // switch. Which way round it reads depends on the measured default — see the
@@ -49,8 +53,8 @@ const COMPRESS_HELP = COMPRESS_PATHS_DEFAULT
 // or dependency order used elsewhere.
 export const COMMAND_ORDER = [
   'init', 'regenerate', 'inventory', 'imports', 'symbols', 'references',
-  'usages', 'domains', 'brief', 'outline', 'show', 'impact', 'describe',
-  'explorer', 'docs', 'mcp',
+  'usages', 'domains', 'brief', 'outline', 'show', 'impact', 'cycles',
+  'describe', 'explorer', 'docs', 'mcp',
 ];
 
 /**
@@ -183,6 +187,17 @@ export const COMMAND_HELP = {
       ['--max-depth N', 'cap the blast-radius traversal depth (default: unlimited)'],
       ['--max-tokens N', 'cap the whole answer at ~N tokens (~4 chars/token); cuts are marked'],
       [COMPRESS_FLAG, COMPRESS_HELP],
+    ],
+    globals: ['repo-root', 'out', 'config'],
+  },
+  cycles: {
+    summary: 'Circular dependencies between files / domains',
+    usage: 'loregraph cycles [options]',
+    options: [
+      ['--cache DIR', 'graph cache to read (default: resolved --out)'],
+      [`--scope ${CYCLE_SCOPES}`, `which graph to search (default: ${CYCLES_DEFAULT_SCOPE})`],
+      ['--limit N', `cap the listed cycles per scope (default: ${CYCLES_LIMIT}); totals stay exact`],
+      ['--json', 'print the raw structured object instead of formatted text'],
     ],
     globals: ['repo-root', 'out', 'config'],
   },

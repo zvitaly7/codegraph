@@ -25,6 +25,7 @@ import { fitOutline } from '../../outline/lib/outline.mjs';
 import { outlineTarget } from '../../outline/lib/lookup.mjs';
 import { COMPRESS_PATHS_DEFAULT } from '../../lib/answer_render.mjs';
 import { lookupSymbol } from '../../show/lib/lookup.mjs';
+import { buildCycles, SCOPES as CYCLE_SCOPES } from '../../lib/cycles.mjs';
 import { loadDescriptions, generatedLabel } from '../../describe/lib/store.mjs';
 
 /** Default caps — keep payloads bounded for an agent context window. */
@@ -356,6 +357,17 @@ export function domainCrossings(graph) {
   return result;
 }
 
+/**
+ * Circular dependencies — file import cycles, domain dependency cycles, or both.
+ *
+ * Found with Tarjan's SCC, so every mutually reachable group is reported ONCE
+ * rather than once per member. Self-imports are excluded (and counted).
+ */
+export function cycles(graph, { scope = 'both', limit } = {}) {
+  const wanted = CYCLE_SCOPES.includes(scope) ? scope : 'both';
+  return buildCycles(graph, { scope: wanted, limit });
+}
+
 // ---- response shaping (optional, per call) ------------------------------
 
 /**
@@ -596,6 +608,20 @@ export const TOOLS = [
     },
   },
   {
+    name: 'cycles',
+    description: 'Circular dependencies: import cycles between the repo\'s own files, dependency '
+      + 'cycles between domains (with the per-hop weight, so a 1-import cycle is not confused with '
+      + 'a 200-import one), or both. Each mutually reachable group is reported once, not once per '
+      + 'member; self-imports are excluded and counted separately.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        scope: strProp(`Which graph to search: ${CYCLE_SCOPES.join(', ')} (default both).`),
+        limit: { type: 'integer', description: 'Max cycles listed per scope (default 20); totals stay exact.' },
+      },
+    },
+  },
+  {
     name: 'brief',
     description: 'Context pack for a file, domain or symbol in ONE call — domain, imports, importers, '
       + 'declared symbols with reference counts, blast radius. Read this instead of opening the files. '
@@ -688,6 +714,7 @@ const DISPATCH = {
   domain_dependencies: domainDependencies,
   domain_crossings: domainCrossings,
   dead_exports: deadExports,
+  cycles,
   brief,
   impact,
   outline,

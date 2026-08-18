@@ -481,6 +481,8 @@
       colComponents: "Components",
       cardDeadExports: "Dead / unused exports",
       cardDeadExportsEntry: "{n} more held back as entry points",
+      cardCycles: "Circular dependencies",
+      cardCyclesSplit: "{files} between files · {domains} between domains",
       cardMostDependedPackages: "Most-depended-on packages",
       cardBiggestImporters: "Biggest importers",
 
@@ -567,6 +569,8 @@
       colComponents: "Компоненты",
       cardDeadExports: "Мёртвые / неиспользуемые экспорты",
       cardDeadExportsEntry: "Ещё {n} исключены как точки входа",
+      cardCycles: "Циклические зависимости",
+      cardCyclesSplit: "{files} между файлами · {domains} между доменами",
       cardMostDependedPackages: "Самые востребованные пакеты",
       cardBiggestImporters: "Крупнейшие импортёры",
 
@@ -1022,10 +1026,31 @@
       badge: fmt(ins.deadExportsTotal || 0),
       note: ins.deadExportsEntryPoints ? t("cardDeadExportsEntry", { n: fmt(ins.deadExportsEntryPoints) }) : null,
     }));
+    grid.append(listCard(t("cardCycles"), ins.cycles, cycleRow, {
+      badge: fmt(ins.cyclesTotal || 0),
+      note: ins.cyclesTotal
+        ? t("cardCyclesSplit", { files: fmt(ins.fileCyclesTotal || 0), domains: fmt(ins.domainCyclesTotal || 0) })
+        : null,
+    }));
     grid.append(listCard(t("cardMostDependedPackages"), ins.mostDependedPackages, (r) => focusRow("pkg:" + r.name, { metric: r.files, metricLabel: t("wordFiles") })));
     grid.append(listCard(t("cardBiggestImporters"), ins.biggestImporters, (r) => focusRow("file:" + r.file, { metric: r.imports, metricLabel: t("wordImports"), sub: r.file })));
 
     main.append(grid);
+  }
+
+  // One circular dependency, drawn as the closed ring it is. Clicking focuses
+  // the first member, which is where you start unpicking it.
+  function cycleRow(r) {
+    const isFile = r.scope === "file";
+    const short = isFile ? r.members.map((m) => m.slice(m.lastIndexOf("/") + 1)) : r.members;
+    const btn = h("button", { class: "row", onclick: () => setFocus(r.id) });
+    btn.append(dot(isFile ? "file" : "domain"));
+    const main = h("div", { class: "row-main" });
+    main.append(h("span", { class: "row-name", text: short.concat(short[0]).join(" → ") }));
+    if (isFile) main.append(h("span", { class: "row-sub", text: r.members.join(", ") }));
+    btn.append(main);
+    if (r.weight != null) btn.append(h("span", { class: "row-metric", text: fmt(r.weight) + " " + t("wordLinks") }));
+    return btn;
   }
 
   function listCard(title, rows, rowFn, opts) {
