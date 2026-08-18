@@ -5,6 +5,7 @@ import { writeJsonAtomic, writeJsonlAtomic } from '../inventory/write.mjs';
 import { normPosix } from '../inventory/schema.mjs';
 import { readInventorySources, readInventoryManifest } from '../lib/inventory_reader.mjs';
 import { TsconfigIndex } from '../lib/tsconfig_index.mjs';
+import { discoverWorkspaces } from '../lib/workspaces.mjs';
 import { extractSpecifiers } from './lib/specifier_extractor.mjs';
 import { buildGraph } from './lib/graph_builder.mjs';
 
@@ -75,6 +76,7 @@ export async function run(argv) {
   if (maxFiles !== null) sources = sources.slice(0, maxFiles);
 
   const tsconfigIndex = new TsconfigIndex({ repoRoot, tsconfigOverride: cfg.tsconfig });
+  const workspaces = discoverWorkspaces(repoRoot);
 
   const files = [];
   for (const row of sources) {
@@ -89,7 +91,9 @@ export async function run(argv) {
     files.push({ path, absPath, specifiers: extractSpecifiers(absPath, text) });
   }
 
-  const { nodes, edges, counts } = buildGraph({ files, repoRoot, tsconfigIndex });
+  const { nodes, edges, counts } = buildGraph({
+    files, repoRoot, tsconfigIndex, workspaces: workspaces.byName,
+  });
 
   const denom = counts.internal + counts.unresolved;
   const resolutionRate = denom === 0 ? 1 : counts.internal / denom;
@@ -112,9 +116,14 @@ export async function run(argv) {
     return 1;
   }
 
+  // The workspace note only appears on repos that declare one, so a plain repo's
+  // output is unchanged.
+  const wsNote = workspaces.packages.length > 0
+    ? ` workspaces=${workspaces.packages.length} (${workspaces.sources.join(', ')})`
+    : '';
   console.log(
     `[loregraph] sources=${counts.files} internal=${counts.internal} external=${counts.external} `
-    + `unresolved=${counts.unresolved} rate=${resolutionRate.toFixed(4)} out=${outBase}`,
+    + `unresolved=${counts.unresolved} rate=${resolutionRate.toFixed(4)}${wsNote} out=${outBase}`,
   );
 
   // Policy gate runs after artifacts are written.

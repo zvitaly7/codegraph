@@ -3,9 +3,16 @@
 //   external    → a third-party package                   (pkg:<name>)
 //   unresolved  → a relative / aliased path we could not map to a source
 //
+// Precedence: relative → tsconfig alias → workspace package → external. The
+// workspace step only ever claims a bare specifier that would otherwise be
+// written off as third-party, so a repo with no workspaces resolves exactly as
+// it always did.
+//
 // Resolution is purely lexical against the known inventory file set — we never
 // touch the filesystem — so the result is deterministic and matches the graph
-// nodes exactly (an internal edge always points at a File node we emit).
+// nodes exactly (an internal edge always points at a File node we emit). The
+// workspace map is filesystem-derived, but it is built once, up front, by
+// lib/workspaces.mjs and passed in as plain data.
 
 import { dirname, resolve as resolvePath, relative } from 'node:path';
 import { fileId, normPosix } from '../../inventory/schema.mjs';
@@ -81,15 +88,29 @@ function packageNameOf(specifier) {
 }
 
 /**
+ * The ordered repo-relative bases to try for a workspace package specifier:
+ * the package's declared entry targets (or, for a subpath, its explicit
+ * `exports` targets) first, then the plain directory join — which `matchSource`
+ * expands with the same extension / `index.<ext>` candidates as everything else.
+ */
+function workspaceBases(pkg, subpath) {
+  if (subpath === '') return [...pkg.entries, pkg.dir];
+  return [...(pkg.subpaths?.[subpath] ?? []), `${pkg.dir}/${subpath}`];
+}
+
+/**
  * @param {string} specifier raw import specifier.
  * @param {object} ctx
  * @param {string} ctx.fromAbsFile absolute path of the importing file.
  * @param {string} ctx.repoRoot    absolute repo root.
  * @param {Set<string>} ctx.fileSet repo-relative POSIX paths of source files.
  * @param {{paths:object, pathsBase?:string}} ctx.tsconfig alias config for this file.
+ * @param {Map<string, {dir:string, entries:string[], subpaths:object}>} [ctx.workspaces]
+ *   workspace packages by declared name (see lib/workspaces.mjs). Absent or
+ *   empty → resolution is exactly what it was before workspaces existed.
  * @returns {{kind:'internal'|'external'|'unresolved', targetId:string|null, packageName?:string}}
  */
-export function resolveSpecifier(specifier, { fromAbsFile, repoRoot, fileSet, tsconfig }) {
+export function resolveSpecifier(specifier, { fromAbsFile, repoRoot, fileSet, tsconfig, workspaces }) {
   // 1. Relative — resolve against the importing file's directory.
   if (isRelative(specifier)) {
     const absBase = resolvePath(dirname(fromAbsFile), specifier);
@@ -116,7 +137,20 @@ export function resolveSpecifier(specifier, { fromAbsFile, repoRoot, fileSet, ts
   // 3. Absolute filesystem paths are not classifiable as a package.
   if (specifier.startsWith('/')) return { kind: 'unresolved', targetId: null };
 
-  // 4. Bare specifier — external package.
   const packageName = packageNameOf(specifier);
+
+  // 4. A sibling workspace package is internal, not third-party — but only when
+  //    it lands on a file the inventory actually knows. An unresolvable name
+  //    falls through to step 5 rather than inventing an edge.
+  const pkg = workspaces?.get(packageName);
+  if (pkg) {
+    const subpath = specifier.slice(packageName.length).replace(/^\//, '');
+    for (const relBase of workspaceBases(pkg, subpath)) {
+      const rel = matchSource(resolvePath(repoRoot, relBase), repoRoot, fileSet);
+      if (rel) return { kind: 'internal', targetId: fileId(rel) };
+    }
+  }
+
+  // 5. Bare specifier — external package.
   return { kind: 'external', targetId: `pkg:${packageName}`, packageName };
 }

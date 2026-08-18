@@ -17,7 +17,7 @@ function packageScope(name) {
   return name.startsWith('@') ? name.split('/')[0] : null;
 }
 
-export function buildGraph({ files, repoRoot, tsconfigIndex }) {
+export function buildGraph({ files, repoRoot, tsconfigIndex, workspaces }) {
   const fileSet = new Set(files.map((f) => f.path));
   const sortedFiles = [...files].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 
@@ -36,6 +36,7 @@ export function buildGraph({ files, repoRoot, tsconfigIndex }) {
         repoRoot,
         fileSet,
         tsconfig,
+        workspaces,
       });
       counts[res.kind] += 1;
 
