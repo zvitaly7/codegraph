@@ -36,6 +36,30 @@ describe('buildGraph nodes/edges/counts', () => {
 
     expect(g.counts).toEqual({
       files: 2, packages: 1, edges: 2, internal: 1, external: 1, unresolved: 1,
+      computedDynamicImports: 0,
+    });
+  });
+
+  it('totals computed dynamic imports and puts the per-file count on the File node', () => {
+    const g = buildGraph({
+      files: [
+        { path: 'src/a.ts', absPath: `${REPO}/src/a.ts`, specifiers: [], computedDynamicImports: 2 },
+        { path: 'src/b.ts', absPath: `${REPO}/src/b.ts`, specifiers: [], computedDynamicImports: 0 },
+      ],
+      repoRoot: REPO,
+      tsconfigIndex: NO_TS_INDEX,
+    });
+
+    expect(g.counts.computedDynamicImports).toBe(2);
+    expect(g.computedDynamicImportFiles).toEqual([{ path: 'src/a.ts', count: 2 }]);
+    expect(g.nodes).toContainEqual({
+      id: 'file:src/a.ts',
+      labels: ['File'],
+      properties: { path: 'src/a.ts', computedDynamicImports: 2 },
+    });
+    // A file with none keeps exactly the node it always had.
+    expect(g.nodes).toContainEqual({
+      id: 'file:src/b.ts', labels: ['File'], properties: { path: 'src/b.ts' },
     });
   });
 

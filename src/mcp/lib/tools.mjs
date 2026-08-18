@@ -19,6 +19,7 @@
 
 import { normPosix } from '../../inventory/schema.mjs';
 import { changedFilesSince } from '../../lib/changed_files.mjs';
+import { computedDynamicImports, deadCodeCaveat } from '../../lib/dynamic_imports.mjs';
 import { buildBrief, fitBrief, resolveTarget } from '../../brief/lib/brief.mjs';
 import { buildImpact, fitImpact } from '../../impact/lib/impact.mjs';
 import { fitOutline } from '../../outline/lib/outline.mjs';
@@ -262,6 +263,12 @@ export function listSymbols(graph, { file } = {}) {
  * somewhere ordinary. The count is always returned, and `includeEntryPoints`
  * lists them (with the entry point they came from), so "not dead" is never
  * confused with "hidden".
+ *
+ * There is one blind spot we can measure but not close: `import(<non-literal>)`.
+ * Nothing static can follow it, so a symbol used ONLY that way has no incoming
+ * reference and lands in this list. `computedDynamicImports` reports how many
+ * such sites the repo has, and a non-zero count comes with a note — because a
+ * caller about to delete code needs the size of the doubt, not a silent list.
  */
 export function deadExports(graph, { limit = FIND_CAP, includeEntryPoints = false } = {}) {
   const precise = graph.loadedLayers.includes('references');
@@ -298,6 +305,7 @@ export function deadExports(graph, { limit = FIND_CAP, includeEntryPoints = fals
     }
     return out;
   };
+  const dynamic = computedDynamicImports(graph);
   return {
     note: precise
       ? 'Exported symbols with no cross-file REFERENCES edge (same-file uses excluded). '
@@ -311,6 +319,8 @@ export function deadExports(graph, { limit = FIND_CAP, includeEntryPoints = fals
     returned: Math.min(candidates.length, cap),
     truncated: candidates.length > cap,
     entryPointExclusions: excluded.length,
+    computedDynamicImports: dynamic,
+    ...(dynamic.total > 0 ? { computedDynamicImportNote: deadCodeCaveat(dynamic) } : {}),
     ...(excluded.length > 0
       ? { entryPointNote: `${excluded.length} further unreferenced export(s) live in — or are re-exported by — entry-point files and are NOT listed — pass includeEntryPoints to see them.` }
       : {}),

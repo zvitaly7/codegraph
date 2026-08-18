@@ -26,6 +26,8 @@
 // Bodies are rendered WITHOUT the generated-block markers; wrapping and merging
 // with whatever is already on disk is `./merge.mjs`'s job.
 
+import { computedDynamicImports } from '../../lib/dynamic_imports.mjs';
+
 /** How many rows a ranked list shows before it is cut off. */
 const TOP_N = 10;
 /** How many dead-export rows the health page samples. */
@@ -102,6 +104,7 @@ export const STRINGS = {
     healthDeadLine: '{total} of {exported} exported symbols have no cross-file reference.',
     healthDeadImprecise: 'No references layer is loaded, so this list is a guess — run `loregraph regenerate` for a precise answer.',
     healthDeadEntryPoints: 'A further {n} unreferenced exports were held back as entry points (`package.json` `main`/`module`/`exports`/`bin`, plus the `entryPoints` config globs) and are not listed above.',
+    healthDeadDynamic: '**{n} computed dynamic imports in {files} files** — `import()` calls whose specifier is built at runtime — cannot be followed by any static analysis, so a symbol used only that way is listed above as unreferenced. Check those call sites before deleting anything.',
     healthOrphans: 'Orphaned files',
     healthOrphansLine: '{total} source files have no importer and do not look like entry points.',
 
@@ -187,6 +190,7 @@ export const STRINGS = {
     healthDeadLine: 'Из {exported} экспортируемых символов {total} не имеют ссылок из других файлов.',
     healthDeadImprecise: 'Слой references не загружен, поэтому список приблизительный — выполните `loregraph regenerate` для точного ответа.',
     healthDeadEntryPoints: 'Ещё {n} экспортов без ссылок исключены как точки входа (`main`/`module`/`exports`/`bin` из `package.json` и глобы из настройки `entryPoints`) и выше не перечислены.',
+    healthDeadDynamic: '**{n} динамических `import()` с вычисляемым путём в {files} файлах** — путь собирается во время выполнения — не отслеживаются никаким статическим анализом, поэтому символ, используемый только так, попадёт в список выше как неиспользуемый. Проверьте эти вызовы перед удалением.',
     healthOrphans: 'Файлы-сироты',
     healthOrphansLine: 'Исходных файлов без импортёров и не похожих на точки входа: {total}.',
 
@@ -702,6 +706,7 @@ function renderHealth(graph, ctx) {
   const { t, rev } = ctx;
   const { precise, exportedTotal, dead, entryPoints } = deadExportRows(graph);
   const orphans = orphanFiles(graph);
+  const dynamic = computedDynamicImports(graph);
 
   const deadShown = dead.slice(0, SAMPLE_N);
   const orphansShown = orphans.slice(0, SAMPLE_N);
@@ -718,6 +723,11 @@ function renderHealth(graph, ctx) {
     ...(precise ? [] : [t('healthDeadImprecise'), '']),
     t('healthDeadLine', { total: dead.length, exported: exportedTotal }),
     ...(entryPoints > 0 ? ['', t('healthDeadEntryPoints', { n: entryPoints })] : []),
+    // The blind spot that puts live symbols in the list above. Only shown when
+    // the repo actually has one, so a repo without stays uncluttered.
+    ...(dynamic.total > 0
+      ? ['', t('healthDeadDynamic', { n: dynamic.total, files: dynamic.files })]
+      : []),
     '',
     table(
       [t('colSymbol'), t('colKind'), t('colLocation')],

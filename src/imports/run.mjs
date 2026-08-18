@@ -6,7 +6,7 @@ import { normPosix } from '../inventory/schema.mjs';
 import { readInventorySources, readInventoryManifest } from '../lib/inventory_reader.mjs';
 import { TsconfigIndex } from '../lib/tsconfig_index.mjs';
 import { discoverWorkspaces } from '../lib/workspaces.mjs';
-import { extractSpecifiers } from './lib/specifier_extractor.mjs';
+import { scanImports } from './lib/specifier_extractor.mjs';
 import { buildGraph } from './lib/graph_builder.mjs';
 
 const SCHEMA_VERSION = 1;
@@ -88,10 +88,13 @@ export async function run(argv) {
     } catch {
       continue; // source listed in inventory but unreadable now — skip gracefully
     }
-    files.push({ path, absPath, specifiers: extractSpecifiers(absPath, text) });
+    // One read, both facts: the specifiers we can resolve, and how many dynamic
+    // imports we cannot (see ./lib/specifier_extractor.mjs).
+    const { specifiers, computedDynamicImports } = scanImports(absPath, text);
+    files.push({ path, absPath, specifiers, computedDynamicImports });
   }
 
-  const { nodes, edges, counts } = buildGraph({
+  const { nodes, edges, counts, computedDynamicImportFiles } = buildGraph({
     files, repoRoot, tsconfigIndex, workspaces: workspaces.byName,
   });
 
@@ -104,6 +107,7 @@ export async function run(argv) {
     basedOnSnapshot: invManifest?.snapshotId ?? 'unknown',
     counts,
     resolutionRate,
+    computedDynamicImportFiles,
   };
 
   const outBase = join(outDir, 'imports');
@@ -117,13 +121,17 @@ export async function run(argv) {
   }
 
   // The workspace note only appears on repos that declare one, so a plain repo's
-  // output is unchanged.
+  // output is unchanged. Same for the computed-dynamic-import note: a repo with
+  // none says nothing, a repo with some cannot miss it.
   const wsNote = workspaces.packages.length > 0
     ? ` workspaces=${workspaces.packages.length} (${workspaces.sources.join(', ')})`
     : '';
+  const dynNote = counts.computedDynamicImports > 0
+    ? ` computedDynamicImports=${counts.computedDynamicImports} (in ${computedDynamicImportFiles.length} file${computedDynamicImportFiles.length === 1 ? '' : 's'} — unfollowable)`
+    : '';
   console.log(
     `[loregraph] sources=${counts.files} internal=${counts.internal} external=${counts.external} `
-    + `unresolved=${counts.unresolved} rate=${resolutionRate.toFixed(4)}${wsNote} out=${outBase}`,
+    + `unresolved=${counts.unresolved} rate=${resolutionRate.toFixed(4)}${wsNote}${dynNote} out=${outBase}`,
   );
 
   // Policy gate runs after artifacts are written.

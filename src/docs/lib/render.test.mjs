@@ -266,6 +266,25 @@ describe('health.md', () => {
     expect(page('health').content).not.toMatch(/held back as entry points/);
   });
 
+  it('states the computed-dynamic-import blind spot, with the count', () => {
+    g.nodesById.get('file:src/orphan.ts').properties.computedDynamicImports = 3;
+    const c = renderDocs(g).find((p) => p.kind === 'health').content;
+    expect(c).toMatch(/3 computed dynamic imports in 1 file/);
+  });
+
+  it('says nothing about it on a repo that has none', () => {
+    expect(page('health').content).not.toMatch(/computed dynamic import/i);
+  });
+
+  it('states it in Russian too', () => {
+    g.nodesById.get('file:src/orphan.ts').properties.computedDynamicImports = 3;
+    const c = renderDocs(g, { lang: 'ru' }).find((p) => p.kind === 'health').content;
+    // Specific enough that the pre-existing "динамический import()" caveat in
+    // the page header cannot make this pass by accident.
+    expect(c).toMatch(/вычисляем/i);
+    expect(c).toMatch(/3 .*динамическ/i);
+  });
+
   it('holds back a symbol an entry point EXPOSES through a re-export chain', () => {
     // src/orphan.ts is the entry point and re-exports checkout/cart.ts#cart, so
     // `cart` is public API rather than dead — and both omissions are counted.

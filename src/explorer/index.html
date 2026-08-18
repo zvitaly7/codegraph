@@ -481,6 +481,7 @@
       colComponents: "Components",
       cardDeadExports: "Dead / unused exports",
       cardDeadExportsEntry: "{n} more held back as entry points",
+      cardDeadExportsDynamic: "{n} computed dynamic import(s) in {files} file(s) cannot be followed — a symbol used only that way appears here",
       cardCycles: "Circular dependencies",
       cardCyclesSplit: "{files} between files · {domains} between domains",
       cardMostDependedPackages: "Most-depended-on packages",
@@ -569,6 +570,7 @@
       colComponents: "Компоненты",
       cardDeadExports: "Мёртвые / неиспользуемые экспорты",
       cardDeadExportsEntry: "Ещё {n} исключены как точки входа",
+      cardDeadExportsDynamic: "Динамических import() с вычисляемым путём: {n} в {files} файлах — их не отследить, символ, используемый только так, попадёт сюда",
       cardCycles: "Циклические зависимости",
       cardCyclesSplit: "{files} между файлами · {domains} между доменами",
       cardMostDependedPackages: "Самые востребованные пакеты",
@@ -1024,7 +1026,7 @@
     grid.append(hooksCard(ins.hooks || [], ins.components || []));
     grid.append(listCard(t("cardDeadExports"), ins.deadExports, (r) => focusRow(r.id, { sub: subFor(r.id) }), {
       badge: fmt(ins.deadExportsTotal || 0),
-      note: ins.deadExportsEntryPoints ? t("cardDeadExportsEntry", { n: fmt(ins.deadExportsEntryPoints) }) : null,
+      note: deadExportNote(ins),
     }));
     grid.append(listCard(t("cardCycles"), ins.cycles, cycleRow, {
       badge: fmt(ins.cyclesTotal || 0),
@@ -1051,6 +1053,22 @@
     btn.append(main);
     if (r.weight != null) btn.append(h("span", { class: "row-metric", text: fmt(r.weight) + " " + t("wordLinks") }));
     return btn;
+  }
+
+  // Two things qualify a dead-export list: what was deliberately held back
+  // (entry points), and what could not be seen at all (computed dynamic
+  // imports). Both are shown when present, because a reader about to delete
+  // something needs the size of the doubt.
+  function deadExportNote(ins) {
+    const parts = [];
+    if (ins.deadExportsEntryPoints) {
+      parts.push(t("cardDeadExportsEntry", { n: fmt(ins.deadExportsEntryPoints) }));
+    }
+    const dyn = ins.computedDynamicImports;
+    if (dyn && dyn.total > 0) {
+      parts.push(t("cardDeadExportsDynamic", { n: fmt(dyn.total), files: fmt(dyn.files) }));
+    }
+    return parts.length ? parts.join(" · ") : null;
   }
 
   function listCard(title, rows, rowFn, opts) {

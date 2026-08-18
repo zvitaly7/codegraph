@@ -16,6 +16,7 @@
 //     insights: { productMap, biggestDomains, mostUsedSymbols,
 //                 mostConnectedSymbols, hooks, components, deadExports,
 //                 deadExportsTotal, deadExportsEntryPoints,
+//                 computedDynamicImports,
 //                 mostDependedPackages, biggestImporters,
 //                 cycles, cyclesTotal, fileCyclesTotal, domainCyclesTotal },
 //   }
@@ -27,6 +28,7 @@
 // six semantic relations, so every endpoint resolves to a node in `nodes`.
 
 import { findCycles } from '../../lib/cycles.mjs';
+import { computedDynamicImports } from '../../lib/dynamic_imports.mjs';
 
 /** Semantic relations kept in the index (all endpoints are SPA-facing nodes). */
 const SEMANTIC_EDGE_TYPES = new Set([
@@ -436,6 +438,7 @@ export function buildIndex(graph, options = {}) {
       deadExports,
       deadExportsTotal,
       deadExportsEntryPoints,
+      computedDynamicImports: computedDynamicImports(graph),
       mostDependedPackages,
       biggestImporters,
       cycles,

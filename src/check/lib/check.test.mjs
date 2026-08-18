@@ -266,3 +266,37 @@ describe('config hygiene', () => {
     expect(missingPrerequisites({ noCycles: { scope: 'file' } }, ['inventory', 'imports'])).toEqual([]);
   });
 });
+
+// `maxDeadExports` is the rule most likely to make someone delete code. It must
+// carry the size of what the graph cannot see.
+describe('evaluateCheck — maxDeadExports and computed dynamic imports', () => {
+  function graphWithDynamic(n) {
+    const cache = mkdtempSync(join(tmpdir(), 'cg-check-dyn-'));
+    writeLayer(cache, 'inventory', { nodes: [file('src/a.ts'), file('src/b.ts')] });
+    writeLayer(cache, 'imports', {
+      nodes: [
+        { id: 'file:src/a.ts', labels: ['File'], properties: { path: 'src/a.ts', computedDynamicImports: n } },
+        { id: 'file:src/b.ts', labels: ['File'], properties: { path: 'src/b.ts' } },
+      ],
+    });
+    writeLayer(cache, 'symbols', {
+      nodes: [sym('src/b.ts', 'lonely')],
+      edges: [edge('DECLARES', 'file:src/b.ts', 'sym:src/b.ts#lonely')],
+    });
+    writeLayer(cache, 'references', {});
+    return loadGraph(cache);
+  }
+
+  it('notes the unfollowable sites on the rule, and renders them', () => {
+    const report = evaluateCheck(graphWithDynamic(4), { maxDeadExports: 0 });
+    const rule = ruleById(report, 'maxDeadExports');
+
+    expect(rule.note).toMatch(/4 computed dynamic imports in 1 file/);
+    expect(renderCheck(report)).toMatch(/4 computed dynamic imports in 1 file/);
+  });
+
+  it('adds no note when the repo has none', () => {
+    const rule = ruleById(evaluateCheck(graphWithDynamic(0), { maxDeadExports: 0 }), 'maxDeadExports');
+    expect(rule.note).toBeUndefined();
+  });
+});

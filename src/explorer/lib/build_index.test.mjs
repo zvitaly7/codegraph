@@ -371,3 +371,20 @@ describe('buildIndex — determinism & graceful degradation', () => {
     expect(idx.meta.project).toBeNull();
   });
 });
+
+// The dead-exports card is the one place in the explorer someone might act on by
+// deleting code. It carries the count of import sites nothing static can follow.
+describe('computed dynamic imports', () => {
+  it('totals them from the File nodes into the insights', () => {
+    const g = sampleGraph();
+    g.nodesById.get('file:src/a.ts').properties.computedDynamicImports = 2;
+    g.nodesById.get('file:src/b.ts').properties.computedDynamicImports = 1;
+
+    expect(buildIndex(g, FIXED).insights.computedDynamicImports).toEqual({ total: 3, files: 2 });
+  });
+
+  it('reports zero on a repo with none', () => {
+    expect(buildIndex(sampleGraph(), FIXED).insights.computedDynamicImports)
+      .toEqual({ total: 0, files: 0 });
+  });
+});

@@ -55,7 +55,7 @@ describe('run() happy path', () => {
     expect(manifest.schemaVersion).toBe(1);
     expect(manifest.basedOnSnapshot).toBe('snapshot:demo:rev1');
     expect(typeof manifest.generatedAt).toBe('string');
-    expect(manifest.counts).toEqual({ files: 2, packages: 1, edges: 2, internal: 1, external: 1, unresolved: 1 });
+    expect(manifest.counts).toEqual({ files: 2, packages: 1, edges: 2, internal: 1, external: 1, unresolved: 1, computedDynamicImports: 0 });
     expect(manifest.resolutionRate).toBeCloseTo(0.5, 5);
 
     const nodes = readLines(join(out, 'nodes.jsonl'));
@@ -203,7 +203,7 @@ describe('run() — workspace monorepos', () => {
       '{"id":"pkg:react","labels":["Package"],"properties":{"name":"react","scope":null}}',
     ].join('\n'));
     const manifest = JSON.parse(readFileSync(join(out, 'imports', 'manifest.json'), 'utf8'));
-    expect(manifest.counts).toEqual({ files: 2, packages: 2, edges: 3, internal: 1, external: 2, unresolved: 0 });
+    expect(manifest.counts).toEqual({ files: 2, packages: 2, edges: 3, internal: 1, external: 2, unresolved: 0, computedDynamicImports: 0 });
   });
 });
 
@@ -269,5 +269,62 @@ describe('run() exit codes', () => {
     expect(code).toBe(0);
     const manifest = JSON.parse(readFileSync(join(repo, '.kg-cache', 'imports', 'manifest.json'), 'utf8'));
     expect(manifest.basedOnSnapshot).toBe('snapshot:x:y');
+  });
+});
+
+// A dynamic import whose specifier is computed cannot be resolved by anything
+// static, so the graph is silently wrong about whatever it reaches. The imports
+// layer counts these — per file and repo-wide — so every consumer downstream can
+// say so instead of pretending the blind spot is not there.
+describe('computed dynamic imports', () => {
+  it('counts them per file and repo-wide in the manifest', async () => {
+    src('src/a.ts', "import { b } from './b';\nconst m = await import(pathToFileURL(x).href);\n");
+    src('src/b.ts', "export const b = 1;\nawait import(`./${b}.mjs`);\nawait import('./b');\n");
+    src('src/clean.ts', "await import('./b');\nexport const c = 1;\n");
+    writeInventory(repo, [
+      { id: 'file:src/a.ts', path: 'src/a.ts', language: 'TypeScript', kind: 'code' },
+      { id: 'file:src/b.ts', path: 'src/b.ts', language: 'TypeScript', kind: 'code' },
+      { id: 'file:src/clean.ts', path: 'src/clean.ts', language: 'TypeScript', kind: 'code' },
+    ]);
+
+    expect(await run(['--repo-root', repo, '--out', join(repo, '.kg-cache')])).toBe(0);
+    const manifest = JSON.parse(readFileSync(join(repo, '.kg-cache', 'imports', 'manifest.json'), 'utf8'));
+
+    expect(manifest.counts.computedDynamicImports).toBe(2);
+    expect(manifest.computedDynamicImportFiles).toEqual([
+      { path: 'src/a.ts', count: 1 },
+      { path: 'src/b.ts', count: 1 },
+    ]);
+  });
+
+  it('records the per-file count on the File node, so the graph carries it', async () => {
+    src('src/a.ts', 'await import(one);\nawait import(two);\nexport const a = 1;\n');
+    src('src/clean.ts', 'export const c = 1;\n');
+    writeInventory(repo, [
+      { id: 'file:src/a.ts', path: 'src/a.ts', language: 'TypeScript', kind: 'code' },
+      { id: 'file:src/clean.ts', path: 'src/clean.ts', language: 'TypeScript', kind: 'code' },
+    ]);
+
+    expect(await run(['--repo-root', repo, '--out', join(repo, '.kg-cache')])).toBe(0);
+    const nodes = readLines(join(repo, '.kg-cache', 'imports', 'nodes.jsonl'));
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+
+    expect(byId.get('file:src/a.ts').properties.computedDynamicImports).toBe(2);
+    // A file with none stays exactly as it was — no new key on a clean file.
+    expect(byId.get('file:src/clean.ts').properties).toEqual({ path: 'src/clean.ts' });
+  });
+
+  it('reports zero and lists nothing on a repo that has none', async () => {
+    src('src/a.ts', "import { b } from './b';\nawait import('./b');\n");
+    src('src/b.ts', 'export const b = 1;\n');
+    writeInventory(repo, [
+      { id: 'file:src/a.ts', path: 'src/a.ts', language: 'TypeScript', kind: 'code' },
+      { id: 'file:src/b.ts', path: 'src/b.ts', language: 'TypeScript', kind: 'code' },
+    ]);
+
+    expect(await run(['--repo-root', repo, '--out', join(repo, '.kg-cache')])).toBe(0);
+    const manifest = JSON.parse(readFileSync(join(repo, '.kg-cache', 'imports', 'manifest.json'), 'utf8'));
+    expect(manifest.counts.computedDynamicImports).toBe(0);
+    expect(manifest.computedDynamicImportFiles).toEqual([]);
   });
 });

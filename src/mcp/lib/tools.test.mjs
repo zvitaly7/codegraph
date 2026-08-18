@@ -613,3 +613,30 @@ describe('optional response shaping on the token savers', () => {
     }
   });
 });
+
+// A symbol reachable ONLY through `import(<non-literal>)` is reported dead,
+// because nothing static can follow that edge. The count of such sites travels
+// on the File nodes, and `dead_exports` has to say so — a caller deleting code
+// on the strength of this answer needs to know what the answer cannot see.
+describe('dead_exports — computed dynamic imports', () => {
+  it('warns, with the count, when the repo has computed dynamic imports', () => {
+    writeLayer(g.cacheDir, 'imports', {
+      nodes: [
+        fileNode('src/core/index.ts', { computedDynamicImports: 2 }),
+        fileNode('src/core/util.ts', { computedDynamicImports: 1 }),
+        fileNode('src/checkout/pay.ts'),
+      ],
+    });
+    const r = deadExports(loadGraph(g.cacheDir));
+
+    expect(r.computedDynamicImports).toEqual({ total: 3, files: 2 });
+    expect(r.computedDynamicImportNote).toMatch(/3 computed dynamic import/);
+    expect(r.computedDynamicImportNote).toMatch(/appear here/i);
+  });
+
+  it('says nothing at all when the repo has none', () => {
+    const r = deadExports(loadGraph(g.cacheDir));
+    expect(r.computedDynamicImports).toEqual({ total: 0, files: 0 });
+    expect(r.computedDynamicImportNote).toBeUndefined();
+  });
+});

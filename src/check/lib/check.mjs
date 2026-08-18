@@ -117,6 +117,10 @@ function evalMaxDeadExports(graph, budget, max) {
     ok: found.total <= budget,
     detail: `${found.total} dead export${found.total === 1 ? '' : 's'} vs a budget of ${budget}`
       + `; ${excluded} excluded as entry-point exports`,
+    // This rule is the one people act on by deleting things, so it carries the
+    // size of what the graph cannot see. `renderCheck` prints a rule's note
+    // whether it passed or failed.
+    ...(found.computedDynamicImportNote ? { note: found.computedDynamicImportNote } : {}),
     ...cap(lines, max),
     // `found.total` is already post-exclusion; `capped` reflects the listing cap.
     offendersTotal: found.total,

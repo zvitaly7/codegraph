@@ -1,6 +1,6 @@
 // Assemble the imports graph from extracted specifiers.
 //
-// Input files are `{ path, absPath, specifiers }`. We build:
+// Input files are `{ path, absPath, specifiers, computedDynamicImports }`. We build:
 //   - one File node per source (id file:<path>),
 //   - one Package node per distinct external package (id pkg:<name>),
 //   - one IMPORTS edge per resolved import (internal or external), deduped.
@@ -9,6 +9,13 @@
 // occurrences (each unique specifier in a file counted once), while `edges` is
 // the number of distinct graph edges — the two differ whenever several
 // specifiers collapse onto the same target (e.g. many subpaths of one package).
+//
+// `computedDynamicImports` is the one count that describes what is MISSING: the
+// `import(<non-literal>)` sites nothing static can follow, so no edge exists for
+// them and none ever will. It rides on the File node (only when non-zero, so a
+// clean file's node is unchanged) and is totalled repo-wide, because every
+// consumer that reports reachability needs to be able to say how much of the
+// answer it cannot see.
 
 import { fileId, edge } from '../../inventory/schema.mjs';
 import { resolveSpecifier } from './resolver.mjs';
@@ -58,8 +65,18 @@ export function buildGraph({ files, repoRoot, tsconfigIndex, workspaces }) {
   const fileNodes = sortedFiles.map((f) => ({
     id: fileId(f.path),
     labels: ['File'],
-    properties: { path: f.path },
+    properties: f.computedDynamicImports > 0
+      ? { path: f.path, computedDynamicImports: f.computedDynamicImports }
+      : { path: f.path },
   }));
+
+  // Only the files that actually have one, so this list stays short enough to
+  // read and a clean repo reports an empty array rather than every file.
+  const computedDynamicImportFiles = sortedFiles
+    .filter((f) => f.computedDynamicImports > 0)
+    .map((f) => ({ path: f.path, count: f.computedDynamicImports }));
+  const computedDynamicImports = computedDynamicImportFiles
+    .reduce((sum, f) => sum + f.count, 0);
 
   const byId = (a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
   const nodes = [...fileNodes, ...packages.values()].sort(byId);
@@ -68,6 +85,7 @@ export function buildGraph({ files, repoRoot, tsconfigIndex, workspaces }) {
   return {
     nodes,
     edges: edgeList,
+    computedDynamicImportFiles,
     counts: {
       files: files.length,
       packages: packages.size,
@@ -75,6 +93,7 @@ export function buildGraph({ files, repoRoot, tsconfigIndex, workspaces }) {
       internal: counts.internal,
       external: counts.external,
       unresolved: counts.unresolved,
+      computedDynamicImports,
     },
   };
 }
