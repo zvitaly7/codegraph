@@ -8,11 +8,11 @@
 <p>
   <a href="https://www.npmjs.com/package/loregraph"><img alt="npm version" src="https://img.shields.io/npm/v/loregraph?logo=npm&logoColor=white&color=CB3837"></a>
   <img alt="Node &gt;= 18" src="https://img.shields.io/badge/node-%3E%3D18-339933?logo=nodedotjs&logoColor=white">
-  <img alt="MCP server: 16 tools" src="https://img.shields.io/badge/MCP-16%20tools-1F6FEB">
+  <img alt="MCP server: 17 tools" src="https://img.shields.io/badge/MCP-17%20tools-1F6FEB">
   <a href="https://github.com/zvitaly7/loregraph/blob/main/LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-black"></a>
 </p>
 <p>
-  <img alt="873 tests passing" src="https://img.shields.io/badge/tests-873%20passing-6E9F18?logo=vitest&logoColor=white">
+  <img alt="999 tests passing" src="https://img.shields.io/badge/tests-999%20passing-6E9F18?logo=vitest&logoColor=white">
   <img alt="Analysis scope: JavaScript / TypeScript" src="https://img.shields.io/badge/analysis-JavaScript%20%2F%20TypeScript-3178C6?logo=typescript&logoColor=white">
   <img alt="Runtime dependencies: typescript and ignore" src="https://img.shields.io/badge/runtime%20deps-typescript%20%2B%20ignore-8957E5">
 </p>
@@ -37,7 +37,7 @@ Builds a deterministic map of a JavaScript/TypeScript codebase — files, symbol
 | **Install** | `npx loregraph init` |
 | **Analyzes** | JavaScript / TypeScript — the inventory layer catalogs any language |
 | **Produces** | JSONL graph artifacts, a static explorer SPA, generated Markdown docs |
-| **Agent surface** | 16 MCP tools over stdio JSON-RPC 2.0 |
+| **Agent surface** | 17 MCP tools over stdio JSON-RPC 2.0 |
 | **Runtime deps** | `typescript` + `ignore`, nothing else |
 | **Requires** | Node.js >= 18 |
 
@@ -50,9 +50,10 @@ Builds a deterministic map of a JavaScript/TypeScript codebase — files, symbol
 | 🗺️ **Maps the repo** | Catalogs every file, then resolves imports, top-level declarations, cross-file references and symbol-to-symbol usage into a layered graph. |
 | 🏷️ **Groups code into domains** | A semantic overlay derived from the directory layout (configurable), plus weighted `DEPENDS_ON` edges between domains. |
 | 🔎 **Shows it in a browser** | One static HTML file plus a JSON index — searchable, offline, no server required beyond an optional local static host. |
-| 🤖 **Answers agent questions without opening files** | `brief` and `impact` pack the useful facts about a file, domain, symbol or diff into a few hundred bytes; `outline` gives a file's declarations without the bodies and `show` prints exactly one symbol; an MCP server exposes the same queries as 16 tools. |
+| 🤖 **Answers agent questions without opening files** | `brief` and `impact` pack the useful facts about a file, domain, symbol or diff into a few hundred bytes; `outline` gives a file's declarations without the bodies and `show` prints exactly one symbol; an MCP server exposes the same queries as 17 tools. |
 | 🧠 **Adds the one thing it cannot prove — labelled as such** | The graph knows what imports what; it cannot know *why* something exists. `describe` asks a model you choose for a short description of each domain, file or symbol and caches it by content hash. Those descriptions are stored, surfaced and serialized as **model-generated**, always naming the model and the date — never merged into the proven facts. |
 | 🔄 **Rides along with git** | Every artifact is stamped with the commit it was built from. `--if-stale` turns a rebuild into a no-op while `HEAD` has not moved, `--incremental` re-analyzes only what changed, an opt-in `post-merge` hook keeps the graph in step with `git pull`, and every consumer warns when the cache is behind. |
+| 🚦 **Fails a build on what it finds** | `loregraph check` turns the graph into a CI gate: no circular dependencies, a dead-export budget, an import-resolution floor, and architectural boundaries between domains. Every rule is reported with its verdict; a failure names the actual files behind it and exits non-zero. |
 
 > [!TIP]
 > Because the graph is **derived from the code** rather than written by hand, it cannot drift from it. The freshness machinery is described in [Keeping it fresh](#keeping-it-fresh).
@@ -141,6 +142,13 @@ Ask it things from the terminal:
 ```bash
 loregraph brief src/checkout/Cart.tsx    # a path, a path suffix, a domain or a symbol name
 loregraph impact --diff main             # what this branch touches, and which tests to run
+loregraph cycles                         # circular dependencies, between files and between domains
+```
+
+Gate a build on it:
+
+```bash
+loregraph check                          # exits 1 when a rule in loregraph.config.mjs is violated
 ```
 
 Serve it to an agent over MCP (stdio JSON-RPC 2.0):
@@ -199,6 +207,8 @@ Global flags on every command: `--repo-root PATH`, `--out DIR`, `--config FILE`,
 | `outline` | A file's declarations — kinds, signatures, line ranges, class members — without the bodies. Needs no cache. | `<file>`, `--limit N` (100), `--max-tokens N`, `--json` |
 | `show` | The source of exactly one symbol, with its JSDoc. Re-parsed at call time, so a stale cache cannot misplace it. | `<symbol>`, `--context N` (0), `--cache DIR`, `--json` |
 | `impact` | Blast radius, affected domains, risky exports and likely tests for a change. | `--diff REF` (HEAD), `--files a,b`, `--cache DIR`, `--limit N` (10), `--max-depth N` (25), `--max-tokens N`, `--compress-paths`, `--json` |
+| `cycles` | Circular dependencies, found with Tarjan's SCC — each knot reported once, domain cycles with their hop weights. | `--scope file\|domain\|both` (both), `--cache DIR`, `--limit N` (20), `--json` |
+| `check` | **CI gate.** Evaluates the `check` block of the config and exits non-zero on a violation. | `--cache DIR`, `--json` |
 | `describe` | Cached, model-written descriptions of domains / files / symbols. **The only command that can cost money.** | `--scope domains\|files\|symbols\|all`, `--top N`, `--command CMD`, `--model NAME`, `--dry-run`, `--yes`, `--budget N`, `--budget-tokens N`, `--force`, `--timeout MS`, `--json` |
 | `explorer` | Builds `graph-index.json` + the SPA, optionally serves them. | `--cache DIR`, `--serve`, `--port N` (8765) |
 | `docs` | Generates `AGENTS.md` and Markdown pages from the graph. | `--cache DIR`, `--out-docs DIR`, `--agents-out FILE`, `--lang en\|ru`, `--force` |
@@ -211,6 +221,8 @@ Global flags on every command: `--repo-root PATH`, `--out DIR`, `--config FILE`,
 | `0` | Success. |
 | `2` | A usage error or a missing prerequisite — no cache, no upstream artifact. |
 | `1` | Anything else that failed: a write, a policy gate, a graph load, or a layer inside `regenerate`. |
+
+For `loregraph check`, `1` means specifically **a rule was violated** and `2` means it could not judge at all — an unknown rule name, a missing graph layer, or no cache.
 
 <a id="for-ai-agents"></a>
 
@@ -390,10 +402,10 @@ Separately, and **not** produced by that script: a one-off manual A/B gave two A
 
 ### 🔌 MCP server
 
-`loregraph mcp` speaks JSON-RPC 2.0 on stdin/stdout (protocol version `2024-11-05`) and exposes **16 tools**. stdout carries protocol traffic only; diagnostics go to stderr.
+`loregraph mcp` speaks JSON-RPC 2.0 on stdin/stdout (protocol version `2024-11-05`) and exposes **17 tools**. stdout carries protocol traffic only; diagnostics go to stderr.
 
 <details>
-<summary><b>All 16 tools and their arguments</b></summary>
+<summary><b>All 17 tools and their arguments</b></summary>
 
 <br>
 
@@ -417,6 +429,7 @@ Separately, and **not** produced by that script: a one-off manual A/B gave two A
 | `domain_dependencies` | `domain` (required) |
 | `domain_crossings` | — |
 | `dead_exports` | `limit`, `includeEntryPoints` |
+| `cycles` | `scope` (`file\|domain\|both`), `limit` |
 
 **Context packs**
 
@@ -664,6 +677,7 @@ Optional `loregraph.config.mjs` (default export) or `loregraph.config.json` at t
 | `incremental` | `'off'` | `'off'` or `'incremental'` — rebuild mode for the heavy layers. |
 | `compressPaths` | `false` | Factor shared directory prefixes out of the path lists `brief` and `impact` print. `--compress-paths` / `--no-compress-paths` override it per call. |
 | `entryPoints` | `[]` | Globs whose exports are never reported as dead — files consumed across a boundary the import graph cannot see (module-federation remotes, dynamic-import targets). `package.json` `main`/`module`/`exports`/`bin`, and the same fields of every workspace package, are detected on top of these. |
+| `check` | `{}` | Rules for `loregraph check`, the CI gate: `noCycles`, `maxDeadExports`, `minResolutionRate`, `domainRules`. Empty means nothing is verified — and the command says so rather than reporting a pass. |
 | `describe` | `{}` | Defaults for `loregraph describe`: `command`, `model`, `scope`, `top`, `timeoutMs`, and `pricing: { input, output }` in USD per million tokens. |
 
 `loregraph docs` additionally reads a `lang` key (`'en'` or `'ru'`, default `'en'`); `--lang` overrides it.
@@ -678,6 +692,24 @@ export default {
   domains: './loregraph.domains.mjs',
 };
 ```
+
+The `check` block is what `loregraph check` gates a build on. Every key is optional; only the ones you write are evaluated.
+
+```js
+// loregraph.config.mjs
+export default {
+  check: {
+    noCycles: true,                 // or { scope: 'file' | 'domain' | 'both' }
+    maxDeadExports: 0,              // fail above N unreferenced exports (entry points excluded)
+    minResolutionRate: 0.95,        // fail when the imports layer resolved less than this
+    domainRules: [
+      { from: 'ui', mustNotDependOn: ['server', 'db'] },
+    ],
+  },
+};
+```
+
+`check` exits `0` when every configured rule passes, `1` when one is violated, and `2` when it could not judge — an unknown rule name, a missing graph layer, or no cache. With an empty `check` block it exits `0` **and says nothing was verified**, because a green gate that checked nothing is worse than no gate.
 
 <a id="keeping-it-fresh"></a>
 
