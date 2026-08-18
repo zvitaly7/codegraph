@@ -605,6 +605,10 @@ flowchart LR
 >   @myorg/ui-kit — 1749 import(s)
 >   @myorg/shell — 82 import(s)
 >   their entry points name build output the graph does not index; map them with the `paths` config key to restore the dependencies
+>   suggested loregraph.config.mjs:
+>   paths: {
+>     "@myorg/ui-kit": ["packages/ui-kit/packages/*/src", "packages/ui-kit/packages/*"]
+>   }
 > ```
 >
 > Строка печатается при каждой сборке, а не только при настройке: пакет, добавленный через месяц, выпадет из графа точно так же. Те же числа лежат в `imports/manifest.json` в `counts.unresolvedPackages` — на случай, если по ним нужно ставить гейт. Если объявления не видно вовсе — анализируется подкаталог большого монорепозитория, установка сделана по приложениям — используются **симлинки в `node_modules`, ведущие обратно внутрь репозитория**: ссылка и есть факт, объявление необязательно. Пакет, чей манифест указывает только на сборочный вывод (`dist/…` — он генерируется, а не пишется, и потому не индексируется), откатывается на собственный `src/`.

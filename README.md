@@ -605,6 +605,10 @@ flowchart LR
 >   @myorg/ui-kit — 1749 import(s)
 >   @myorg/shell — 82 import(s)
 >   their entry points name build output the graph does not index; map them with the `paths` config key to restore the dependencies
+>   suggested loregraph.config.mjs:
+>   paths: {
+>     "@myorg/ui-kit": ["packages/ui-kit/packages/*/src", "packages/ui-kit/packages/*"]
+>   }
 > ```
 >
 > That line is printed on every run, not just at setup: a package added next month falls out of the graph the same way, and the count is in `imports/manifest.json` under `counts.unresolvedPackages` for anything that wants to gate on it. When no declaration is reachable — a subdirectory of a larger monorepo analyzed on its own, an install done per application — the **symlinks in `node_modules` that point back into the repo** are used instead: the link is the fact, the paperwork is optional. A package whose manifest names only build output (`dist/…`, which is generated rather than authored and so is never indexed) falls back to its own `src/`.

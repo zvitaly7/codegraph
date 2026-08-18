@@ -6,6 +6,7 @@ import { normPosix } from '../inventory/schema.mjs';
 import { readInventorySources, readInventoryManifest } from '../lib/inventory_reader.mjs';
 import { TsconfigIndex } from '../lib/tsconfig_index.mjs';
 import { discoverWorkspaces } from '../lib/workspaces.mjs';
+import { suggestPathsFor } from '../lib/paths_suggest.mjs';
 import { scanImports } from './lib/specifier_extractor.mjs';
 import { buildGraph } from './lib/graph_builder.mjs';
 
@@ -157,6 +158,17 @@ export async function run(argv) {
       '  their entry points name build output the graph does not index; '
       + 'map them with the `paths` config key to restore the dependencies',
     );
+    // Where each package keeps its sources is visible in the index, so the
+    // mapping is read off it rather than left as an exercise. Only layouts
+    // confirmed against indexed files are proposed.
+    const suggested = suggestPathsFor(
+      unreachable.map(([name]) => workspaces.byName.get(name)).filter(Boolean),
+      files.map((f) => f.path),
+    );
+    if (Object.keys(suggested).length > 0) {
+      console.error('  suggested loregraph.config.mjs:');
+      console.error(`  paths: ${JSON.stringify(suggested, null, 2).split('\n').join('\n  ')}`);
+    }
   }
 
   // Policy gate runs after artifacts are written.
