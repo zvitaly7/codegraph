@@ -196,6 +196,43 @@ describe('workspace packages', () => {
       .toEqual({ kind: 'external', targetId: 'pkg:react', packageName: 'react' });
   });
 
+  // A workspace package that publishes build output names `dist` in its
+  // manifest. `dist` is not indexed — it is generated, not authored — so the
+  // declared entry points at a file the graph will never contain. Falling back
+  // to the package's own source keeps the dependency visible instead of
+  // demoting a sibling package to a third party.
+  it('falls back to src/ when the manifest entry points at build output', () => {
+    const r = makeWs(
+      ['apps/web/src/main.ts', 'packages/ui/src/index.ts'],
+      [{ name: '@myorg/ui', dir: 'packages/ui', entries: ['packages/ui/dist/index.mjs'], subpaths: {} }],
+    );
+    expect(r('@myorg/ui', 'apps/web/src/main.ts'))
+      .toEqual({ kind: 'internal', targetId: 'file:packages/ui/src/index.ts' });
+  });
+
+  it('falls back to src/ for a subpath whose declared target is build output', () => {
+    const r = makeWs(
+      ['apps/web/src/main.ts', 'packages/ui/src/Button/index.ts'],
+      [{
+        name: '@myorg/ui',
+        dir: 'packages/ui',
+        entries: ['packages/ui/dist'],
+        subpaths: { Button: ['packages/ui/dist/Button.mjs'] },
+      }],
+    );
+    expect(r('@myorg/ui/Button', 'apps/web/src/main.ts'))
+      .toEqual({ kind: 'internal', targetId: 'file:packages/ui/src/Button/index.ts' });
+  });
+
+  it('a declared entry that does resolve still wins over the src fallback', () => {
+    const r = makeWs(
+      ['packages/ui/lib/index.ts', 'packages/ui/src/index.ts'],
+      [{ name: '@myorg/ui', dir: 'packages/ui', entries: ['packages/ui/lib/index.ts'], subpaths: {} }],
+    );
+    expect(r('@myorg/ui', 'apps/web/src/main.ts'))
+      .toEqual({ kind: 'internal', targetId: 'file:packages/ui/lib/index.ts' });
+  });
+
   it('a tsconfig alias still wins over the workspace map', () => {
     const tsconfig = { paths: { '@myorg/ui': ['packages/ui/src/aliased.ts'] }, pathsBase: REPO };
     const r = makeWs(
