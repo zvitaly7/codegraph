@@ -4,6 +4,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { TsconfigIndex } from './tsconfig_index.mjs';
 
+/**
+ * The TypeScript API reports paths with forward slashes on every platform, and
+ * the resolver joins them with `path.resolve`, which accepts either. Compare the
+ * two the same way rather than pinning a separator the tool never promised.
+ */
+const samePath = (a, b) => expect(a.split('\\').join('/')).toBe(b.split('\\').join('/'));
+
 let root;
 function w(rel, content) {
   const p = join(root, rel);
@@ -50,20 +57,20 @@ describe('TsconfigIndex — discovery & nearest-enclosing', () => {
   it('root file → root tsconfig', () => {
     const c = new TsconfigIndex({ repoRoot: root }).forFile(join(root, 'src', 'app', 'util.ts'));
     expect(c.paths).toEqual({ '@app/*': ['src/app/*'] });
-    expect(c.pathsBase).toBe(root);
-    expect(c.configPath).toBe(rootCfg);
+    samePath(c.pathsBase, root);
+    samePath(c.configPath, rootCfg);
   });
 
   it('nested file → nearest (nested) tsconfig, overriding the root', () => {
     const c = new TsconfigIndex({ repoRoot: root }).forFile(join(root, 'packages', 'ui', 'lib', 'button.ts'));
     expect(c.paths).toEqual({ '@ui/*': ['lib/*'] });
-    expect(c.pathsBase).toBe(join(root, 'packages', 'ui'));
-    expect(c.configPath).toBe(pkgCfg);
+    samePath(c.pathsBase, join(root, 'packages', 'ui'));
+    samePath(c.configPath, pkgCfg);
   });
 
   it('skips tsconfig under node_modules (falls back to root)', () => {
     const c = new TsconfigIndex({ repoRoot: root }).forFile(join(root, 'node_modules', 'dep', 'index.ts'));
-    expect(c.configPath).toBe(rootCfg); // NOT the node_modules one
+    samePath(c.configPath, rootCfg); // NOT the node_modules one
     expect(c.paths).toEqual({ '@app/*': ['src/app/*'] });
   });
 });

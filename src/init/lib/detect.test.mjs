@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, basename } from 'node:path';
 import {
   MCP_CLIENTS,
   MCP_SERVER_ENTRY,
@@ -131,7 +131,7 @@ describe('detectProject', () => {
     const dir = fixture('lg-detect-noname-');
     const p = detectProject({ repoRoot: dir });
     expect(p.hasPackageJson).toBe(false);
-    expect(p.projectName).toBe(dir.split('/').pop());
+    expect(p.projectName).toBe(basename(dir));
     expect(p.isGitRepo).toBe(false);
     expect(p.hasTsconfig).toBe(false);
   });

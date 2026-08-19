@@ -1,25 +1,30 @@
 import { describe, it, expect } from 'vitest';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 import { resolveConfig } from './load.mjs';
 
 describe('resolveConfig', () => {
   it('applies zero-config defaults relative to repoRoot', async () => {
-    const cfg = await resolveConfig({ cwd: '/tmp/x', argv: [] });
+    // An absolute path built for this platform: a POSIX literal would resolve
+    // against the current drive on Windows and stop meaning what it says.
+    const cwd = resolve(sep, 'tmp', 'x');
+    const cfg = await resolveConfig({ cwd, argv: [] });
     expect(cfg.srcRoots).toEqual(['src']);
     expect(cfg.ignoreFile).toBe('.gitignore');
     expect(cfg.vcs).toBe('auto');
     // outDir is always absolute, resolved against cwd.
-    expect(cfg.outDir).toBe('/tmp/x/.kg-cache');
-    expect(cfg.repoRoot).toBe('/tmp/x');
+    expect(cfg.outDir).toBe(join(cwd, '.kg-cache'));
+    expect(cfg.repoRoot).toBe(cwd);
   });
 
   it('CLI flags override defaults', async () => {
-    const cfg = await resolveConfig({ cwd: '/tmp/x', argv: ['--repo-root', '/r', '--out', '.cache'] });
-    expect(cfg.repoRoot).toBe('/r');
+    const cwd = resolve(sep, 'tmp', 'x');
+    const repoRoot = resolve(sep, 'r');
+    const cfg = await resolveConfig({ cwd, argv: ['--repo-root', repoRoot, '--out', '.cache'] });
+    expect(cfg.repoRoot).toBe(repoRoot);
     // --out is resolved against cwd, not repoRoot.
-    expect(cfg.outDir).toBe('/tmp/x/.cache');
+    expect(cfg.outDir).toBe(join(cwd, '.cache'));
   });
 
   it('loads a .json config file (no ERR_IMPORT_ATTRIBUTE_MISSING) and CLI still overrides it', async () => {

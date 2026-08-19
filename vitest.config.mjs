@@ -5,5 +5,6 @@ export default defineConfig({
       'test/**/*.test.mjs', 'src/**/*.test.mjs', 'bin/**/*.test.mjs', 'bench/**/*.test.mjs',
     ],
     environment: 'node',
+    setupFiles: ['./test/setup.mjs'],
   },
 });
