@@ -183,6 +183,8 @@ describe('check CLI — --json', () => {
     expect(byId.noCycles.ok).toBe(false);
     expect(byId.noCycles.offenders.length).toBeGreaterThan(0);
     expect(byId.maxDeadExports.ok).toBe(true);
+    // Every --json answer says what shape it is (see lib/json_envelope.mjs).
+    expect(parsed).toMatchObject({ schemaVersion: 1, tool: 'loregraph' });
   });
 
   it('emits the nothing-configured shape as JSON too', async () => {

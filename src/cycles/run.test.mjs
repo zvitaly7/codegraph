@@ -73,6 +73,8 @@ describe('cycles CLI', () => {
     expect(parsed.scope).toBe('file');
     expect(parsed.file.total).toBe(1);
     expect(parsed.domain).toBeUndefined();
+    // Every --json answer says what shape it is (see lib/json_envelope.mjs).
+    expect(parsed).toMatchObject({ schemaVersion: 1, tool: 'loregraph' });
   });
 
   it('--scope domain carries the hop weights', async () => {

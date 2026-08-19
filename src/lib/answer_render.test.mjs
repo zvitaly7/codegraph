@@ -243,3 +243,26 @@ describe('--max-tokens holds the line', () => {
     expect(capped).not.toContain(BUDGET_MARKER);
   });
 });
+
+// Every `--json` answer says what shape it is, so a script reading it can tell
+// a renamed field from a missing one instead of silently seeing `undefined`.
+describe('the json envelope reaches the printed answer', () => {
+  it('stamps a brief', () => {
+    const { graph, hub } = deepGraph();
+    const out = JSON.parse(fitBrief(buildBrief(graph, hub, { limit: 5 }), { mode: 'json' }).text);
+    expect(out).toMatchObject({ schemaVersion: 1, tool: 'loregraph' });
+    expect(typeof out.version).toBe('string');
+  });
+
+  it('stamps an impact', () => {
+    const { graph, hub } = deepGraph();
+    const out = JSON.parse(fitImpact(buildImpact(graph, [hub], { limit: 5 }), { mode: 'json' }).text);
+    expect(out).toMatchObject({ schemaVersion: 1, tool: 'loregraph' });
+  });
+
+  it('leaves the text rendering untouched', () => {
+    const { graph, hub } = deepGraph();
+    const text = fitBrief(buildBrief(graph, hub, { limit: 5 }), { mode: 'text' }).text;
+    expect(text).not.toContain('schemaVersion');
+  });
+});

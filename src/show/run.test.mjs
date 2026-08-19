@@ -73,6 +73,8 @@ describe('show CLI', () => {
     const code = await run(['helper', '--repo-root', repo, '--json']);
     expect(code).toBe(0);
     expect(JSON.parse(stdout())).toMatchObject({ kind: 'symbol', path: 'src/b.ts', lookup: 'scan' });
+    // Every --json answer says what shape it is (see lib/json_envelope.mjs).
+    expect(JSON.parse(stdout())).toMatchObject({ schemaVersion: 1, tool: 'loregraph' });
   });
 
   it('lists candidates and still exits 0 when the name is ambiguous', async () => {

@@ -345,6 +345,8 @@ describe('describe CLI — failures and reporting', () => {
     expect(parsed.dryRun).toBe(true);
     expect(parsed.estimate.items).toBe(2);
     expect(parsed.estimate.cost.known).toBe(false);
+    // Every --json answer says what shape it is (see lib/json_envelope.mjs).
+    expect(parsed).toMatchObject({ schemaVersion: 1, tool: 'loregraph' });
     expect(existsSync(join(cache, 'descriptions'))).toBe(false);
   });
 
