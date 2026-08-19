@@ -1,17 +1,17 @@
 {
   "tokenizer": "gpt-tokenizer / o200k_base (GPT-4o, GPT-5 family)",
-  "timestamp": "2026-08-19T05:24:29.897Z",
+  "timestamp": "2026-08-19T06:37:09.307Z",
   "timestampSource": "clock",
   "repo": {
     "root": "/Users/vzheltko/loregraph",
-    "indexedFiles": 193,
-    "symbols": 1011,
-    "exportedSymbols": 303,
-    "benchSourceFiles": 168
+    "indexedFiles": 197,
+    "symbols": 1021,
+    "exportedSymbols": 305,
+    "benchSourceFiles": 172
   },
   "build": {
     "command": "loregraph regenerate",
-    "wallClockMs": 2065,
+    "wallClockMs": 1913,
     "contextTokens": 0,
     "note": "The build runs as a normal process, outside any model context, so it costs zero tokens — but it is not free. Amortised across every question afterwards."
   },
@@ -29,15 +29,15 @@
   },
   "totals": {
     "graphTokens": 5456,
-    "baselineTokens": 499771,
-    "baselineSkimTokens": 113393,
-    "ratio": 91.6,
+    "baselineTokens": 503536,
+    "baselineSkimTokens": 115008,
+    "ratio": 92.3,
     "savedPct": 98.9,
-    "skimRatio": 20.8,
-    "skimSavedPct": 95.2,
+    "skimRatio": 21.1,
+    "skimSavedPct": 95.3,
     "compressedGraphTokens": 5355,
     "compressedSavedPct": 1.9,
-    "compressedRatio": 93.3
+    "compressedRatio": 94
   },
   "questions": [
     {
@@ -89,11 +89,11 @@
           "grep -rn '\\brun.test\\b' — already in context, not charged again"
         ],
         "filesRead": 33,
-        "bytesRead": 300924,
+        "bytesRead": 303060,
         "toolOutputTokens": 2516,
-        "fileTokens": 80969,
-        "tokens": 83485,
-        "skimTokens": 19294
+        "fileTokens": 81529,
+        "tokens": 84045,
+        "skimTokens": 19334
       },
       "compressed": {
         "tokens": 516,
@@ -103,10 +103,10 @@
         "verdict": "smaller"
       },
       "graphTokens": 580,
-      "baselineTokens": 83485,
-      "baselineSkimTokens": 19294,
+      "baselineTokens": 84045,
+      "baselineSkimTokens": 19334,
       "filesRead": 33,
-      "ratio": 143.9,
+      "ratio": 144.9,
       "savedPct": 99.3,
       "graphWins": true
     },
@@ -126,11 +126,11 @@
           "grep -rl '\\bloadGraph\\b' → 20 file(s)"
         ],
         "filesRead": 20,
-        "bytesRead": 174465,
+        "bytesRead": 175777,
         "toolOutputTokens": 158,
-        "fileTokens": 47345,
-        "tokens": 47503,
-        "skimTokens": 10013
+        "fileTokens": 47688,
+        "tokens": 47846,
+        "skimTokens": 10053
       },
       "compressed": {
         "tokens": 394,
@@ -140,10 +140,10 @@
         "verdict": "smaller"
       },
       "graphTokens": 416,
-      "baselineTokens": 47503,
-      "baselineSkimTokens": 10013,
+      "baselineTokens": 47846,
+      "baselineSkimTokens": 10053,
       "filesRead": 20,
-      "ratio": 114.2,
+      "ratio": 115,
       "savedPct": 99.1,
       "graphWins": true
     },
@@ -311,15 +311,15 @@
         "procedure": "read-all",
         "summary": "A repo-wide question needs a repo-wide read: list every source file, then read all of them — you cannot know what a file exports, or whether anything uses it, without its text.",
         "steps": [
-          "find . → 168 source file(s)",
-          "read all 168"
+          "find . → 172 source file(s)",
+          "read all 172"
         ],
-        "filesRead": 168,
-        "bytesRead": 1179707,
-        "toolOutputTokens": 1429,
-        "fileTokens": 314710,
-        "tokens": 316139,
-        "skimTokens": 76131
+        "filesRead": 172,
+        "bytesRead": 1190878,
+        "toolOutputTokens": 1459,
+        "fileTokens": 317542,
+        "tokens": 319001,
+        "skimTokens": 77666
       },
       "compressed": {
         "tokens": 1477,
@@ -329,10 +329,10 @@
         "verdict": "no path list to factor"
       },
       "graphTokens": 1477,
-      "baselineTokens": 316139,
-      "baselineSkimTokens": 76131,
-      "filesRead": 168,
-      "ratio": 214,
+      "baselineTokens": 319001,
+      "baselineSkimTokens": 77666,
+      "filesRead": 172,
+      "ratio": 216,
       "savedPct": 99.5,
       "graphWins": true
     }

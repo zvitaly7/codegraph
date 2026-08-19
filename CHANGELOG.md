@@ -65,6 +65,21 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   itself.
 - **The MCP server reports the package version** instead of a hardcoded
   `0.1.0`, which it had been sending since the first release.
+- **A `paths` target rebased onto a tsconfig's base stays POSIX.** `path.relative`
+  answers in the platform's separators, so on Windows the merged alias table mixed
+  `packages/*/src` with `packages\*\src` and half the aliases resolved by luck.
+  Found by the first Windows run in the project's life.
+
+### CI
+
+- **The suite runs on every push** across Node 18/20/22 and Ubuntu/macOS/Windows,
+  with a second job that rebuilds the graph twice and compares all twelve
+  node/edge files — the determinism the tool rests on, checked rather than
+  asserted. Until now tests only ran when publishing a tag.
+- The suite itself was full of POSIX assumptions no one had ever exercised: a
+  hardcoded `/tmp/x`, a dirname taken with `split('/')`, an execute bit Windows
+  does not have, and temp paths whose 8.3 short form the test runner's module
+  loader cannot turn into a `file://` URL. All fixed; none of them were the tool.
 
 ## [0.2.1] and earlier
 
