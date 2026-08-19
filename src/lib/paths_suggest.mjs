@@ -63,8 +63,11 @@ export function suggestPaths(pkg, sourcePaths) {
   // their own varies inside a single tree, so both are offered in order and the
   // resolver takes the first that lands on an indexed file.
   if (inside.some((rel) => /^packages\/[^/]+\//.test(rel))) {
-    const targets = [`${pkg.dir}/packages/*/src`, `${pkg.dir}/packages/*`];
-    return entry(targets, targets);
+    // Only the subpath pattern: the bare name does not pick out one inner
+    // package, and a wildcard in the target of a wildcard-free pattern is not a
+    // substitution — it is a directory called `*`. A bare import of such a
+    // package stays unresolved, and the report keeps saying so.
+    return { [`${pkg.name}/*`]: [`${pkg.dir}/packages/*/src`, `${pkg.dir}/packages/*`] };
   }
 
   return entry([pkg.dir], [`${pkg.dir}/*`]);

@@ -202,6 +202,10 @@ const KNOB_COMMENTS = {
   incremental: 'Rebuild mode for the heavy type-checking layers.',
   compressPaths: 'Factor shared directory prefixes out of the path lists brief/impact print '
     + '(lossless; worth ~26-57% on a deep monorepo, ~2-10% on a shallow tree).',
+  paths: 'Alias table for cross-package imports, in the tsconfig `paths` shape. '
+    + 'Only needed where no tsconfig declares them — `init` fills this in for the '
+    + 'packages the first build could not reach.',
+  pathsBase: 'Base that `paths` targets are resolved against (null → the repo root).',
   entryPoints: 'Globs whose exports are never reported as dead — files consumed across a '
     + 'boundary the import graph cannot see (module-federation remotes, dynamic imports). '
     + 'package.json main/module/exports/bin are detected on top of these.',
@@ -296,4 +300,45 @@ export function renderConfigFile({ projectName, srcRoots, outDir }) {
 
   lines[lines.length - 1] = '};';
   return `${lines.join('\n')}\n`;
+}
+
+// --- paths (cross-package alias table) ---------------------------------------
+
+/** Render a `paths` table as the generated config would write it. */
+function renderPathsBlock(paths) {
+  const lines = ['  paths: {'];
+  for (const [pattern, targets] of Object.entries(paths)) {
+    lines.push(`    ${literal(pattern)}: ${literal(targets)},`);
+  }
+  lines.push('  },');
+  return lines.join('\n');
+}
+
+/**
+ * Fill in the `paths` table of a generated config file.
+ *
+ * Only the placeholder `init` itself wrote is ever replaced. A config that
+ * already sets `paths` is left exactly as it is, and a hand-written one that has
+ * no placeholder is reported with a snippet to paste — rewriting somebody's
+ * module is the one thing `init` promises never to do.
+ *
+ * @param {string|null} existing current file contents, or null when absent.
+ * @param {Record<string, string[]>} paths the table to write.
+ * @returns {{status:'update'|'unchanged'|'manual', content?:string, snippet?:string}}
+ */
+export function planConfigPaths(existing, paths) {
+  if (!paths || Object.keys(paths).length === 0) {
+    return { status: 'unchanged', content: existing ?? '' };
+  }
+  const block = renderPathsBlock(paths);
+
+  if (typeof existing !== 'string') return { status: 'manual', snippet: block };
+
+  // An active `paths:` key — theirs, not ours. Never touched.
+  if (/^\s*paths\s*:/m.test(existing)) return { status: 'unchanged', content: existing };
+
+  const placeholder = /^[ \t]*\/\/ paths: null,$/m;
+  if (!placeholder.test(existing)) return { status: 'manual', snippet: block };
+
+  return { status: 'update', content: existing.replace(placeholder, block) };
 }

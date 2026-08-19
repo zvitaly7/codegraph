@@ -25,6 +25,9 @@ import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { parseArgs } from 'node:util';
 import process from 'node:process';
 import { DEFAULTS } from '../config/defaults.mjs';
+import { discoverWorkspaces } from '../lib/workspaces.mjs';
+import { suggestPathsFor } from '../lib/paths_suggest.mjs';
+import { readInventorySources } from '../lib/inventory_reader.mjs';
 import { writeTextAtomic } from '../inventory/write.mjs';
 import { MCP_CLIENTS, MCP_SERVER_ENTRY, MCP_SERVER_NAME, detectProject } from './lib/detect.mjs';
 import { USAGE } from './lib/usage.mjs';
@@ -35,6 +38,7 @@ import {
   planJsonServerEntry,
   planPackageScripts,
   planPostMergeHook,
+  planConfigPaths,
   renderConfigFile,
 } from './lib/writers.mjs';
 
@@ -59,6 +63,21 @@ function isDirectory(path) {
     return statSync(path).isDirectory();
   } catch {
     return false;
+  }
+}
+
+/**
+ * The repo's own packages the imports layer could not trace into, worst first.
+ * Absent or unreadable manifest → nothing to offer, never an error: this step
+ * is an offer, not a gate.
+ */
+function readUnreachablePackages(outDir) {
+  try {
+    const manifest = JSON.parse(readFileSync(join(outDir, 'imports', 'manifest.json'), 'utf8'));
+    return Object.entries(manifest?.counts?.unresolvedPackages ?? {})
+      .map(([name, imports]) => ({ name, imports }));
+  } catch {
+    return [];
   }
 }
 
@@ -367,6 +386,50 @@ export async function run(argv, io = {}) {
         const { run: regenerate } = await import('../orchestrate/regenerate.mjs');
         buildCode = await regenerate(['--repo-root', repoRoot, '--out', outDir]);
         built = buildCode === 0;
+      }
+    }
+
+    // --- Step 8: map the packages the build could not reach -----------------
+    // Only the build knows which of the repo's own packages no import could be
+    // traced into — it is the first thing that reads the code. Left here, that
+    // is a graph missing its cross-package dependencies while looking complete,
+    // so the mapping is offered now, once, with the layout already worked out.
+    if (built) {
+      const unreachable = readUnreachablePackages(outDir);
+      if (unreachable.length > 0) {
+        const paths = suggestPathsFor(
+          unreachable.map(({ name }) => discoverWorkspaces(repoRoot).byName.get(name)).filter(Boolean),
+          readInventorySources(join(outDir, 'inventory')).map((row) => posix(row.path)),
+        );
+        const lost = unreachable.reduce((sum, u) => sum + u.imports, 0);
+        say();
+        say(`${unreachable.length} package(s) of this repo could not be reached by any import `
+          + `(${lost} dependencies missing from the graph):`);
+        for (const { name, imports } of unreachable) say(`  ${name} — ${imports} import(s)`);
+
+        if (Object.keys(paths).length === 0) {
+          say('  no source layout could be confirmed for them — map them by hand with `paths`');
+        } else {
+          const after = createPrompter(interactive, io);
+          const wanted = !interactive || await after.confirm('  Add the paths mapping to the config?', true);
+          after.close();
+          if (wanted) {
+            const configPath = join(repoRoot, project.configFile);
+            const plan = planConfigPaths(readOrNull(configPath), paths);
+            if (plan.status === 'update') {
+              put(configPath, plan.content, {
+                action: 'updated',
+                detail: `paths for ${unreachable.map(({ name }) => name).join(', ')}`,
+              });
+              say('  added — re-run `loregraph regenerate` to pick the dependencies up');
+            } else if (plan.status === 'manual') {
+              say('  add this to your config yourself:');
+              for (const line of plan.snippet.split('\n')) say(`  ${line}`);
+            } else {
+              say(`  ${project.configFile} already sets paths — left untouched`);
+            }
+          }
+        }
       }
     }
 

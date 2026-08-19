@@ -108,6 +108,7 @@ It reports what it found in the project, then asks one question per step — Ent
 | 📜 npm scripts | `graph` → `loregraph regenerate`, `graph:explore` → `loregraph explorer --serve`. |
 | 🪝 git hook (opt-in) | A `post-merge` hook running `loregraph regenerate --if-stale`, so the graph follows your `git pull`. |
 | 🏗️ First build | Offers to build the graph there and then. |
+| 🗺️ Cross-package paths | After the first build, offers the `paths` mapping for any package of yours the build could not reach — the layout is read off the index, so it is one Enter rather than a research task. |
 
 > [!IMPORTANT]
 > `init` writes into a project it does not own, so it is non-destructive and idempotent: it never overwrites or truncates an existing file (JSON is merged, text is appended to), and a second run changes nothing. Anything that already exists with different content — your own `graph` script, your own `post-merge` hook — is left alone and reported, with the snippet you need printed for you. `--dry-run` shows the exact plan and writes nothing.
