@@ -1,0 +1,64 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: node ${{ matrix.node }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        node: [18, 20, 22]
+        include:
+          # The package claims to run anywhere Node does; these two prove the
+          # parts of it that touch paths, symlinks and the filesystem.
+          - os: macos-latest
+            node: 22
+          - os: windows-latest
+            node: 22
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm test
+
+  # A second opinion on the suite itself: a run whose artifacts must come out
+  # byte-identical proves the determinism the whole tool rests on.
+  reproducible:
+    name: byte-identical rebuild
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: build the graph twice and compare
+        # Both caches live outside the working tree: a cache written inside it
+        # would be inventoried by the next build, and the two runs would differ
+        # for a reason that has nothing to do with determinism.
+        run: |
+          node bin/loregraph.mjs regenerate --out "$RUNNER_TEMP/kg-a"
+          node bin/loregraph.mjs regenerate --out "$RUNNER_TEMP/kg-b"
+          for layer in inventory imports symbols references usages domains; do
+            for file in nodes.jsonl edges.jsonl; do
+              if ! diff -q "$RUNNER_TEMP/kg-a/$layer/$file" "$RUNNER_TEMP/kg-b/$layer/$file" >/dev/null; then
+                echo "::error::$layer/$file differs between two builds of the same tree"
+                exit 1
+              fi
+            done
+          done
+          echo "all twelve node/edge files identical across both builds"
