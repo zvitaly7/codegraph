@@ -6,6 +6,7 @@ import { buildInventoryGraph } from './walker.mjs';
 
 const VCS = { type: 'none', available: false, revision: 'rev1', branch: 'main' };
 let repo;
+let linkedFile = false;
 
 beforeAll(() => {
   repo = mkdtempSync(join(tmpdir(), 'cg-walk-'));
@@ -35,8 +36,14 @@ beforeAll(() => {
   f('fullchain.pem', '-----BEGIN CERT-----');
   // gitignored
   f('ignored-file.txt', 'nope');
-  // symlink
-  symlinkSync('README.md', join(repo, 'link.md'));
+  // A file symlink needs Developer Mode or elevation on Windows. The rule under
+  // test — links are never indexed — is checked wherever one can be created.
+  try {
+    symlinkSync('README.md', join(repo, 'link.md'));
+    linkedFile = true;
+  } catch {
+    linkedFile = false;
+  }
 });
 afterAll(() => { rmSync(repo, { recursive: true, force: true }); });
 
@@ -56,7 +63,7 @@ describe('buildInventoryGraph', () => {
     expect(p).toContain('.env.sample');
     expect(p).toContain('key.pub');
     expect(p).toContain('fullchain.pem');
-    expect(p).toContain('link.md');
+    if (linkedFile) expect(p).toContain('link.md');
     // skipped
     expect(p).not.toContain('secret.key');
     expect(p).not.toContain('id_rsa');
@@ -105,6 +112,12 @@ describe('buildInventoryGraph', () => {
   });
 
   it('symlink: hashError on the node only, sha null, row has no hashError', () => {
+    if (!linkedFile) {
+      // Only Windows may refuse to create one; anywhere else a missing link is a
+      // real failure, not an environment quirk.
+      expect(process.platform).toBe('win32');
+      return;
+    }
     const g = buildInventoryGraph({ repoRoot: repo, vcsMeta: VCS, projectName: 'demo' });
     const node = g.nodes.find((n) => n.id === 'file:link.md');
     expect(node.properties.hashError).toBe('skipped: symlink (target not hashed)');

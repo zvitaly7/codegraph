@@ -182,6 +182,14 @@ describe('workspaceTsPaths', () => {
 // larger monorepo is analyzed on its own, or the install may be per-application
 // with no root manifest at all. The link on disk is the fact; discovery must not
 // depend on finding the paperwork.
+/**
+ * A directory link. Windows refuses `dir` symlinks without elevation but allows
+ * junctions, which is what npm itself creates for a workspace package — so the
+ * link under test is the same kind the tool will meet in the wild.
+ */
+const linkDir = (target, path) =>
+  symlinkSync(target, path, process.platform === 'win32' ? 'junction' : 'dir');
+
 describe('discoverWorkspaces — node_modules links', () => {
   let root;
 
@@ -194,7 +202,7 @@ describe('discoverWorkspaces — node_modules links', () => {
   function link(fromRel, toRel) {
     const from = join(root, fromRel);
     mkdirSync(join(from, '..'), { recursive: true });
-    symlinkSync(join(root, toRel), from, 'dir');
+    linkDir(join(root, toRel), from);
   }
 
   beforeEach(() => {
@@ -221,7 +229,7 @@ describe('discoverWorkspaces — node_modules links', () => {
     mkdirSync(join(outside, 'src'), { recursive: true });
     writeFileSync(join(outside, 'package.json'), JSON.stringify({ name: 'stranger', main: 'src/index.ts' }));
     mkdirSync(join(root, 'apps', 'web', 'node_modules'), { recursive: true });
-    symlinkSync(outside, join(root, 'apps', 'web', 'node_modules', 'stranger'), 'dir');
+    linkDir(outside, join(root, 'apps', 'web', 'node_modules', 'stranger'));
     expect(discoverWorkspaces(root).byName.has('stranger')).toBe(false);
     rmSync(outside, { recursive: true, force: true });
   });
@@ -237,7 +245,7 @@ describe('discoverWorkspaces — node_modules links', () => {
 
   it('survives a broken link', () => {
     mkdirSync(join(root, 'node_modules'), { recursive: true });
-    symlinkSync(join(root, 'packages', 'gone'), join(root, 'node_modules', 'gone'), 'dir');
+    linkDir(join(root, 'packages', 'gone'), join(root, 'node_modules', 'gone'));
     expect(() => discoverWorkspaces(root)).not.toThrow();
   });
 

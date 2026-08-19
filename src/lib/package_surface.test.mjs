@@ -18,7 +18,10 @@ describe('the published surface', () => {
   beforeAll(() => {
     consumer = mkdtempSync(join(tmpdir(), 'lg-consumer-'));
     mkdirSync(join(consumer, 'node_modules'), { recursive: true });
-    symlinkSync(REPO, join(consumer, 'node_modules', 'loregraph'), 'dir');
+    // Windows refuses a `dir` symlink without elevation; a junction is what npm
+    // creates for a linked package anyway.
+    symlinkSync(REPO, join(consumer, 'node_modules', 'loregraph'),
+      process.platform === 'win32' ? 'junction' : 'dir');
     writeFileSync(join(consumer, 'package.json'), JSON.stringify({ name: 'consumer', type: 'module' }));
   });
   afterAll(() => rmSync(consumer, { recursive: true, force: true }));
