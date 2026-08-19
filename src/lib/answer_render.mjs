@@ -16,6 +16,7 @@
 // Pure apart from mutating `payload` (which is how truncation is expressed) —
 // callers pass an answer they just built and own.
 
+import { withEnvelope } from './json_envelope.mjs';
 import { compressAnswerPaths } from './path_compress.mjs';
 import { budgetBlock, fitPayload, headerFloor } from './answer_budget.mjs';
 
@@ -47,7 +48,12 @@ export function fitAnswer(payload, {
   const cap = Number.isFinite(maxTokens) && maxTokens > 0 ? maxTokens : null;
   const prepare = (p) => {
     const compressed = compressAnswerPaths(p, pathLists, { ...compressOpts, compress });
-    return cap === null ? compressed : { ...compressed, budget: budgetBlock(p, { sections, maxTokens: cap }) };
+    const withBudget = cap === null
+      ? compressed
+      : { ...compressed, budget: budgetBlock(p, { sections, maxTokens: cap }) };
+    // The stamp is part of what gets printed, so it is added before the answer
+    // is measured — a token cap covers the whole answer, envelope included.
+    return mode === 'json' ? withEnvelope(withBudget) : withBudget;
   };
 
   const render = mode === 'json'

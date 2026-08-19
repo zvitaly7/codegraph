@@ -19,6 +19,7 @@ import { checkStaleness } from '../lib/staleness.mjs';
 import { loadGraph } from '../lib/graph_load.mjs';
 import { formatShow, parseSymbolRef, DEFAULT_CONTEXT } from './lib/show.mjs';
 import { lookupSymbol } from './lib/lookup.mjs';
+import { withEnvelope } from '../lib/json_envelope.mjs';
 
 export async function run(argv) {
   const cwd = process.cwd();
@@ -79,6 +80,6 @@ export async function run(argv) {
   const payload = lookupSymbol({
     repoRoot: cfg.repoRoot, ref: target, graph, context, ignoreFile: cfg.ignoreFile,
   });
-  console.log(flags.json ? JSON.stringify(payload, null, 2) : formatShow(payload));
+  console.log(flags.json ? JSON.stringify(withEnvelope(payload), null, 2) : formatShow(payload));
   return 0;
 }

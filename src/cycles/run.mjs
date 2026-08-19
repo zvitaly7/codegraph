@@ -17,6 +17,7 @@ import { resolveConfig } from '../config/load.mjs';
 import { checkStaleness } from '../lib/staleness.mjs';
 import { loadGraph } from '../lib/graph_load.mjs';
 import { buildCycles, renderCycles, SCOPES, DEFAULT_LIMIT } from '../lib/cycles.mjs';
+import { withEnvelope } from '../lib/json_envelope.mjs';
 
 export async function run(argv) {
   const cwd = process.cwd();
@@ -77,6 +78,6 @@ export async function run(argv) {
   }
 
   const report = buildCycles(graph, { scope, limit });
-  console.log(flags.json ? JSON.stringify(report, null, 2) : renderCycles(report));
+  console.log(flags.json ? JSON.stringify(withEnvelope(report), null, 2) : renderCycles(report));
   return 0;
 }

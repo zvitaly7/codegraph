@@ -12,7 +12,7 @@
   <a href="https://github.com/zvitaly7/loregraph/blob/main/LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-black"></a>
 </p>
 <p>
-  <img alt="1168 tests passing" src="https://img.shields.io/badge/tests-1168%20passing-6E9F18?logo=vitest&logoColor=white">
+  <a href="https://github.com/zvitaly7/loregraph/actions/workflows/test.yml"><img alt="tests" src="https://github.com/zvitaly7/loregraph/actions/workflows/test.yml/badge.svg"></a>
   <img alt="Analysis scope: JavaScript / TypeScript" src="https://img.shields.io/badge/analysis-JavaScript%20%2F%20TypeScript-3178C6?logo=typescript&logoColor=white">
   <img alt="Runtime dependencies: typescript and ignore" src="https://img.shields.io/badge/runtime%20deps-typescript%20%2B%20ignore-8957E5">
 </p>
@@ -850,6 +850,12 @@ Hand-written content survives. Everything generated sits between two markers:
 ## 📦 Requirements
 
 - Node.js **>= 18** (`engines.node` in `package.json`). Verified here on Node v22.17.0.
+- **The package is a command line, not a library.** `exports` declares the CLI and
+  `package.json` and nothing else, so Node refuses a deep import of an internal
+  module. Internals stay free to move without breaking somebody who reached in.
+- **Every `--json` answer is stamped** with `schemaVersion`, `tool` and `version`,
+  first in the object — a script reading it can tell a renamed field from a
+  missing one instead of silently seeing `undefined`.
 - Runtime dependencies: `typescript` and `ignore`. Nothing else — `vitest` and `gpt-tokenizer` are devDependencies and are not published with the package.
 
 <a id="development"></a>

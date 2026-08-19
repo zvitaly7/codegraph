@@ -20,6 +20,7 @@ import process from 'node:process';
 import { resolveConfig } from '../config/load.mjs';
 import { checkStaleness } from '../lib/staleness.mjs';
 import { loadGraph } from '../lib/graph_load.mjs';
+import { withEnvelope } from '../lib/json_envelope.mjs';
 import {
   evaluateCheck, renderCheck, unknownRuleKeys, missingPrerequisites, RULE_KEYS,
 } from './lib/check.mjs';
@@ -97,7 +98,7 @@ export async function run(argv) {
   }
 
   const report = evaluateCheck(graph, rules, { resolutionRate: readResolutionRate(cache) });
-  console.log(flags.json ? JSON.stringify(report, null, 2) : renderCheck(report));
+  console.log(flags.json ? JSON.stringify(withEnvelope(report), null, 2) : renderCheck(report));
 
   return report.ok ? 0 : 1;
 }

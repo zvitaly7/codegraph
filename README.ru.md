@@ -12,7 +12,7 @@
   <a href="https://github.com/zvitaly7/loregraph/blob/main/LICENSE"><img alt="Лицензия MIT" src="https://img.shields.io/badge/license-MIT-black"></a>
 </p>
 <p>
-  <img alt="1168 тестов проходят" src="https://img.shields.io/badge/tests-1168%20passing-6E9F18?logo=vitest&logoColor=white">
+  <a href="https://github.com/zvitaly7/loregraph/actions/workflows/test.yml"><img alt="tests" src="https://github.com/zvitaly7/loregraph/actions/workflows/test.yml/badge.svg"></a>
   <img alt="Область анализа: JavaScript / TypeScript" src="https://img.shields.io/badge/analysis-JavaScript%20%2F%20TypeScript-3178C6?logo=typescript&logoColor=white">
   <img alt="Зависимости времени выполнения: typescript и ignore" src="https://img.shields.io/badge/runtime%20deps-typescript%20%2B%20ignore-8957E5">
 </p>
@@ -852,6 +852,12 @@ usages: incremental — re-extracted 4 file(s), reused 256 cached edge(s)
 ## 📦 Требования
 
 - Node.js **>= 18** (`engines.node` в `package.json`). Здесь проверено на Node v22.17.0.
+- **Пакет — это командная строка, а не библиотека.** `exports` объявляет только CLI
+  и `package.json`, поэтому Node отказывает в прямом импорте внутреннего модуля.
+  Внутренности можно свободно переставлять, никому этим не сломав код.
+- **Каждый ответ `--json` помечен** полями `schemaVersion`, `tool` и `version` —
+  они идут первыми, так что читающий скрипт отличит переименованное поле от
+  отсутствующего, а не увидит молча `undefined`.
 - Зависимости времени выполнения: `typescript` и `ignore`. Больше ничего — `vitest` и `gpt-tokenizer` это devDependencies, в пакет они не попадают.
 
 <a id="development"></a>

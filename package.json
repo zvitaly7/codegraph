@@ -7,6 +7,9 @@
   "bin": {
     "loregraph": "bin/loregraph.mjs"
   },
+  "exports": {
+    "./package.json": "./package.json"
+  },
   "engines": {
     "node": ">=18"
   },

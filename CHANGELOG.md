@@ -24,6 +24,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`exports` declares the published surface.** The package is a command line and
+  an MCP server; a deep import of an internal module is now refused by Node rather
+  than working by accident, so internals can move without breaking a consumer who
+  reached past the front door.
+- **Every `--json` answer carries `schemaVersion`, `tool` and `version`**, first in
+  the object. The graph artifacts had said so since the first release; the answers
+  scripts and agents actually parse had not.
+
 - **Workspace packages are discovered from `node_modules` symlinks**, not only
   from a declared `workspaces` field. The declaration is out of reach when a
   subdirectory of a larger monorepo is analyzed on its own, or when the install

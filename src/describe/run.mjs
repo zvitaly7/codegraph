@@ -34,6 +34,7 @@ import { buildPrompt } from './lib/prompt.mjs';
 import { resolveProvider, DEFAULT_TIMEOUT_MS } from './lib/provider.mjs';
 import { estimateRun, formatEstimate } from './lib/estimate.mjs';
 import { loadDescriptions, writeDescriptions, isFresh, KINDS } from './lib/store.mjs';
+import { withEnvelope } from '../lib/json_envelope.mjs';
 
 /** Parse a flag that must be a positive integer. */
 function positiveInt(value, name) {
@@ -189,7 +190,7 @@ export async function run(argv) {
   });
 
   if (asJson && dryRun) {
-    console.log(JSON.stringify({ scope, totals, cached: reused, estimate, dryRun: true }, null, 2));
+    console.log(JSON.stringify(withEnvelope({ scope, totals, cached: reused, estimate, dryRun: true }), null, 2));
     return 0;
   }
 
@@ -306,7 +307,7 @@ export async function run(argv) {
   };
 
   if (asJson) {
-    console.log(JSON.stringify(summary, null, 2));
+    console.log(JSON.stringify(withEnvelope(summary), null, 2));
     return 0;
   }
 
