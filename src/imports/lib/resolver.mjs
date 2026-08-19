@@ -18,7 +18,7 @@ import { dirname, resolve as resolvePath, relative } from 'node:path';
 import { fileId, normPosix } from '../../inventory/schema.mjs';
 
 // Candidate extensions, tried in order (bundler-ish superset of TS + Node ESM).
-const EXTS = ['.ts', '.tsx', '.d.ts', '.js', '.jsx', '.mjs', '.cjs'];
+const EXTS = ['.ts', '.tsx', '.mts', '.cts', '.d.ts', '.js', '.jsx', '.mjs', '.cjs'];
 
 function isRelative(spec) {
   return spec === '.' || spec === '..' || spec.startsWith('./') || spec.startsWith('../');
@@ -93,6 +93,33 @@ function packageNameOf(specifier) {
  * `exports` targets) first, then the plain directory join — which `matchSource`
  * expands with the same extension / `index.<ext>` candidates as everything else.
  */
+/** Directory names that hold generated output rather than authored source. */
+const BUILD_DIRS = ['dist', 'build', 'out', 'lib', 'es', 'esm', 'cjs'];
+
+/**
+ * A manifest entry names the built file. The authored file it came from usually
+ * sits at the same relative place under the source root, so `dist/export/index`
+ * is also tried as `src/export/index` and as `export/index`. Order matters: the
+ * declared path is attempted first and only a candidate that lands on an indexed
+ * file ever wins, so this adds reach without inventing anything.
+ */
+function sourceVariants(target) {
+  const segments = target.split('/');
+  const at = segments.findIndex((seg) => BUILD_DIRS.includes(seg));
+  if (at === -1) return [target];
+  const before = segments.slice(0, at);
+  const after = segments.slice(at + 1);
+  if (after.length === 0) return [target];
+  // The built extension goes too: `index.mjs` was authored as `index.ts`, and
+  // `matchSource` re-adds the source extensions it knows.
+  const stem = [...after.slice(0, -1), after.at(-1).replace(/\.(mjs|cjs|js)$/, '')];
+  return [
+    target,
+    [...before, 'src', ...stem].join('/'),
+    [...before, ...stem].join('/'),
+  ];
+}
+
 function workspaceBases(pkg, subpath) {
   // Declared targets first, then the conventions. A package that publishes
   // build output names `dist` in its manifest, and `dist` is generated rather
@@ -100,9 +127,11 @@ function workspaceBases(pkg, subpath) {
   // points at a file the graph will never contain. The source layout is the
   // only place left that can keep the dependency visible, and a candidate still
   // has to land on an indexed file to win.
-  if (subpath === '') return [...pkg.entries, `${pkg.dir}/src`, pkg.dir];
+  if (subpath === '') {
+    return [...pkg.entries.flatMap(sourceVariants), `${pkg.dir}/src`, pkg.dir];
+  }
   return [
-    ...(pkg.subpaths?.[subpath] ?? []),
+    ...(pkg.subpaths?.[subpath] ?? []).flatMap(sourceVariants),
     `${pkg.dir}/src/${subpath}`,
     `${pkg.dir}/${subpath}`,
   ];

@@ -1,5 +1,5 @@
 import { join, resolve } from 'node:path';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { resolveConfig } from '../config/load.mjs';
 import { writeJsonAtomic, writeJsonlAtomic } from '../inventory/write.mjs';
 import { normPosix } from '../inventory/schema.mjs';
@@ -26,6 +26,25 @@ function readJsonl(path) {
  * Returns a numeric exit code:
  *   0 success · 1 write failure · 2 usage / missing inventory.
  */
+/** True when `path` is an existing directory. */
+function isDirectory(path) {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/** Top-level directories the repo actually has, as seen through the inventory. */
+function topLevelDirs(repoRoot, relPaths) {
+  const seen = new Set();
+  for (const p of relPaths) {
+    const first = p.split('/')[0];
+    if (p.includes('/') && !first.startsWith('.')) seen.add(first);
+  }
+  return [...seen].sort().slice(0, 8);
+}
+
 export async function run(argv) {
   const cwd = process.cwd();
 
@@ -120,6 +139,29 @@ export async function run(argv) {
   );
   if (!hasImports) {
     console.log('[loregraph] no imports artifact found — emitted Domain + BELONGS_TO only (no DEPENDS_ON)');
+  }
+
+  // Source roots that are not in the repository put every file into the same
+  // bucket. The overlay still comes out looking well-formed, so the mismatch has
+  // to be said out loud rather than left to be inferred from a flat result.
+  const missingRoots = srcRoots.filter((root) => !isDirectory(join(repoRoot, root)));
+  if (missingRoots.length === srcRoots.length && srcRoots.length > 0) {
+    const candidates = topLevelDirs(repoRoot, relPaths);
+    console.error(
+      `domains: none of the configured source roots exist here (${srcRoots.join(', ')})`
+      + (candidates.length > 0 ? ` — this repo has: ${candidates.join(', ')}` : ''),
+    );
+    console.error('  set `srcRoots` in loregraph.config.mjs so each product area becomes its own domain');
+  }
+
+  // A domain graph with no edges is not a clean bill of health: the files are
+  // grouped, but nothing was learned about how the groups relate.
+  if (hasImports && counts.dependsOn === 0 && importEdges.length > 0) {
+    console.error(
+      `domains: no domain depends on another, though ${importEdges.length} internal import(s) exist `
+      + '— every one of them stays inside a single domain',
+    );
+    console.error('  usually `srcRoots` does not match this layout, so the whole repo collapsed into a few buckets');
   }
 
   return 0;
