@@ -401,6 +401,37 @@ describe('init — usage', () => {
 });
 
 describe('init — building the graph', () => {
+  // Setting a project up and then handing it a graph with its cross-package
+  // dependencies missing is the failure this whole step exists to prevent. The
+  // build knows which packages fell out; init turns that into one answer.
+  it('offers the paths mapping for packages the first build could not reach', async () => {
+    const dir = project({ pkg: { name: 'root', version: '1.0.0', private: true, workspaces: ['packages/*'] } });
+    mkdirSync(join(dir, 'packages', 'ui', 'packages', 'button'), { recursive: true });
+    writeFileSync(
+      join(dir, 'packages', 'ui', 'package.json'),
+      JSON.stringify({ name: '@myorg/ui', main: 'dist/index.js' }),
+    );
+    writeFileSync(join(dir, 'packages', 'ui', 'packages', 'button', 'index.ts'), 'export const b = 1;\n');
+    // A package that is itself a monorepo is imported by subpath — the bare name
+    // does not pick out one of its inner packages.
+    writeFileSync(join(dir, 'src', 'a.mjs'), "import b from '@myorg/ui/button';\nexport const a = b;\n");
+
+    const code = await run(['--repo-root', dir, '--yes', '--build']);
+    expect(code).toBe(0);
+
+    const cfg = read(dir, 'loregraph.config.mjs');
+    expect(cfg).toContain("'@myorg/ui/*'");
+    expect(cfg).toContain('packages/ui/packages/*');
+    expect(cfg).not.toContain('// paths: null,');
+    expect(output()).toMatch(/paths/);
+  }, 60_000);
+
+  it('writes no paths block when the build reached everything', async () => {
+    const dir = project();
+    await run(['--repo-root', dir, '--yes', '--build']);
+    expect(read(dir, 'loregraph.config.mjs')).toContain('// paths: null,');
+  }, 60_000);
+
   it('builds on request and points at the next commands', async () => {
     const dir = project();
 

@@ -9,6 +9,7 @@ import {
   planPackageScripts,
   planPostMergeHook,
   renderConfigFile,
+  planConfigPaths,
 } from './writers.mjs';
 
 describe('isIgnoreEntryCovered', () => {
@@ -229,5 +230,58 @@ describe('renderConfigFile', () => {
         expect(line.trimStart().startsWith('//')).toBe(true);
       }
     }
+  });
+});
+
+// `init` may only edit the file it generated itself, and only where that file
+// left a placeholder. A hand-written config is reported with a snippet instead:
+// silently rewriting someone's module is exactly what init promises not to do.
+describe('planConfigPaths', () => {
+  const PATHS = {
+    '@myorg/ui': ['packages/ui/src'],
+    '@myorg/ui/*': ['packages/ui/src/*'],
+  };
+
+  it('fills the commented-out placeholder the generated config leaves', () => {
+    const generated = renderConfigFile({ projectName: 'demo', srcRoots: ['src'] });
+    expect(generated).toContain('// paths: null,');
+
+    const plan = planConfigPaths(generated, PATHS);
+    expect(plan.status).toBe('update');
+    expect(plan.content).not.toContain('// paths: null,');
+    expect(plan.content).toContain("'@myorg/ui': ['packages/ui/src'],");
+    expect(plan.content).toContain("'@myorg/ui/*': ['packages/ui/src/*'],");
+    // the rest of the file is untouched
+    expect(plan.content).toContain('srcRoots:');
+  });
+
+  it('what it writes parses back to the same table', async () => {
+    const plan = planConfigPaths(renderConfigFile({ projectName: 'demo', srcRoots: ['src'] }), PATHS);
+    const mod = await import(`data:text/javascript,${encodeURIComponent(plan.content)}`);
+    expect(mod.default.paths).toEqual(PATHS);
+  });
+
+  it('leaves a config that already sets paths alone', () => {
+    const own = "export default {\n  paths: { '@a/b': ['packages/b'] },\n};\n";
+    const plan = planConfigPaths(own, PATHS);
+    expect(plan.status).toBe('unchanged');
+    expect(plan.content).toBe(own);
+  });
+
+  it('hands back a snippet when there is no placeholder to fill', () => {
+    const plan = planConfigPaths('export default { srcRoots: ["src"] };\n', PATHS);
+    expect(plan.status).toBe('manual');
+    expect(plan.snippet).toContain("'@myorg/ui': ['packages/ui/src'],");
+  });
+
+  it('hands back a snippet when there is no config file at all', () => {
+    const plan = planConfigPaths(null, PATHS);
+    expect(plan.status).toBe('manual');
+    expect(plan.snippet).toContain('paths:');
+  });
+
+  it('suggests nothing to do for an empty table', () => {
+    expect(planConfigPaths(renderConfigFile({ projectName: 'd', srcRoots: ['src'] }), {}).status)
+      .toBe('unchanged');
   });
 });

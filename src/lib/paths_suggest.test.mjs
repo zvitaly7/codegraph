@@ -27,7 +27,8 @@ describe('suggestPaths', () => {
       'packages/ui/packages/button/src/index.ts',
       'packages/ui/packages/input/src/index.ts',
     ])).toEqual({
-      '@myorg/ui': ['packages/ui/packages/*/src', 'packages/ui/packages/*'],
+      // No entry for the bare name: it does not pick out one inner package, and
+      // a wildcard in the target of a wildcard-free pattern means nothing.
       '@myorg/ui/*': ['packages/ui/packages/*/src', 'packages/ui/packages/*'],
     });
   });
@@ -37,7 +38,6 @@ describe('suggestPaths', () => {
       'packages/ui/packages/button/index.tsx',
       'packages/ui/packages/common/colors.ts',
     ])).toEqual({
-      '@myorg/ui': ['packages/ui/packages/*/src', 'packages/ui/packages/*'],
       '@myorg/ui/*': ['packages/ui/packages/*/src', 'packages/ui/packages/*'],
     });
   });
