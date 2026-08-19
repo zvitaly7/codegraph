@@ -96,6 +96,29 @@ describe('bare specifiers → external packages', () => {
   });
 });
 
+// `.mts` / `.cts` are ordinary TypeScript module files — the inventory has
+// classified them since the beginning, and the type-checking layers read them.
+// The import resolver did not list them, so nothing could resolve onto one.
+describe('module extensions', () => {
+  it('resolves a relative import onto a .mts file', () => {
+    const r = make(['src/a.ts', 'src/util.mts']);
+    expect(r('./util', 'src/a.ts'))
+      .toEqual({ kind: 'internal', targetId: 'file:src/util.mts' });
+  });
+
+  it('resolves a relative import onto a .cts file', () => {
+    const r = make(['src/a.ts', 'src/util.cts']);
+    expect(r('./util', 'src/a.ts'))
+      .toEqual({ kind: 'internal', targetId: 'file:src/util.cts' });
+  });
+
+  it('resolves a directory import onto index.mts', () => {
+    const r = make(['src/a.ts', 'src/util/index.mts']);
+    expect(r('./util', 'src/a.ts'))
+      .toEqual({ kind: 'internal', targetId: 'file:src/util/index.mts' });
+  });
+});
+
 describe('workspace packages', () => {
   function makeWs(fileSet, packages, tsconfig = NO_TS) {
     const set = new Set(fileSet);
@@ -242,6 +265,52 @@ describe('workspace packages', () => {
     );
     expect(r('@myorg/ui/Button', 'apps/web/src/main.ts'))
       .toEqual({ kind: 'internal', targetId: 'file:packages/ui/src/Button/index.ts' });
+  });
+
+  // A manifest entry names the built file: `dist/export/index.mjs`. The authored
+  // file it was built from usually sits at the same place under the source root,
+  // so the same relative path is tried there before giving up. This reaches the
+  // packages a bare `<dir>/src` fallback cannot — the ones whose entry is nested.
+  it('follows a build entry back to the source file it was built from', () => {
+    const r = makeWs(
+      ['apps/web/src/main.ts', 'packages/core/src/export/index.ts'],
+      [{
+        name: '@myorg/core',
+        dir: 'packages/core',
+        entries: ['packages/core/dist/export/index.mjs'],
+        subpaths: {},
+      }],
+    );
+    expect(r('@myorg/core', 'apps/web/src/main.ts'))
+      .toEqual({ kind: 'internal', targetId: 'file:packages/core/src/export/index.ts' });
+  });
+
+  it('follows a build subpath back to its source too', () => {
+    const r = makeWs(
+      ['apps/web/src/main.ts', 'packages/core/src/api/client.ts'],
+      [{
+        name: '@myorg/core',
+        dir: 'packages/core',
+        entries: ['packages/core/dist/index.mjs'],
+        subpaths: { api: ['packages/core/dist/api/client.mjs'] },
+      }],
+    );
+    expect(r('@myorg/core/api', 'apps/web/src/main.ts'))
+      .toEqual({ kind: 'internal', targetId: 'file:packages/core/src/api/client.ts' });
+  });
+
+  it('tries the build path without its output directory as well', () => {
+    const r = makeWs(
+      ['apps/web/src/main.ts', 'packages/core/export/index.ts'],
+      [{
+        name: '@myorg/core',
+        dir: 'packages/core',
+        entries: ['packages/core/dist/export/index.mjs'],
+        subpaths: {},
+      }],
+    );
+    expect(r('@myorg/core', 'apps/web/src/main.ts'))
+      .toEqual({ kind: 'internal', targetId: 'file:packages/core/export/index.ts' });
   });
 
   it('a declared entry that does resolve still wins over the src fallback', () => {

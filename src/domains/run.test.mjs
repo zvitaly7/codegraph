@@ -142,3 +142,50 @@ describe('domains run — config override mode', () => {
     expect(nodes.map((n) => n.id)).toContain('domain:unassigned');
   });
 });
+
+// A domain overlay with no dependencies between its domains is not a finding,
+// it is a symptom: the source roots did not match the repository, so every file
+// landed in the same bucket and the architecture layer says nothing. Reported as
+// a number, `dependsOn=0` reads like a clean result.
+describe('domains — when the overlay says nothing', () => {
+  const warn = [];
+  const capture = () => {
+    warn.length = 0;
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation((m) => warn.push(String(m)));
+  };
+  afterEach(() => vi.restoreAllMocks());
+
+  it('says so when internal imports exist but no domain depends on another', async () => {
+    const out = tmp('cg-dom-flat-');
+    writeInventory(out, ['apps/a/x.js', 'apps/b/y.js']);
+    writeImports(out, [internalEdge('apps/a/x.js', 'apps/b/y.js')]);
+    capture();
+    // srcRoots defaults to ['src'], which this repo does not have: both files
+    // fall into the same top-level bucket and nothing crosses a boundary.
+    expect(await run(['--repo-root', out, '--out', out])).toBe(0);
+    const text = warn.join('\n');
+    expect(text).toMatch(/no domain depends on another/i);
+    expect(text).toMatch(/srcRoots/);
+  });
+
+  it('says nothing when the overlay does carry dependencies', async () => {
+    const out = tmp('cg-dom-ok-');
+    writeInventory(out, ['src/a/x.js', 'src/b/y.js']);
+    writeImports(out, [internalEdge('src/a/x.js', 'src/b/y.js')]);
+    capture();
+    expect(await run(['--repo-root', out, '--out', out])).toBe(0);
+    expect(warn.join('\n')).not.toMatch(/no domain depends on another/i);
+  });
+
+  it('names the source roots that do not exist in the repository', async () => {
+    const out = tmp('cg-dom-roots-');
+    writeInventory(out, ['apps/a/x.js']);
+    mkdirSync(join(out, 'apps'), { recursive: true });
+    capture();
+    expect(await run(['--repo-root', out, '--out', out])).toBe(0);
+    const text = warn.join('\n');
+    expect(text).toMatch(/src/);
+    expect(text).toMatch(/apps/); // offers what the repo does have
+  });
+});
