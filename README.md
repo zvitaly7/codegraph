@@ -12,7 +12,7 @@
   <a href="https://github.com/zvitaly7/loregraph/blob/main/LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-black"></a>
 </p>
 <p>
-  <img alt="1042 tests passing" src="https://img.shields.io/badge/tests-1042%20passing-6E9F18?logo=vitest&logoColor=white">
+  <img alt="1168 tests passing" src="https://img.shields.io/badge/tests-1168%20passing-6E9F18?logo=vitest&logoColor=white">
   <img alt="Analysis scope: JavaScript / TypeScript" src="https://img.shields.io/badge/analysis-JavaScript%20%2F%20TypeScript-3178C6?logo=typescript&logoColor=white">
   <img alt="Runtime dependencies: typescript and ignore" src="https://img.shields.io/badge/runtime%20deps-typescript%20%2B%20ignore-8957E5">
 </p>
@@ -368,21 +368,21 @@ npm run bench
 
 It builds the graph into a temporary cache, then for seven real questions compares the tokens of loregraph's answer against the tokens of an explicit, documented file-reading procedure — counted with **`gpt-tokenizer`** (`o200k_base`), a bench-only devDependency. Not bytes, and not `chars / 4`, which undercuts the real count by 7–9% on these files.
 
-On this repo (187 indexed files, 976 symbols, 164 JS/TS files in the grep universe). The graph build is **2.13 s of wall clock and 0 tokens** — it happens outside the model's context — and is deliberately kept out of the per-question numbers:
+On this repo (193 indexed files, 1,011 symbols, 168 JS/TS files in the grep universe). The graph build is **2.06 s of wall clock and 0 tokens** — it happens outside the model's context — and is deliberately kept out of the per-question numbers:
 
 | Question | Graph | File-reading baseline | Skim floor | Ratio | |
 | :--- | ---: | ---: | ---: | ---: | :--- |
-| Blast radius of a file | 580 | 81,584 | 19,251 | **140.7x** | `████████` |
-| Who references an export | 416 | 47,187 | 10,041 | **113.4x** | `██████▌` |
-| What is this file wired to | 566 | 20,157 | 2,260 | **35.6x** | `██` |
-| What a module depends on | 191 | 20,892 | 3,336 | **109.4x** | `██████▌` |
+| Blast radius of a file | 580 | 83,485 | 19,294 | **143.9x** | `████████` |
+| Who references an export | 416 | 47,503 | 10,013 | **114.2x** | `██████▌` |
+| What is this file wired to | 566 | 20,278 | 2,215 | **35.8x** | `██` |
+| What a module depends on | 191 | 21,091 | 3,246 | **110.4x** | `██████` |
 | What a file declares (`outline`) | 1,095 | 8,337 | 522 | **7.6x** | `▌` |
 | One symbol's implementation (`show`) | 1,131 | 2,938 | 1,972 | **2.6x** | `▏` |
-| Repo-wide dead exports | 1,439 | 299,142 | 74,222 | **207.9x** | `████████████` |
-| **Total** | **5,418** | **480,237** | **111,604** | **88.6x** | `█████` |
+| Repo-wide dead exports | 1,477 | 316,139 | 76,131 | **214x** | `████████████` |
+| **Total** | **5,456** | **499,771** | **113,393** | **91.6x** | `█████` |
 
 > [!IMPORTANT]
-> **The baseline is a model of what a file-reading agent would read, not a measurement of one.** Nobody's context window was observed. Four of the seven rows compare answers that are not identical — and not always in the graph's favour. On *what is this file wired to* and *what a module depends on* the graph answers more than the baseline, which is therefore under-charged. On *what a file declares* the **baseline** answers more: the file text carries every body `outline` leaves out, so that row is a claim about navigation, not about understanding. The dead-exports row assumes an agent that reads every file rather than writing a script, so treat it as an upper bound on the naive path. The strictest row is *one symbol's implementation* at 2.6x, where both sides end up with the same text for what was asked. The "skim floor" column charges only the first 40 lines of each file — not a realistic way to answer anything, but a hard lower bound: even there the graph is 20.6x cheaper. Every procedure is written out in [`bench/README.md`](bench/README.md) so it can be argued with.
+> **The baseline is a model of what a file-reading agent would read, not a measurement of one.** Nobody's context window was observed. Four of the seven rows compare answers that are not identical — and not always in the graph's favour. On *what is this file wired to* and *what a module depends on* the graph answers more than the baseline, which is therefore under-charged. On *what a file declares* the **baseline** answers more: the file text carries every body `outline` leaves out, so that row is a claim about navigation, not about understanding. The dead-exports row assumes an agent that reads every file rather than writing a script, so treat it as an upper bound on the naive path. The strictest row is *one symbol's implementation* at 2.6x, where both sides end up with the same text for what was asked. The "skim floor" column charges only the first 40 lines of each file — not a realistic way to answer anything, but a hard lower bound: even there the graph is 20.8x cheaper. Every procedure is written out in [`bench/README.md`](bench/README.md) so it can be argued with.
 
 Separately, and **not** produced by that script: a one-off manual A/B gave two AI agents the same three questions about a 217-file demo project, one with the graph and one without. Both answered the blast-radius and symbol-usage questions identically and correctly, at **51,802 tokens with the graph vs 97,464 without (−47%)**. n = 1; the no-graph agent was unusually efficient (it wrote a TypeScript-compiler script instead of grepping), so a typical agent would likely cost more; and on the dead-exports question the two answers used different definitions (18 vs 44) with the no-graph answer being the more nuanced one. The distance between −47% there and the ratios above is the honest measure of how much a modelled baseline flatters the graph.
 
@@ -831,7 +831,7 @@ usages: incremental — re-extracted 4 file(s), reused 256 cached edge(s)
 | `<out-docs>/dependencies.md` | Cross-domain map, external packages, biggest importers. |
 | `<out-docs>/health.md` | Dead exports (entry points held back and counted, computed dynamic imports counted) and orphan candidates. |
 
-Default locations are `<repo>/AGENTS.md` and `<repo>/docs/loregraph/`; `--agents-out` and `--out-docs` move them. On this repo the run produced 27 pages (`AGENTS.md`, three top-level pages, 23 domain pages).
+Default locations are `<repo>/AGENTS.md` and `<repo>/docs/loregraph/`; `--agents-out` and `--out-docs` move them. On this repo the run produced 30 pages (`AGENTS.md`, three top-level pages, 26 domain pages).
 
 Hand-written content survives. Everything generated sits between two markers:
 
@@ -862,7 +862,7 @@ npm test        # vitest run
 npm run bench   # the token benchmark, against this repo itself
 ```
 
-The suite is **778 tests across 65 files**, all passing at the current revision. It includes the incremental equality gate, which asserts that incremental heavy-layer artifacts are byte-identical to a full rebuild.
+The suite is **1,168 tests across 80 files**, all passing at the current revision. It includes the incremental equality gate, which asserts that incremental heavy-layer artifacts are byte-identical to a full rebuild.
 
 <a id="publishing"></a>
 

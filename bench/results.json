@@ -1,25 +1,25 @@
 {
   "tokenizer": "gpt-tokenizer / o200k_base (GPT-4o, GPT-5 family)",
-  "timestamp": "2026-08-18T11:27:04.218Z",
+  "timestamp": "2026-08-19T05:24:29.897Z",
   "timestampSource": "clock",
   "repo": {
-    "root": "/Users/vzheltko/UK Talent/projects/codegraph",
-    "indexedFiles": 187,
-    "symbols": 976,
-    "exportedSymbols": 296,
-    "benchSourceFiles": 164
+    "root": "/Users/vzheltko/loregraph",
+    "indexedFiles": 193,
+    "symbols": 1011,
+    "exportedSymbols": 303,
+    "benchSourceFiles": 168
   },
   "build": {
     "command": "loregraph regenerate",
-    "wallClockMs": 2134,
+    "wallClockMs": 2065,
     "contextTokens": 0,
     "note": "The build runs as a normal process, outside any model context, so it costs zero tokens — but it is not free. Amortised across every question afterwards."
   },
   "pathCompression": {
     "flag": "--compress-paths (CLI) / compressPaths: true (MCP)",
     "note": "Lossless prefix factoring: a text line reads `under <prefix>: <suffix>, …` and --json carries pathGroups: [{ pathPrefix, paths }], so every full path is pathPrefix + paths[i]. Measured on every question; rows with no path list to factor come back byte-identical.",
-    "totalPlainTokens": 5418,
-    "totalCompressedTokens": 5317,
+    "totalPlainTokens": 5456,
+    "totalCompressedTokens": 5355,
     "totalSavedPct": 1.9
   },
   "baselineModel": {
@@ -28,16 +28,16 @@
     "note": "Each baseline is an explicit file-reading procedure (see bench/README.md). \"tokens\" charges every opened file in full; \"skimTokens\" charges only the first 40 lines of each — a floor, not a realistic way to answer."
   },
   "totals": {
-    "graphTokens": 5418,
-    "baselineTokens": 480237,
-    "baselineSkimTokens": 111604,
-    "ratio": 88.6,
+    "graphTokens": 5456,
+    "baselineTokens": 499771,
+    "baselineSkimTokens": 113393,
+    "ratio": 91.6,
     "savedPct": 98.9,
-    "skimRatio": 20.6,
-    "skimSavedPct": 95.1,
-    "compressedGraphTokens": 5317,
+    "skimRatio": 20.8,
+    "skimSavedPct": 95.2,
+    "compressedGraphTokens": 5355,
     "compressedSavedPct": 1.9,
-    "compressedRatio": 90.3
+    "compressedRatio": 93.3
   },
   "questions": [
     {
@@ -72,7 +72,7 @@
           "grep -rn '\\btools.test\\b' (import lines) → 0 hit(s)",
           "grep -rn '\\brun\\b' — already in context, not charged again",
           "grep -rn '\\brun\\b' — already in context, not charged again",
-          "grep -rn '\\bloregraph\\b' (import lines) → 16 hit(s)",
+          "grep -rn '\\bloregraph\\b' (import lines) → 17 hit(s)",
           "grep -rn '\\brun.test\\b' (import lines) → 0 hit(s)",
           "grep -rn '\\brun.test\\b' — already in context, not charged again",
           "grep -rn '\\brun.test\\b' — already in context, not charged again",
@@ -89,11 +89,11 @@
           "grep -rn '\\brun.test\\b' — already in context, not charged again"
         ],
         "filesRead": 33,
-        "bytesRead": 293435,
-        "toolOutputTokens": 2483,
-        "fileTokens": 79101,
-        "tokens": 81584,
-        "skimTokens": 19251
+        "bytesRead": 300924,
+        "toolOutputTokens": 2516,
+        "fileTokens": 80969,
+        "tokens": 83485,
+        "skimTokens": 19294
       },
       "compressed": {
         "tokens": 516,
@@ -103,10 +103,10 @@
         "verdict": "smaller"
       },
       "graphTokens": 580,
-      "baselineTokens": 81584,
-      "baselineSkimTokens": 19251,
+      "baselineTokens": 83485,
+      "baselineSkimTokens": 19294,
       "filesRead": 33,
-      "ratio": 140.7,
+      "ratio": 143.9,
       "savedPct": 99.3,
       "graphWins": true
     },
@@ -126,11 +126,11 @@
           "grep -rl '\\bloadGraph\\b' → 20 file(s)"
         ],
         "filesRead": 20,
-        "bytesRead": 173251,
+        "bytesRead": 174465,
         "toolOutputTokens": 158,
-        "fileTokens": 47029,
-        "tokens": 47187,
-        "skimTokens": 10041
+        "fileTokens": 47345,
+        "tokens": 47503,
+        "skimTokens": 10013
       },
       "compressed": {
         "tokens": 394,
@@ -140,10 +140,10 @@
         "verdict": "smaller"
       },
       "graphTokens": 416,
-      "baselineTokens": 47187,
-      "baselineSkimTokens": 10041,
+      "baselineTokens": 47503,
+      "baselineSkimTokens": 10013,
       "filesRead": 20,
-      "ratio": 113.4,
+      "ratio": 114.2,
       "savedPct": 99.1,
       "graphWins": true
     },
@@ -164,11 +164,11 @@
           "grep -rn '\\btools\\b' (import lines) → 3 hit(s), 3 real importer(s)"
         ],
         "filesRead": 4,
-        "bytesRead": 76390,
+        "bytesRead": 76878,
         "toolOutputTokens": 69,
-        "fileTokens": 20088,
-        "tokens": 20157,
-        "skimTokens": 2260
+        "fileTokens": 20209,
+        "tokens": 20278,
+        "skimTokens": 2215
       },
       "compressed": {
         "tokens": 551,
@@ -178,10 +178,10 @@
         "verdict": "smaller"
       },
       "graphTokens": 566,
-      "baselineTokens": 20157,
-      "baselineSkimTokens": 2260,
+      "baselineTokens": 20278,
+      "baselineSkimTokens": 2215,
       "filesRead": 4,
-      "ratio": 35.6,
+      "ratio": 35.8,
       "savedPct": 97.2,
       "graphWins": true
     },
@@ -202,11 +202,11 @@
           "read all 6"
         ],
         "filesRead": 6,
-        "bytesRead": 78103,
+        "bytesRead": 78951,
         "toolOutputTokens": 50,
-        "fileTokens": 20842,
-        "tokens": 20892,
-        "skimTokens": 3336
+        "fileTokens": 21041,
+        "tokens": 21091,
+        "skimTokens": 3246
       },
       "compressed": {
         "tokens": 191,
@@ -216,10 +216,10 @@
         "verdict": "no path list to factor"
       },
       "graphTokens": 191,
-      "baselineTokens": 20892,
-      "baselineSkimTokens": 3336,
+      "baselineTokens": 21091,
+      "baselineSkimTokens": 3246,
       "filesRead": 6,
-      "ratio": 109.4,
+      "ratio": 110.4,
       "savedPct": 99.1,
       "graphWins": true
     },
@@ -304,35 +304,35 @@
       "comparability": "This is the weakest baseline in the set, and it flatters the graph. A capable agent may skip reading altogether and write a script (the manual A/B in the README records exactly that happening). Treat this row as an upper bound on the naive path, not as a claim about good agents. The two paths also use different definitions of \"dead\" — see the README.",
       "graph": {
         "command": "mcp tools/call dead_exports",
-        "tokens": 1439,
-        "chars": 5107
+        "tokens": 1477,
+        "chars": 5259
       },
       "baseline": {
         "procedure": "read-all",
         "summary": "A repo-wide question needs a repo-wide read: list every source file, then read all of them — you cannot know what a file exports, or whether anything uses it, without its text.",
         "steps": [
-          "find . → 164 source file(s)",
-          "read all 164"
+          "find . → 168 source file(s)",
+          "read all 168"
         ],
-        "filesRead": 164,
-        "bytesRead": 1113750,
-        "toolOutputTokens": 1395,
-        "fileTokens": 297747,
-        "tokens": 299142,
-        "skimTokens": 74222
+        "filesRead": 168,
+        "bytesRead": 1179707,
+        "toolOutputTokens": 1429,
+        "fileTokens": 314710,
+        "tokens": 316139,
+        "skimTokens": 76131
       },
       "compressed": {
-        "tokens": 1439,
-        "chars": 5107,
+        "tokens": 1477,
+        "chars": 5259,
         "savedPct": 0,
         "identical": true,
         "verdict": "no path list to factor"
       },
-      "graphTokens": 1439,
-      "baselineTokens": 299142,
-      "baselineSkimTokens": 74222,
-      "filesRead": 164,
-      "ratio": 207.9,
+      "graphTokens": 1477,
+      "baselineTokens": 316139,
+      "baselineSkimTokens": 76131,
+      "filesRead": 168,
+      "ratio": 214,
       "savedPct": 99.5,
       "graphWins": true
     }
