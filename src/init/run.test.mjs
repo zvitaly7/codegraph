@@ -304,7 +304,11 @@ describe('init — git hook', () => {
     const hook = read(dir, '.git', 'hooks', 'post-merge');
     expect(hook).toContain(HOOK_BEGIN);
     expect(hook).toContain('npx loregraph regenerate --if-stale');
-    expect(statSync(join(dir, '.git', 'hooks', 'post-merge')).mode & 0o111).toBeTruthy();
+    // Windows has no execute bit to set, so the mode says nothing there; the
+    // hook's content is what matters and is asserted above either way.
+    if (process.platform !== 'win32') {
+      expect(statSync(join(dir, '.git', 'hooks', 'post-merge')).mode & 0o111).toBeTruthy();
+    }
   });
 
   it('says so, without failing, when the project is not a git repo', async () => {

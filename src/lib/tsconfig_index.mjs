@@ -8,8 +8,11 @@
 // (no aliases) so relative and bare resolution still work.
 
 import { readdirSync, readFileSync } from 'node:fs';
-import { dirname, join, resolve, relative, isAbsolute } from 'node:path';
+import { dirname, join, resolve, relative, isAbsolute, sep } from 'node:path';
 import ts from 'typescript';
+
+/** Platform separators out, POSIX in — a `paths` target never carries a backslash. */
+const posix = (p) => p.split(sep).join('/');
 
 const SKIP_DIRS = new Set(['node_modules', '.git']);
 
@@ -163,7 +166,9 @@ export class TsconfigIndex {
       if (pattern in own) continue; // the tsconfig said it first
       merged[pattern] = base === this._configPathsBase
         ? targets
-        : targets.map((t) => relative(base, resolve(this._configPathsBase, t)) || '.');
+        // `relative` answers in the platform's separators; a `paths` target is
+        // POSIX on every platform, and the resolver is handed both tables as one.
+        : targets.map((t) => posix(relative(base, resolve(this._configPathsBase, t))) || '.');
     }
     return { ...view, paths: merged, pathsBase: base };
   }
