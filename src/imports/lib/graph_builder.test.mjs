@@ -69,6 +69,26 @@ describe('buildGraph nodes/edges/counts', () => {
       id: 'pkg:@scope/pkg', labels: ['Package'], properties: { name: '@scope/pkg', scope: '@scope' },
     });
   });
+
+  it('resolves an import to a non-source inventory target without scanning it', () => {
+    const g = buildGraph({
+      files: [file('src/view.tsx', ['./view.module.css'])],
+      targetPaths: ['src/view.tsx', 'src/view.module.css'],
+      repoRoot: REPO,
+      tsconfigIndex: NO_TS_INDEX,
+    });
+    expect(g.edges).toContainEqual({
+      id: 'edge:file:src/view.tsx:IMPORTS:file:src/view.module.css',
+      type: 'IMPORTS',
+      from: 'file:src/view.tsx',
+      to: 'file:src/view.module.css',
+      properties: { specifier: './view.module.css', kind: 'internal' },
+    });
+    expect(g.nodes).toContainEqual({
+      id: 'file:src/view.module.css', labels: ['File'], properties: { path: 'src/view.module.css' },
+    });
+    expect(g.counts).toMatchObject({ files: 1, internal: 1, unresolved: 0 });
+  });
 });
 
 describe('deduplication', () => {

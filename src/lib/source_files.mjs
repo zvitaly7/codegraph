@@ -41,6 +41,7 @@ export function listSourceFiles(repoRoot, { ignoreFile = '.gitignore', ignoreRul
     }
     for (const entry of entries) {
       const rel = relDir === '' ? entry.name : `${relDir}/${entry.name}`;
+      if (entry.isSymbolicLink()) continue;
       const isDir = entry.isDirectory();
       if (rules.shouldSkip(rel, isDir)) continue;
       if (isDir) walk(join(absDir, entry.name), rel);

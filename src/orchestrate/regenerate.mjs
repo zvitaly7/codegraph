@@ -2,6 +2,9 @@ import { resolve } from 'node:path';
 import { resolveConfig } from '../config/load.mjs';
 import { checkStaleness } from '../lib/staleness.mjs';
 import { createProgramCache } from '../lib/program_cache.mjs';
+import {
+  TOOL_VERSION, buildContextHash, readBuildStamp, writeBuildStamp,
+} from '../lib/build_context.mjs';
 
 /**
  * `loregraph regenerate` — the one-shot orchestrator. Runs every graph layer in
@@ -93,22 +96,25 @@ export async function run(argv) {
   const skipExplorer = Boolean(flags['skip-explorer']);
   const skipHeavy = Boolean(flags['skip-heavy']);
 
+  // Assemble the pipeline before freshness is checked: "up to date" is only
+  // meaningful relative to the layers THIS invocation requested.
+  const steps = [...CORE_STEPS];
+  if (!skipHeavy) steps.push(...HEAVY_STEPS);
+  if (!skipExplorer) steps.push(EXPLORER_STEP);
+  const requiredLayers = steps.map((step) => step.name);
+  const contextHash = buildContextHash(cfg);
+
   // --if-stale: only rebuild when the cache is stale (or its staleness is
   // unknown). --force always rebuilds and thus overrides --if-stale. When the
   // cache is DEFINITIVELY up to date (stale === false) we skip the whole
   // pipeline. `vcs-unknown` (stale === null) is NOT "up to date", so we proceed.
   if (Boolean(flags['if-stale']) && !Boolean(flags.force)) {
-    const status = checkStaleness(outDir);
+    const status = checkStaleness(outDir, { requiredLayers, contextHash });
     if (status.stale === false) {
       emit(`graph up to date at ${status.currentRevision} — skipping`);
       return 0;
     }
   }
-
-  // Assemble the pipeline from the requested layers.
-  const steps = [...CORE_STEPS];
-  if (!skipHeavy) steps.push(...HEAVY_STEPS);
-  if (!skipExplorer) steps.push(EXPLORER_STEP);
 
   // Every layer receives the SAME repo + base cache, so the snapshot stays
   // consistent across layers. Forward an explicit --config too, so a shared
@@ -119,6 +125,29 @@ export async function run(argv) {
   emit(`regenerate: repo=${repoRoot}`);
   emit(`regenerate: base cache=${outDir}`);
   if (!skipHeavy) emit(`regenerate: heavy layers mode=${cfg.incremental}`);
+
+  // Mark the build in progress BEFORE touching any layer. A throw, non-zero
+  // exit, or process interruption can no longer leave a prior "complete" stamp
+  // that makes a partially overwritten cache look fresh.
+  const previousStamp = readBuildStamp(outDir);
+  const previousContexts = previousStamp?.complete && previousStamp.repoRoot === repoRoot
+    ? { ...(previousStamp.layerContexts ?? {}) }
+    : {};
+  if (previousStamp?.complete && previousStamp.repoRoot === repoRoot) {
+    try {
+      writeBuildStamp(outDir, {
+        schemaVersion: 1,
+        complete: false,
+        generatedAt: new Date().toISOString(),
+        repoRoot,
+        toolVersion: TOOL_VERSION,
+        layerContexts: previousContexts,
+      });
+    } catch (err) {
+      emit(`regenerate: failed to mark build in progress: ${err.message}`);
+      return 1;
+    }
+  }
 
   // One whole-repo TypeScript program, shared by the two heavy layers.
   const programCache = createProgramCache();
@@ -166,6 +195,20 @@ export async function run(argv) {
   }
 
   const total = fmtDuration(performance.now() - pipelineStart);
+  for (const layer of requiredLayers) previousContexts[layer] = contextHash;
+  try {
+    writeBuildStamp(outDir, {
+      schemaVersion: 1,
+      complete: true,
+      generatedAt: new Date().toISOString(),
+      repoRoot,
+      toolVersion: TOOL_VERSION,
+      layerContexts: previousContexts,
+    });
+  } catch (err) {
+    emit(`regenerate: failed to finalize build stamp: ${err.message}`);
+    return 1;
+  }
   emit(`✔ regenerate complete in ${total}`);
   emit(`  base cache: ${outDir}`);
   emit('Next:');

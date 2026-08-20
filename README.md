@@ -52,7 +52,7 @@ Builds a deterministic map of a JavaScript/TypeScript codebase — files, symbol
 | 🔎 **Shows it in a browser** | One static HTML file plus a JSON index — searchable, offline, no server required beyond an optional local static host. |
 | 🤖 **Answers agent questions without opening files** | `brief` and `impact` pack the useful facts about a file, domain, symbol or diff into a few hundred bytes; `outline` gives a file's declarations without the bodies and `show` prints exactly one symbol; an MCP server exposes the same queries as 17 tools. |
 | 🧠 **Adds the one thing it cannot prove — labelled as such** | The graph knows what imports what; it cannot know *why* something exists. `describe` asks a model you choose for a short description of each domain, file or symbol and caches it by content hash. Those descriptions are stored, surfaced and serialized as **model-generated**, always naming the model and the date — never merged into the proven facts. |
-| 🔄 **Rides along with git** | Every artifact is stamped with the commit it was built from. `--if-stale` turns a rebuild into a no-op while `HEAD` has not moved, `--incremental` re-analyzes only what changed, an opt-in `post-merge` hook keeps the graph in step with `git pull`, and every consumer warns when the cache is behind. |
+| 🔄 **Rides along with git** | Every artifact is stamped with the commit and build context it came from. `--if-stale` is a no-op only while the revision, working tree, effective config and requested layers still match; `--incremental` re-analyzes only what changed, an opt-in `post-merge` hook follows `git pull`, and every consumer warns when the cache is behind or an earlier build was interrupted. |
 | 🚦 **Fails a build on what it finds** | `loregraph check` turns the graph into a CI gate: no circular dependencies, a dead-export budget, an import-resolution floor, and architectural boundaries between domains. Every rule is reported with its verdict; a failure names the actual files behind it and exits non-zero. |
 
 > [!TIP]
@@ -588,7 +588,7 @@ flowchart LR
 | Layer | What it produces |
 | :--- | :--- |
 | `inventory` | Every file and directory: path, size, language, kind, trust, SHA-256, plus the VCS revision of the snapshot. |
-| `imports` | `IMPORTS` edges from each source to the files and packages it imports, resolved through `tsconfig` `baseUrl`/`paths` when present, then through the repo's workspace packages. |
+| `imports` | `IMPORTS` edges from each JS/TS source to imported files (including indexed CSS/JSON/SVG assets) and packages, resolved through TypeScript output-extension substitution, `tsconfig` `baseUrl`/`paths`, then workspace packages. |
 | `symbols` | `DECLARES` edges from each source to its top-level declarations (parse-only, no type-checking). |
 | `domains` | `Domain` nodes, `BELONGS_TO` for every file, and weighted `DEPENDS_ON` edges aggregated from the import graph. |
 | `references` | `REFERENCES` edges from a file to the symbols it actually uses, plus the entry-point files whose exports are never counted dead and the `EXPOSES` edges for what those entry points re-export. Type-checked — this is a heavy layer. |
@@ -615,7 +615,16 @@ flowchart LR
 > That line is printed on every run, not just at setup: a package added next month falls out of the graph the same way, and the count is in `imports/manifest.json` under `counts.unresolvedPackages` for anything that wants to gate on it. When no declaration is reachable — a subdirectory of a larger monorepo analyzed on its own, an install done per application — the **symlinks in `node_modules` that point back into the repo** are used instead: the link is the fact, the paperwork is optional. A package whose manifest names only build output (`dist/…`, which is generated rather than authored and so is never indexed) falls back to its own `src/`.
 
 > [!NOTE]
-> **Entry points are not dead exports.** A CLI, a library entry or a module-federation remote is consumed across a boundary the import graph cannot see, so `references` holds its exports back instead of reporting them dead. `package.json` `main`/`module`/`exports`/`bin` — the root package and every workspace package — are detected automatically; add anything else with the `entryPoints` config globs. Everything held back is **counted** wherever dead exports appear, and `dead_exports` lists it on request, so "not dead" never quietly means "hidden".
+> **Authored TypeScript is resolved as TypeScript resolves it.** A runtime import such as `./event-bus.js` can point at the checked-in `event-bus.ts`; `.mjs` and `.cjs` similarly substitute `.mts` and `.cts`. Package manifests and relative workspace examples that name absent `dist/` output are mapped back to an existing path under that package's `src/`. The exact indexed output always wins, and no candidate becomes an edge unless it exists in inventory.
+
+> [!NOTE]
+> **Assets participate in impact without being parsed as code.** JS/TS remains the only source set scanned for import specifiers, but any safe inventory file can be an internal target. Changing an imported CSS module, JSON document or SVG therefore walks to its source importer, transitive importers and likely tests instead of reporting an empty blast radius.
+
+> [!IMPORTANT]
+> **Semantic reads stay inside the repository.** Lexical `..` checks are not enough when a symlink can redirect a path. Source-file symlinks are excluded from semantic layers, and direct `outline`/`show`/`describe` reads verify the real path before opening a file. Inventory may still catalogue the link itself as filesystem metadata.
+
+> [!NOTE]
+> **Entry points are not dead exports.** A CLI, a library entry or a module-federation remote is consumed across a boundary the import graph cannot see, so `references` holds its exports back instead of reporting them dead. `package.json` `main`/`module`/`exports`/`bin` — the root package and every workspace package — are detected automatically, including manifests that name generated `dist/` files while only their authored `src/` files exist; add anything else with the `entryPoints` config globs. Everything held back is **counted** wherever dead exports appear, and `dead_exports` lists it on request, so "not dead" never quietly means "hidden".
 >
 > **Re-exports count too.** The `index.ts` a package's `main` points at usually declares nothing itself — it is a barrel — so being an entry point would otherwise hold back nothing at all. `references` follows the re-export chains out of every entry point (`export { a } from`, `export { a as b } from`, `export { default as Foo } from`, `export * from`, `export * as ns from`), transitively and terminating on cycles, and writes an `EXPOSES` edge from the entry point to each symbol it makes public. Those symbols are held back and counted exactly like the ones declared in the entry point, and `dead_exports` names the entry point each one came from. A barrel that is **not** an entry point saves nothing — re-exporting dead code does not make it alive.
 
@@ -760,14 +769,14 @@ export default {
 
 ## 🔄 Keeping it fresh
 
-Every artifact records the revision it was built from. Consumers compare it with the repo's current revision and act on the difference:
+Every artifact records the revision it was built from. A completed regeneration also records the tool version, effective graph configuration and the context of every layer it produced. `--if-stale` skips only when all of those still match, every requested artifact exists, every layer belongs to the current inventory snapshot, and the relevant working tree is clean. A failed or interrupted run leaves an incomplete stamp and is rebuilt rather than blessed as fresh.
 
 ```mermaid
 stateDiagram-v2
     direction LR
     [*] --> Fresh: loregraph regenerate
     Fresh --> Fresh: --if-stale is a no-op
-    Fresh --> Stale: git commit / git pull
+    Fresh --> Stale: commit / edit / config or layer change
     Stale --> Fresh: regenerate --if-stale
     Stale --> Stale: consumers still answer, with a warning
 ```
@@ -781,7 +790,7 @@ stateDiagram-v2
 Rebuild only when it matters:
 
 ```bash
-loregraph regenerate --if-stale     # skips entirely when the cache matches HEAD
+loregraph regenerate --if-stale     # skips only when revision, tree, config and layers match
 loregraph regenerate --force        # rebuild regardless
 ```
 
@@ -789,7 +798,7 @@ loregraph regenerate --force        # rebuild regardless
 graph up to date at 9a59c993a022a654d03189c2d29f452a30b72059 — skipping
 ```
 
-`loregraph init --hook` installs a `post-merge` hook that runs exactly that after every `git pull`.
+Generated cache paths are excluded from the dirty-tree check, including a custom `--out` inside the checkout. `loregraph init --hook` installs a `post-merge` hook that runs exactly that after every `git pull`.
 
 ### ⚡ Incremental heavy layers (opt-in)
 

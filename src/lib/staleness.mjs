@@ -17,6 +17,31 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { collectVcsMetadata } from '../inventory/vcs/detect.mjs';
+import { hasRelevantLocalChanges } from '../inventory/vcs/git.mjs';
+import { readBuildStamp } from './build_context.mjs';
+
+const LAYER_ARTIFACTS = {
+  inventory: [
+    ['inventory', 'manifest.json'], ['inventory', 'nodes.jsonl'],
+    ['inventory', 'edges.jsonl'], ['inventory', 'files.jsonl'],
+  ],
+  imports: [
+    ['imports', 'manifest.json'], ['imports', 'nodes.jsonl'], ['imports', 'edges.jsonl'],
+  ],
+  symbols: [
+    ['symbols', 'manifest.json'], ['symbols', 'nodes.jsonl'], ['symbols', 'edges.jsonl'],
+  ],
+  domains: [
+    ['domains', 'manifest.json'], ['domains', 'nodes.jsonl'], ['domains', 'edges.jsonl'],
+  ],
+  references: [
+    ['references', 'manifest.json'], ['references', 'nodes.jsonl'], ['references', 'edges.jsonl'],
+  ],
+  usages: [
+    ['usages', 'manifest.json'], ['usages', 'nodes.jsonl'], ['usages', 'edges.jsonl'],
+  ],
+  explorer: [['explorer', 'graph-index.json'], ['explorer', 'index.html']],
+};
 
 /** A revision that carries no usable identity (absent, empty, or the sentinel). */
 function isMissingRevision(rev) {
@@ -50,7 +75,7 @@ function cacheRevisionOf(manifest) {
  *   currentRevision?: string|null,
  * }}
  */
-export function checkStaleness(cacheDir) {
+export function checkStaleness(cacheDir, { requiredLayers = [], contextHash = null } = {}) {
   // --- Read the manifest (guarded: missing/corrupt → no-cache) -----------
   let manifest;
   try {
@@ -67,10 +92,81 @@ export function checkStaleness(cacheDir) {
   const cacheRevision = cacheRevisionOf(manifest);
   const repoRoot = manifest?.repoRoot;
 
+  // A revision match is insufficient when this particular command needs
+  // artifacts a prior light/partial run never produced.
+  const missingArtifacts = [];
+  for (const layer of requiredLayers) {
+    for (const parts of LAYER_ARTIFACTS[layer] ?? []) {
+      if (!existsSync(join(cacheDir, ...parts))) missingArtifacts.push(parts.join('/'));
+    }
+  }
+  if (missingArtifacts.length > 0) {
+    return {
+      hasCache: true, stale: true, reason: 'incomplete-cache',
+      cacheRevision, currentRevision: null, missingArtifacts,
+    };
+  }
+
+  // Every downstream layer must describe the same inventory snapshot. This
+  // catches a light rebuild at a new revision leaving old heavy artifacts in
+  // place, even though all expected files still exist.
+  const mismatchedLayers = [];
+  for (const layer of requiredLayers) {
+    if (layer === 'inventory') continue;
+    try {
+      const artifact = layer === 'explorer'
+        ? JSON.parse(readFileSync(join(cacheDir, 'explorer', 'graph-index.json'), 'utf8'))
+        : JSON.parse(readFileSync(join(cacheDir, layer, 'manifest.json'), 'utf8'));
+      const snapshot = layer === 'explorer' ? artifact?.meta?.snapshot : artifact?.basedOnSnapshot;
+      if (snapshot !== manifest?.snapshotId) mismatchedLayers.push(layer);
+    } catch {
+      mismatchedLayers.push(layer);
+    }
+  }
+  if (mismatchedLayers.length > 0) {
+    return {
+      hasCache: true, stale: true, reason: 'layer-snapshot-mismatch',
+      cacheRevision, currentRevision: null, mismatchedLayers,
+    };
+  }
+
+  // The orchestrator's stamp is deliberately per-layer: a light rebuild may
+  // preserve heavy artifacts, but only when they were built with this exact
+  // effective graph config and tool version.
+  const stamp = readBuildStamp(cacheDir);
+  if (stamp && !stamp.complete) {
+    return {
+      hasCache: true, stale: true, reason: 'build-incomplete',
+      cacheRevision, currentRevision: null,
+    };
+  }
+  if (contextHash) {
+    if (!stamp) {
+      return {
+        hasCache: true, stale: true, reason: 'build-context-missing',
+        cacheRevision, currentRevision: null,
+      };
+    }
+    const contextMismatches = requiredLayers.filter(
+      (layer) => stamp.layerContexts?.[layer] !== contextHash,
+    );
+    if (contextMismatches.length > 0) {
+      return {
+        hasCache: true, stale: true, reason: 'build-context-changed',
+        cacheRevision, currentRevision: null, mismatchedLayers: contextMismatches,
+      };
+    }
+  }
+
   // --- Resolve the repo's current revision (guarded) ---------------------
   let currentRevision = null;
+  let hasLocalChanges = null;
   try {
-    currentRevision = collectVcsMetadata(repoRoot, 'auto')?.revision ?? null;
+    const current = collectVcsMetadata(repoRoot, 'auto');
+    currentRevision = current?.revision ?? null;
+    hasLocalChanges = current?.hasLocalChanges === true
+      ? hasRelevantLocalChanges(repoRoot, [cacheDir])
+      : current?.hasLocalChanges ?? null;
   } catch {
     // e.g. repoRoot absent → path join throws → treat as VCS-unknown.
     currentRevision = null;
@@ -89,11 +185,28 @@ export function checkStaleness(cacheDir) {
   }
 
   const stale = cacheRevision !== currentRevision;
+  if (stale) {
+    return {
+      hasCache: true, stale: true, cacheRevision, currentRevision,
+      reason: 'revision-changed',
+    };
+  }
+
+  // HEAD does not move for uncommitted edits. Check this after the revision so
+  // callers that explain an older committed snapshot keep the more precise
+  // `revision-changed` reason when both conditions are true.
+  if (hasLocalChanges === true) {
+    return {
+      hasCache: true, stale: true, reason: 'working-tree-changed',
+      cacheRevision, currentRevision,
+    };
+  }
+
   return {
     hasCache: true,
-    stale,
+    stale: false,
     cacheRevision,
     currentRevision,
-    reason: stale ? 'revision-changed' : 'up-to-date',
+    reason: 'up-to-date',
   };
 }

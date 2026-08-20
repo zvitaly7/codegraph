@@ -92,6 +92,23 @@ describe('collectEntryPoints — auto-detected package entry points', () => {
     expect(found.paths).toEqual(['bin/cli.mjs']);
   });
 
+  it('maps generated package targets back to authored source files', () => {
+    w('package.json', {
+      name: 'app',
+      exports: { '.': { types: './dist/index.d.ts', default: './dist/index.js' } },
+      bin: './dist/cli.js',
+    });
+    const found = collectEntryPoints({
+      repoRoot: root,
+      filePaths: ['src/cli.ts', 'src/index.ts', 'src/private.ts'],
+    });
+    expect(found.paths).toEqual(['src/cli.ts', 'src/index.ts']);
+    expect(found.reasons).toEqual({
+      'src/cli.ts': 'package.json',
+      'src/index.ts': 'package.json',
+    });
+  });
+
   it('covers workspace packages when the discovery result is passed in', () => {
     w('package.json', { name: 'root', private: true, workspaces: ['packages/*'] });
     w('packages/ui/package.json', { name: '@myorg/ui', main: 'src/index.ts' });

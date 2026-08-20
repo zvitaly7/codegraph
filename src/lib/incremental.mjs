@@ -23,8 +23,9 @@
 // tests.
 
 import ts from 'typescript';
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { readRepoFile } from './file_target.mjs';
+import { safeRepoFilePath } from './repo_path.mjs';
 
 /** `file:src/a.ts` → `src/a.ts` (or null if it is not a file id). */
 function stripFilePrefix(id) {
@@ -136,11 +137,8 @@ export function changedFilesRiskGlobals({ added = [], modified = [], deleted = [
     if (p.endsWith('.d.ts')) return true;
   }
   for (const p of [...added, ...modified]) {
-    try {
-      if (GLOBAL_INJECTION_RE.test(readFileSync(join(repoRoot, p), 'utf8'))) return true;
-    } catch {
-      // Unreadable now — extension check above already covered ambient files.
-    }
+    const text = readRepoFile(repoRoot, p);
+    if (text !== null && GLOBAL_INJECTION_RE.test(text)) return true;
   }
   return false;
 }
@@ -179,8 +177,8 @@ export function affectedFilesToWalk(affected, currentSourcePaths, repoRoot) {
   const out = [];
   for (const p of affected) {
     if (!currentSourcePaths.has(p)) continue;
-    const abs = join(repoRoot, p);
-    if (existsSync(abs)) out.push(abs);
+    const abs = safeRepoFilePath(repoRoot, p);
+    if (abs) out.push(abs);
   }
   return out.sort();
 }

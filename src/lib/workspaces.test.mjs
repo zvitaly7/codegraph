@@ -168,11 +168,45 @@ describe('workspaceTsPaths', () => {
     w('packages/ui/package.json', { name: '@myorg/ui', main: 'src/index.ts' });
     const paths = workspaceTsPaths(discoverWorkspaces(root), root);
     expect(paths['@myorg/ui']).toEqual([join(root, 'packages/ui/src/index.ts'), join(root, 'packages/ui')]);
-    expect(paths['@myorg/ui/*']).toEqual([join(root, 'packages/ui/*')]);
+    expect(paths['@myorg/ui/*']).toEqual([
+      join(root, 'packages/ui/src/*'),
+      join(root, 'packages/ui/*'),
+    ]);
   });
 
   it('is empty for a repo with no workspaces', () => {
     expect(workspaceTsPaths(discoverWorkspaces(root), root)).toEqual({});
+  });
+
+  it('maps published build targets and subpaths back to authored source candidates', () => {
+    w('package.json', { name: 'root', workspaces: ['packages/*'] });
+    w('packages/ui/package.json', {
+      name: '@myorg/ui',
+      exports: {
+        '.': { types: './dist/index.d.ts', default: './dist/index.js' },
+        './feature': { types: './dist/feature.d.ts', default: './dist/feature.js' },
+      },
+    });
+
+    const paths = workspaceTsPaths(discoverWorkspaces(root), root);
+    expect(paths['@myorg/ui']).toContain(join(root, 'packages/ui/src/index'));
+    expect(paths['@myorg/ui/feature']).toContain(join(root, 'packages/ui/src/feature'));
+    expect(paths['@myorg/ui/*']).toEqual([
+      join(root, 'packages/ui/src/*'),
+      join(root, 'packages/ui/*'),
+    ]);
+  });
+
+  it('does not mistake a package directory named like build output for the output directory', () => {
+    w('package.json', { name: 'root', workspaces: ['packages/*'] });
+    w('packages/lib/package.json', {
+      name: '@myorg/lib',
+      exports: { '.': './dist/index.js' },
+    });
+
+    const paths = workspaceTsPaths(discoverWorkspaces(root), root);
+    expect(paths['@myorg/lib']).toContain(join(root, 'packages/lib/src/index'));
+    expect(paths['@myorg/lib']).not.toContain(join(root, 'packages/src/dist/index'));
   });
 });
 

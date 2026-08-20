@@ -39,6 +39,44 @@ describe('relative specifiers', () => {
     // A non-source target (e.g. ./styles.css) is never in the source file set.
     expect(r('./styles.css', 'src/entry.ts')).toEqual({ kind: 'unresolved', targetId: null });
   });
+
+  it('maps an absent relative build output onto its indexed source', () => {
+    const fileSet = new Set([
+      'packages/core/examples/playground/server.mjs',
+      'packages/core/src/index.ts',
+      'packages/core/src/react-fragment.tsx',
+    ]);
+    const workspaces = new Map([['@scope/core', {
+      name: '@scope/core', dir: 'packages/core', entries: [], subpaths: {},
+    }]]);
+    const resolve = (specifier, fromRel) => resolveSpecifier(specifier, {
+      fromAbsFile: `${REPO}/${fromRel}`,
+      repoRoot: REPO,
+      fileSet,
+      tsconfig: NO_TS,
+      workspaces,
+    });
+    expect(resolve('../../dist/index.js', 'packages/core/examples/playground/server.mjs'))
+      .toEqual({ kind: 'internal', targetId: 'file:packages/core/src/index.ts' });
+    expect(resolve('../../dist/react-fragment.js', 'packages/core/examples/playground/server.mjs'))
+      .toEqual({ kind: 'internal', targetId: 'file:packages/core/src/react-fragment.tsx' });
+  });
+
+  it('does not invent a build-output fallback when no source candidate exists', () => {
+    const fileSet = new Set(['packages/core/examples/playground/server.mjs']);
+    const workspaces = new Map([['@scope/core', {
+      name: '@scope/core', dir: 'packages/core', entries: [], subpaths: {},
+    }]]);
+    const resolve = (specifier, fromRel) => resolveSpecifier(specifier, {
+      fromAbsFile: `${REPO}/${fromRel}`,
+      repoRoot: REPO,
+      fileSet,
+      tsconfig: NO_TS,
+      workspaces,
+    });
+    expect(resolve('../../dist/missing.js', 'packages/core/examples/playground/server.mjs'))
+      .toEqual({ kind: 'unresolved', targetId: null });
+  });
 });
 
 describe('tsconfig path aliases', () => {
@@ -116,6 +154,32 @@ describe('module extensions', () => {
     const r = make(['src/a.ts', 'src/util/index.mts']);
     expect(r('./util', 'src/a.ts'))
       .toEqual({ kind: 'internal', targetId: 'file:src/util/index.mts' });
+  });
+
+  it('substitutes a .js import onto its TypeScript source', () => {
+    const r = make(['src/a.ts', 'src/util.ts']);
+    expect(r('./util.js', 'src/a.ts'))
+      .toEqual({ kind: 'internal', targetId: 'file:src/util.ts' });
+  });
+
+  it('substitutes a .js import onto a TSX source', () => {
+    const r = make(['src/a.ts', 'src/view.tsx']);
+    expect(r('./view.js', 'src/a.ts'))
+      .toEqual({ kind: 'internal', targetId: 'file:src/view.tsx' });
+  });
+
+  it('substitutes .mjs and .cjs imports onto native TypeScript module sources', () => {
+    const r = make(['src/a.ts', 'src/esm.mts', 'src/common.cts']);
+    expect(r('./esm.mjs', 'src/a.ts'))
+      .toEqual({ kind: 'internal', targetId: 'file:src/esm.mts' });
+    expect(r('./common.cjs', 'src/a.ts'))
+      .toEqual({ kind: 'internal', targetId: 'file:src/common.cts' });
+  });
+
+  it('uses TypeScript extension-substitution precedence when source and output coexist', () => {
+    const r = make(['src/a.ts', 'src/util.ts', 'src/util.js']);
+    expect(r('./util.js', 'src/a.ts'))
+      .toEqual({ kind: 'internal', targetId: 'file:src/util.ts' });
   });
 });
 

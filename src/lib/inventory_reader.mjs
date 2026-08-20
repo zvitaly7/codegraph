@@ -4,6 +4,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { safeRepoFilePath } from './repo_path.mjs';
 
 const SOURCE_LANGUAGES = new Set(['TypeScript', 'JavaScript']);
 const SOURCE_KINDS = new Set(['code', 'test']);
@@ -20,12 +21,19 @@ function readJsonl(path) {
     .map((line) => JSON.parse(line));
 }
 
+/** Every safe file row, including assets/docs/config targets. */
+export function readInventoryFiles(inventoryDir, { repoRoot } = {}) {
+  return readJsonl(join(inventoryDir, 'files.jsonl')).filter((row) => (
+    !repoRoot || safeRepoFilePath(repoRoot, row.path) !== null
+  ));
+}
+
 /**
  * @param {string} inventoryDir directory holding files.jsonl / manifest.json.
  * @returns {Array<{id:string, path:string, language:string, kind:string}>}
  */
-export function readInventorySources(inventoryDir) {
-  return readJsonl(join(inventoryDir, 'files.jsonl')).filter(isAnalyzableSource);
+export function readInventorySources(inventoryDir, { repoRoot } = {}) {
+  return readInventoryFiles(inventoryDir, { repoRoot }).filter(isAnalyzableSource);
 }
 
 /** @param {string} inventoryDir @returns {object} parsed manifest.json */

@@ -1,4 +1,6 @@
 import { execFileSync } from 'node:child_process';
+import { realpathSync } from 'node:fs';
+import { isAbsolute, relative } from 'node:path';
 
 const TIMEOUT = 15000;
 
@@ -32,4 +34,28 @@ export function collectGitMetadata(repoRoot) {
     meta.hasLocalChanges = git(repoRoot, ['status', '--porcelain']).length > 0;
   } catch (e) { meta.warnings.push(`git status failed: ${e.message}`); }
   return meta;
+}
+
+/**
+ * Whether tracked/untracked changes remain after excluding generated paths.
+ * Exclusions use top-anchored git pathspecs, so this also works when repoRoot is
+ * a subdirectory of a larger checkout. Failure is conservatively "changed".
+ */
+export function hasRelevantLocalChanges(repoRoot, ignoredAbsPaths = []) {
+  try {
+    const reportedRoot = git(repoRoot, ['rev-parse', '--show-toplevel']);
+    let root;
+    try { root = realpathSync(reportedRoot); } catch { root = reportedRoot; }
+    const args = ['status', '--porcelain', '--untracked-files=all', '--', '.'];
+    for (const abs of ignoredAbsPaths) {
+      let realAbs;
+      try { realAbs = realpathSync(abs); } catch { realAbs = abs; }
+      const rel = relative(root, realAbs).replaceAll('\\', '/');
+      if (rel === '' || rel === '..' || rel.startsWith('../') || isAbsolute(rel)) continue;
+      args.push(`:(top,exclude)${rel}`, `:(top,exclude)${rel}/**`);
+    }
+    return git(repoRoot, args).length > 0;
+  } catch {
+    return true;
+  }
 }

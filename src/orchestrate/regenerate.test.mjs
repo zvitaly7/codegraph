@@ -273,4 +273,52 @@ describe('regenerate orchestrator — --if-stale / --force', () => {
     expect(err).not.toContain('skipping');
     expect(err).toContain('▶ inventory');
   });
+
+  it('rebuilds when the cache lacks layers requested by this run', async () => {
+    const repo = makeGitFixtureRepo();
+    const base = join(repo, '.kg-cache');
+    const errLines = captureStderr();
+
+    expect(await run([
+      '--repo-root', repo, '--out', base, '--skip-heavy', '--skip-explorer',
+    ])).toBe(0);
+    expect(existsSync(join(base, 'references', 'manifest.json'))).toBe(false);
+    errLines.length = 0;
+
+    expect(await run(['--repo-root', repo, '--out', base, '--if-stale'])).toBe(0);
+    expect(errLines.join('')).toContain('▶ references');
+    expect(existsSync(join(base, 'references', 'manifest.json'))).toBe(true);
+    expect(existsSync(join(base, 'usages', 'manifest.json'))).toBe(true);
+    expect(existsSync(join(base, 'explorer', 'graph-index.json'))).toBe(true);
+  });
+
+  it('rebuilds a clean-HEAD repo when its working tree changed', async () => {
+    const repo = makeGitFixtureRepo();
+    const base = join(repo, '.kg-cache');
+    const errLines = captureStderr();
+    expect(await run(['--repo-root', repo, '--out', base])).toBe(0);
+
+    writeFileSync(join(repo, 'src', 'a.mjs'), 'export const a = 99;\n');
+    errLines.length = 0;
+
+    expect(await run(['--repo-root', repo, '--out', base, '--if-stale'])).toBe(0);
+    expect(errLines.join('')).toContain('▶ inventory');
+  });
+
+  it('rebuilds when an external effective config changes at the same revision', async () => {
+    const repo = makeGitFixtureRepo();
+    const base = join(repo, '.kg-cache');
+    const config = join(mkdtempSync(join(tmpdir(), 'cg-regen-config-')), 'loregraph.config.json');
+    const errLines = captureStderr();
+    writeFileSync(config, JSON.stringify({ entryPoints: [] }));
+    expect(await run(['--repo-root', repo, '--out', base, '--config', config])).toBe(0);
+
+    writeFileSync(config, JSON.stringify({ entryPoints: ['src/a.mjs'] }));
+    errLines.length = 0;
+
+    expect(await run([
+      '--repo-root', repo, '--out', base, '--config', config, '--if-stale',
+    ])).toBe(0);
+    expect(errLines.join('')).toContain('▶ inventory');
+  });
 });

@@ -84,6 +84,27 @@ describe('run() happy path', () => {
     });
   });
 
+  it('resolves CSS assets from inventory as internal targets', async () => {
+    src('src/Header.tsx', "import styles from './Header.module.css';\nexport const Header = () => styles.root;");
+    src('src/Header.module.css', '.root { color: red; }\n');
+    writeInventory(repo, [
+      { id: 'file:src/Header.tsx', path: 'src/Header.tsx', language: 'TypeScript', kind: 'code' },
+      { id: 'file:src/Header.module.css', path: 'src/Header.module.css', language: 'CSS', kind: 'code' },
+    ]);
+
+    expect(await run(['--repo-root', repo, '--out', join(repo, '.kg-cache')])).toBe(0);
+    const edges = readLines(join(repo, '.kg-cache', 'imports', 'edges.jsonl'));
+    expect(edges).toContainEqual({
+      id: 'edge:file:src/Header.tsx:IMPORTS:file:src/Header.module.css',
+      type: 'IMPORTS',
+      from: 'file:src/Header.tsx',
+      to: 'file:src/Header.module.css',
+      properties: { specifier: './Header.module.css', kind: 'internal' },
+    });
+    const manifest = JSON.parse(readFileSync(join(repo, '.kg-cache', 'imports', 'manifest.json'), 'utf8'));
+    expect(manifest.counts).toMatchObject({ files: 1, internal: 1, unresolved: 0 });
+  });
+
   // A monorepo whose build tooling lives outside the checkout can have neither
   // package.json nor tsconfig.json. Its cross-package imports are then written
   // by package name with nothing to resolve them, and every one of them lands

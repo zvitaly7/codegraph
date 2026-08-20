@@ -16,9 +16,24 @@
 
 import { dirname, resolve as resolvePath, relative } from 'node:path';
 import { fileId, normPosix } from '../../inventory/schema.mjs';
+import { sourceTargetVariants } from '../../lib/workspaces.mjs';
 
 // Candidate extensions, tried in order (bundler-ish superset of TS + Node ESM).
-const EXTS = ['.ts', '.tsx', '.mts', '.cts', '.d.ts', '.js', '.jsx', '.mjs', '.cjs'];
+const EXTS = [
+  '.ts', '.tsx', '.mts', '.cts', '.d.ts', '.d.mts', '.d.cts',
+  '.js', '.jsx', '.mjs', '.cjs',
+];
+
+// TypeScript deliberately lets source files import the runtime filename that
+// will exist after compilation. For example, `import './util.js'` resolves to
+// `util.ts` while authoring, and the emitted JavaScript keeps `./util.js`.
+// Keep this order aligned with TypeScript's extension-substitution precedence.
+const OUTPUT_EXT_SUBSTITUTIONS = [
+  ['.mjs', ['.mts', '.d.mts', '.mjs']],
+  ['.cjs', ['.cts', '.d.cts', '.cjs']],
+  ['.jsx', ['.tsx', '.d.ts', '.jsx']],
+  ['.js', ['.ts', '.tsx', '.d.ts', '.js', '.jsx']],
+];
 
 function isRelative(spec) {
   return spec === '.' || spec === '..' || spec.startsWith('./') || spec.startsWith('../');
@@ -30,17 +45,48 @@ function toRel(repoRoot, abs) {
 }
 
 /**
- * Given an absolute base path (no assumed extension), try the candidate forms
- * and return the repo-relative path of the first that is a known source, else
- * null. Order: exact → base+ext → base/index+ext.
+ * Given an absolute base path, try the candidate forms and return the
+ * repo-relative path of the first known source, else null. Runtime JavaScript
+ * extensions use TypeScript substitution (`.js` → `.ts` / `.tsx`, etc.);
+ * extensionless paths use exact → base+ext → base/index+ext.
  */
 function matchSource(absBase, repoRoot, fileSet) {
-  const candidates = [absBase];
-  for (const ext of EXTS) candidates.push(absBase + ext);
-  for (const ext of EXTS) candidates.push(`${absBase}/index${ext}`);
+  const lowerBase = absBase.toLowerCase();
+  const outputMapping = OUTPUT_EXT_SUBSTITUTIONS.find(([ext]) => lowerBase.endsWith(ext));
+  let candidates;
+  if (outputMapping) {
+    const [outputExt, sourceExts] = outputMapping;
+    const stem = absBase.slice(0, -outputExt.length);
+    candidates = sourceExts.map((ext) => stem + ext);
+  } else {
+    candidates = [absBase];
+    for (const ext of EXTS) candidates.push(absBase + ext);
+    for (const ext of EXTS) candidates.push(`${absBase}/index${ext}`);
+  }
   for (const abs of candidates) {
     const rel = toRel(repoRoot, abs);
     if (fileSet.has(rel)) return rel;
+  }
+  return null;
+}
+
+/**
+ * A checked-in example may deliberately import a sibling package's generated
+ * output (`../../dist/index.js`) even when that output is absent in a clean
+ * checkout. When the corresponding authored path is indexed, retain the real
+ * dependency by applying the same dist/build → src mapping used for package
+ * manifest targets. Exact generated files still win through `matchSource`
+ * before this fallback is reached.
+ */
+function matchGeneratedSource(absBase, repoRoot, fileSet, workspaces) {
+  const relBase = toRel(repoRoot, absBase);
+  const pkg = [...(workspaces?.values() ?? [])]
+    .filter(({ dir }) => relBase === dir || relBase.startsWith(`${dir}/`))
+    .sort((a, b) => b.dir.length - a.dir.length)[0];
+  if (!pkg) return null;
+  for (const candidate of sourceTargetVariants(relBase, pkg.dir).slice(1)) {
+    const rel = matchSource(resolvePath(repoRoot, candidate), repoRoot, fileSet);
+    if (rel) return rel;
   }
   return null;
 }
@@ -93,33 +139,6 @@ function packageNameOf(specifier) {
  * `exports` targets) first, then the plain directory join — which `matchSource`
  * expands with the same extension / `index.<ext>` candidates as everything else.
  */
-/** Directory names that hold generated output rather than authored source. */
-const BUILD_DIRS = ['dist', 'build', 'out', 'lib', 'es', 'esm', 'cjs'];
-
-/**
- * A manifest entry names the built file. The authored file it came from usually
- * sits at the same relative place under the source root, so `dist/export/index`
- * is also tried as `src/export/index` and as `export/index`. Order matters: the
- * declared path is attempted first and only a candidate that lands on an indexed
- * file ever wins, so this adds reach without inventing anything.
- */
-function sourceVariants(target) {
-  const segments = target.split('/');
-  const at = segments.findIndex((seg) => BUILD_DIRS.includes(seg));
-  if (at === -1) return [target];
-  const before = segments.slice(0, at);
-  const after = segments.slice(at + 1);
-  if (after.length === 0) return [target];
-  // The built extension goes too: `index.mjs` was authored as `index.ts`, and
-  // `matchSource` re-adds the source extensions it knows.
-  const stem = [...after.slice(0, -1), after.at(-1).replace(/\.(mjs|cjs|js)$/, '')];
-  return [
-    target,
-    [...before, 'src', ...stem].join('/'),
-    [...before, ...stem].join('/'),
-  ];
-}
-
 function workspaceBases(pkg, subpath) {
   // Declared targets first, then the conventions. A package that publishes
   // build output names `dist` in its manifest, and `dist` is generated rather
@@ -128,10 +147,14 @@ function workspaceBases(pkg, subpath) {
   // only place left that can keep the dependency visible, and a candidate still
   // has to land on an indexed file to win.
   if (subpath === '') {
-    return [...pkg.entries.flatMap(sourceVariants), `${pkg.dir}/src`, pkg.dir];
+    return [
+      ...pkg.entries.flatMap((target) => sourceTargetVariants(target, pkg.dir)),
+      `${pkg.dir}/src`, pkg.dir,
+    ];
   }
   return [
-    ...(pkg.subpaths?.[subpath] ?? []).flatMap(sourceVariants),
+    ...(pkg.subpaths?.[subpath] ?? [])
+      .flatMap((target) => sourceTargetVariants(target, pkg.dir)),
     `${pkg.dir}/src/${subpath}`,
     `${pkg.dir}/${subpath}`,
   ];
@@ -153,7 +176,8 @@ export function resolveSpecifier(specifier, { fromAbsFile, repoRoot, fileSet, ts
   // 1. Relative — resolve against the importing file's directory.
   if (isRelative(specifier)) {
     const absBase = resolvePath(dirname(fromAbsFile), specifier);
-    const rel = matchSource(absBase, repoRoot, fileSet);
+    const rel = matchSource(absBase, repoRoot, fileSet)
+      ?? matchGeneratedSource(absBase, repoRoot, fileSet, workspaces);
     return rel ? { kind: 'internal', targetId: fileId(rel) } : { kind: 'unresolved', targetId: null };
   }
 

@@ -9,6 +9,7 @@ import { discoverWorkspaces, workspaceTsPaths } from '../lib/workspaces.mjs';
 import { collectEntryPoints } from '../lib/entry_points.mjs';
 import { entryReachableSymbols } from '../lib/reexports.mjs';
 import { resolveSpecifier } from '../imports/lib/resolver.mjs';
+import { readRepoFile } from '../lib/file_target.mjs';
 import { changedFilesSince } from '../lib/changed_files.mjs';
 import {
   revisionOfArtifactManifest, loadImportersIndex, computeAffectedFiles,
@@ -200,7 +201,7 @@ function collectExposures({
     entryPoints,
     readSource: (path) => {
       try {
-        return readFileSync(join(repoRoot, path), 'utf8');
+        return readRepoFile(repoRoot, path);
       } catch {
         return null; // listed in the inventory but unreadable now — expose less
       }
@@ -289,7 +290,7 @@ export async function run(argv, ctx = {}) {
   let symbolNodes;
   try {
     invManifest = readInventoryManifest(inventoryDir);
-    sources = readInventorySources(inventoryDir);
+    sources = readInventorySources(inventoryDir, { repoRoot });
     symbolNodes = readJsonl(join(symbolsDir, 'nodes.jsonl')).filter((n) => n.labels?.includes('Symbol'));
   } catch (err) {
     console.error(`references: failed to read upstream artifacts: ${err.message}`);

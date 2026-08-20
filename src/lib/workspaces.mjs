@@ -425,6 +425,43 @@ export function discoverWorkspaces(repoRoot) {
   return { sources, packages, byName };
 }
 
+/** Directory names that conventionally contain generated package output. */
+const BUILD_DIRS = new Set(['dist', 'build', 'out', 'lib', 'es', 'esm', 'cjs']);
+
+/** Remove an emitted/declaration extension so TypeScript can try source ones. */
+function withoutBuildExtension(path) {
+  return path.replace(/\.(?:d\.(?:ts|mts|cts)|ts|tsx|mts|cts|js|jsx|mjs|cjs)$/i, '');
+}
+
+/**
+ * Source candidates for a package-manifest target. Published manifests usually
+ * name generated files (`dist/api.js`, `dist/api.d.ts`), while a fresh checkout
+ * only contains the authored `src/api.ts`. Keep the declared target first, then
+ * mirror the path under `src` and beside the build directory. Callers still
+ * have to resolve a candidate onto a file; this helper invents no graph edge.
+ */
+export function sourceTargetVariants(target, packageDir = '.') {
+  const segments = normPosix(target).split('/');
+  const baseSegments = packageDir === '.'
+    ? []
+    : normPosix(packageDir).split('/').filter(Boolean);
+  const at = segments.findIndex(
+    (segment, index) => index >= baseSegments.length && BUILD_DIRS.has(segment),
+  );
+  if (at === -1) return [target];
+
+  const before = segments.slice(0, at);
+  const after = segments.slice(at + 1);
+  if (after.length === 0) return [target];
+
+  const stem = [...after.slice(0, -1), withoutBuildExtension(after.at(-1))];
+  return [...new Set([
+    target,
+    [...before, 'src', ...stem].join('/'),
+    [...before, ...stem].join('/'),
+  ])];
+}
+
 /**
  * The discovered packages as TypeScript `paths` entries, so the type-checking
  * layers (references, usages) can follow `@myorg/ui` the same way the import
@@ -441,12 +478,32 @@ export function discoverWorkspaces(repoRoot) {
  */
 export function workspaceTsPaths(discovered, repoRoot) {
   const paths = {};
+  const add = (key, candidates) => {
+    const existing = paths[key] ?? [];
+    paths[key] = [...new Set([...existing, ...candidates.map((rel) => resolve(repoRoot, rel))])];
+  };
+
   for (const pkg of discovered?.packages ?? []) {
-    const abs = (rel) => resolve(repoRoot, rel);
-    // The declared entries first, then the package directory — which lets TS
-    // apply its own `index.*` / package.json resolution inside it.
-    paths[pkg.name] = [...pkg.entries.map(abs), abs(pkg.dir)];
-    paths[`${pkg.name}/*`] = [abs(`${pkg.dir}/*`)];
+    // Exact public targets keep non-conventional subpaths (for example
+    // `./fragment` → `src/react-fragment.tsx`) reachable. Source fallbacks also
+    // cover packages whose manifest exposes no entry at all.
+    add(pkg.name, pkg.entries.length > 0
+      ? [...pkg.entries.flatMap((target) => sourceTargetVariants(target, pkg.dir)), pkg.dir]
+      : [`${pkg.dir}/src/index`, `${pkg.dir}/index`, `${pkg.dir}/src`, pkg.dir]);
+
+    for (const [subpath, targets] of Object.entries(pkg.subpaths ?? {}).sort(([a], [b]) => (
+      a < b ? -1 : a > b ? 1 : 0
+    ))) {
+      add(`${pkg.name}/${subpath}`, [
+        ...targets.flatMap((target) => sourceTargetVariants(target, pkg.dir)),
+        `${pkg.dir}/src/${subpath}`,
+        `${pkg.dir}/${subpath}`,
+      ]);
+    }
+
+    // The wildcard is the general deep-import fallback. Put `src` first because
+    // generated output is commonly absent from a clean checkout.
+    add(`${pkg.name}/*`, [`${pkg.dir}/src/*`, `${pkg.dir}/*`]);
   }
   return paths;
 }

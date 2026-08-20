@@ -4,6 +4,47 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] — 2026-08-20
+
+### Changed
+
+- **`--if-stale` now validates the build, not only `HEAD`.** The requested
+  layer set, artifact presence, inventory snapshot, effective graph config,
+  loregraph version, incomplete-build stamp and relevant dirty working tree all
+  participate in the decision. Generated cache paths are excluded from the
+  working-tree check.
+- **Imported assets are internal graph targets.** JS/TS remains the only source
+  scanned for specifiers, but an indexed CSS/JSON/SVG file can now receive an
+  `IMPORTS` edge and participate in `brief`/`impact` blast-radius traversal.
+
+### Fixed
+
+- TypeScript runtime specifiers resolve with TypeScript's extension
+  substitution: `.js` to `.ts`/`.tsx`, `.mjs` to `.mts`, and `.cjs` to `.cts`,
+  including their declaration variants.
+- Workspace compiler paths now use the same `dist`/`build` to authored-source
+  candidates as the import graph, including explicit export subpaths and
+  `src/*`. Cross-package `REFERENCES` and `USES` no longer depend on a built
+  checkout or `node_modules` links.
+- Package `main`/`module`/`exports`/`bin` targets in generated output map back to
+  existing source entry points, so public re-export chains are not reported as
+  dead merely because `dist/` has not been built.
+- Relative imports of absent workspace build output map back to an existing
+  source in the same package. Package boundaries are observed, including when a
+  package directory itself is named `lib`, `build` or `cjs`.
+- Semantic layers and direct source queries reject file symlinks and verify
+  real-path containment before reading, preventing a path inside the checkout
+  from returning source outside it.
+- JSON-RPC notifications for known MCP methods no longer emit responses with
+  `id: null`.
+
+### Tests
+
+- Added regressions for output-extension substitution, workspace type-checker
+  links, generated entry points, asset impact, incomplete/config/dirty caches,
+  symlink containment and known-method MCP notifications. Real-repository
+  regression was run against `mf-storefront-demo`, `mf-toolkit` and `gubernia`.
+
 ## [0.3.0] — 2026-08-19
 
 ### Changed — behaviour that differs from 0.2.1

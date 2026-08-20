@@ -228,7 +228,7 @@ export async function run(argv, ctx = {}) {
   let symbolNodes;
   try {
     invManifest = readInventoryManifest(inventoryDir);
-    sources = readInventorySources(inventoryDir);
+    sources = readInventorySources(inventoryDir, { repoRoot });
     symbolNodes = readJsonl(join(symbolsDir, 'nodes.jsonl')).filter((n) => n.labels?.includes('Symbol'));
   } catch (err) {
     console.error(`usages: failed to read upstream artifacts: ${err.message}`);

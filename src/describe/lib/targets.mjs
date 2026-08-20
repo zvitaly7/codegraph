@@ -18,9 +18,9 @@
 // on the id, so two runs over one cache pick the same N.
 
 import { createHash } from 'node:crypto';
-import { resolve } from 'node:path';
 import { hashFile } from '../../inventory/hasher.mjs';
 import { readRepoFile } from '../../lib/file_target.mjs';
+import { safeRepoFilePath } from '../../lib/repo_path.mjs';
 import { buildOutline } from '../../outline/lib/outline.mjs';
 import {
   fileIdToPath, toFileId, domainOfFile, symbolsOfFile, referencingFiles,
@@ -85,7 +85,8 @@ function fileHash(graph, repoRoot, path) {
   const fromGraph = graph.getNode(toFileId(path))?.properties?.sha256;
   if (typeof fromGraph === 'string' && fromGraph.length > 0) return fromGraph;
   if (typeof repoRoot !== 'string' || repoRoot.length === 0) return null;
-  return hashFile(resolve(repoRoot, path)).sha256;
+  const abs = safeRepoFilePath(repoRoot, path);
+  return abs ? hashFile(abs).sha256 : null;
 }
 
 // ---- shared readers -----------------------------------------------------

@@ -24,8 +24,10 @@ function packageScope(name) {
   return name.startsWith('@') ? name.split('/')[0] : null;
 }
 
-export function buildGraph({ files, repoRoot, tsconfigIndex, workspaces }) {
-  const fileSet = new Set(files.map((f) => f.path));
+export function buildGraph({ files, targetPaths, repoRoot, tsconfigIndex, workspaces }) {
+  // Only `files` are parsed. `targetPaths` may additionally contain inventory
+  // assets/docs/config files that a source can import and impact must traverse.
+  const fileSet = new Set(targetPaths ?? files.map((f) => f.path));
   const sortedFiles = [...files].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 
   const packages = new Map(); // name → node
@@ -35,6 +37,7 @@ export function buildGraph({ files, repoRoot, tsconfigIndex, workspaces }) {
   // imports each one swallowed. The count alone says data is missing; the names
   // say what would bring it back.
   const unresolvedPackages = new Map();
+  const internalTargets = new Set();
 
   for (const f of sortedFiles) {
     const fromId = fileId(f.path);
@@ -66,18 +69,26 @@ export function buildGraph({ files, repoRoot, tsconfigIndex, workspaces }) {
         });
       }
 
+      if (res.kind === 'internal') internalTargets.add(res.targetId.slice('file:'.length));
+
       const e = edge('IMPORTS', fromId, res.targetId, { specifier, kind: res.kind });
       if (!edges.has(e.id)) edges.set(e.id, e); // first (sorted) specifier wins
     }
   }
 
-  const fileNodes = sortedFiles.map((f) => ({
-    id: fileId(f.path),
-    labels: ['File'],
+  const fileNodes = new Map(sortedFiles.map((f) => [f.path, {
+    id: fileId(f.path), labels: ['File'],
     properties: f.computedDynamicImports > 0
       ? { path: f.path, computedDynamicImports: f.computedDynamicImports }
       : { path: f.path },
-  }));
+  }]));
+  // Keep this layer valid in isolation: every internal edge endpoint gets a
+  // File node, even when the target was not itself a parsed JS/TS source.
+  for (const path of internalTargets) {
+    if (!fileNodes.has(path)) {
+      fileNodes.set(path, { id: fileId(path), labels: ['File'], properties: { path } });
+    }
+  }
 
   // Only the files that actually have one, so this list stays short enough to
   // read and a clean repo reports an empty array rather than every file.
@@ -88,7 +99,7 @@ export function buildGraph({ files, repoRoot, tsconfigIndex, workspaces }) {
     .reduce((sum, f) => sum + f.count, 0);
 
   const byId = (a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-  const nodes = [...fileNodes, ...packages.values()].sort(byId);
+  const nodes = [...fileNodes.values(), ...packages.values()].sort(byId);
   const edgeList = [...edges.values()].sort(byId);
 
   return {

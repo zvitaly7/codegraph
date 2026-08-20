@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import {
+  mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, symlinkSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { run } from './run.mjs';
@@ -93,6 +95,30 @@ describe('run() happy path', () => {
     const manifest = JSON.parse(readFileSync(join(repo, '.kg-cache', 'symbols', 'manifest.json'), 'utf8'));
     expect(manifest.counts.files).toBe(1);
     expect(manifest.counts.symbols).toBe(1);
+  });
+
+  it('does not parse a source symlink that escapes repoRoot', async () => {
+    const outside = mkdtempSync(join(tmpdir(), 'cg-sym-outside-'));
+    writeFileSync(join(outside, 'secret.ts'), 'export const OUTSIDE_SECRET = 42;\n');
+    mkdirSync(join(repo, 'src'), { recursive: true });
+    try {
+      symlinkSync(join(outside, 'secret.ts'), join(repo, 'src', 'leak.ts'));
+    } catch {
+      expect(process.platform).toBe('win32');
+      rmSync(outside, { recursive: true, force: true });
+      return;
+    }
+    writeInventory(repo, [
+      { id: 'file:src/leak.ts', path: 'src/leak.ts', language: 'TypeScript', kind: 'code' },
+    ]);
+
+    expect(await run(['--repo-root', repo, '--out', join(repo, '.kg-cache')])).toBe(0);
+    const nodes = readLines(join(repo, '.kg-cache', 'symbols', 'nodes.jsonl'));
+    expect(nodes.some((node) => node.id.includes('OUTSIDE_SECRET'))).toBe(false);
+    expect(JSON.parse(readFileSync(
+      join(repo, '.kg-cache', 'symbols', 'manifest.json'), 'utf8',
+    )).counts.files).toBe(0);
+    rmSync(outside, { recursive: true, force: true });
   });
 });
 

@@ -1,9 +1,10 @@
 import { join, resolve } from 'node:path';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { resolveConfig } from '../config/load.mjs';
 import { writeJsonAtomic, writeJsonlAtomic } from '../inventory/write.mjs';
 import { normPosix } from '../inventory/schema.mjs';
 import { readInventorySources, readInventoryManifest } from '../lib/inventory_reader.mjs';
+import { readRepoFile } from '../lib/file_target.mjs';
 import { extractSymbols } from './lib/symbol_extractor.mjs';
 import { buildGraph } from './lib/graph_builder.mjs';
 
@@ -54,7 +55,7 @@ export async function run(argv) {
   let sources;
   try {
     invManifest = readInventoryManifest(inventoryDir);
-    sources = readInventorySources(inventoryDir);
+    sources = readInventorySources(inventoryDir, { repoRoot });
   } catch (err) {
     console.error(`symbols: failed to read inventory at ${inventoryDir}: ${err.message}`);
     return 2;
@@ -67,13 +68,8 @@ export async function run(argv) {
   const files = [];
   for (const row of sources) {
     const path = normPosix(row.path);
-    const absPath = join(repoRoot, path);
-    let text;
-    try {
-      text = readFileSync(absPath, 'utf8');
-    } catch {
-      continue; // source listed in inventory but unreadable now — skip gracefully
-    }
+    const text = readRepoFile(repoRoot, path);
+    if (text === null) continue; // source replaced, unreadable or unsafe now
     // Pass the repo-relative path so the TS parser picks the right script kind.
     files.push({ path, symbols: extractSymbols(path, text) });
   }

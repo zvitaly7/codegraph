@@ -81,6 +81,14 @@ describe('handleRequest — errors', () => {
     expect(handleRequest({ jsonrpc: '2.0', method: 'notifications/initialized' }, g)).toBeNull();
     // even an unknown-method notification stays silent
     expect(handleRequest({ jsonrpc: '2.0', method: 'no/such' }, g)).toBeNull();
+    // Known request methods are notifications too when `id` is absent.
+    expect(handleRequest({ jsonrpc: '2.0', method: 'initialize', params: {} }, g)).toBeNull();
+    expect(handleRequest({ jsonrpc: '2.0', method: 'tools/list' }, g)).toBeNull();
+    expect(handleRequest({ jsonrpc: '2.0', method: 'ping' }, g)).toBeNull();
+    expect(handleRequest({
+      jsonrpc: '2.0', method: 'tools/call',
+      params: { name: 'find_node', arguments: { query: 'run.mjs' } },
+    }, g)).toBeNull();
   });
 });
 
@@ -98,6 +106,7 @@ describe('serve — stdio line loop', () => {
 
     input.write('{"jsonrpc":"2.0","id":1,"method":"tools/list"}\n');
     input.write('{"jsonrpc":"2.0","method":"notifications/initialized"}\n'); // no reply
+    input.write('{"jsonrpc":"2.0","method":"ping"}\n'); // known notification: still no reply
     input.write('{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"find_node","arguments":{"query":"run.mjs"}}}\n');
     input.end();
 

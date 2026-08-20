@@ -4,6 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { checkStaleness } from './staleness.mjs';
+import { writeBuildStamp } from './build_context.mjs';
 
 /** Run a git command inside `repo`, returning trimmed stdout. */
 function git(repo, ...args) {
@@ -87,6 +88,27 @@ describe('checkStaleness — revision comparison against a real git repo', () =>
     expect(res.stale).toBe(false);
     expect(res.reason).toBe('up-to-date');
     expect(res.cacheRevision).toBe(headRev);
+    rmSync(cache, { recursive: true, force: true });
+  });
+
+  it('an interrupted build is stale even for consumers without a context hash', () => {
+    const cache = mkdtempSync(join(tmpdir(), 'cg-stale-incomplete-'));
+    writeManifest(cache, {
+      repoRoot: gitRepo,
+      snapshotId: `snapshot:proj:${headRev}`,
+      vcs: { type: 'git', available: true, revision: headRev },
+    });
+    writeBuildStamp(cache, {
+      schemaVersion: 1,
+      complete: false,
+      repoRoot: gitRepo,
+      layerContexts: {},
+    });
+
+    expect(checkStaleness(cache)).toMatchObject({
+      hasCache: true, stale: true, reason: 'build-incomplete',
+      cacheRevision: headRev,
+    });
     rmSync(cache, { recursive: true, force: true });
   });
 

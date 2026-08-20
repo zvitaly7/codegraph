@@ -51,6 +51,7 @@ export function handleRequest(msg, graph) {
   }
   const isNotification = !Object.prototype.hasOwnProperty.call(msg, 'id');
   const id = isNotification ? null : msg.id;
+  const success = (result) => (isNotification ? null : successResponse(id, result));
 
   if (msg.jsonrpc !== JSONRPC || typeof msg.method !== 'string') {
     return isNotification ? null : errorResponse(id, -32600, 'Invalid Request');
@@ -59,14 +60,14 @@ export function handleRequest(msg, graph) {
   try {
     switch (msg.method) {
       case 'initialize':
-        return successResponse(id, {
+        return success({
           protocolVersion: msg.params?.protocolVersion ?? DEFAULT_PROTOCOL_VERSION,
           serverInfo: SERVER_INFO,
           capabilities: { tools: {} },
         });
 
       case 'tools/list':
-        return successResponse(id, { tools: TOOLS });
+        return success({ tools: TOOLS });
 
       case 'tools/call': {
         const name = msg.params?.name;
@@ -77,11 +78,11 @@ export function handleRequest(msg, graph) {
         const out = callTool(graph, name, args);
         // Compact, not pretty: the consumer is an agent paying per token, and
         // indentation adds bytes no reader benefits from.
-        return successResponse(id, { content: [{ type: 'text', text: JSON.stringify(out) }] });
+        return success({ content: [{ type: 'text', text: JSON.stringify(out) }] });
       }
 
       case 'ping':
-        return successResponse(id, {});
+        return success({});
 
       default:
         // Notifications (e.g. notifications/initialized) get no reply.

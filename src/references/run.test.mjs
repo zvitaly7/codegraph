@@ -156,11 +156,12 @@ describe('run() — entry points are not dead exports', () => {
 
   it('a package.json main target is auto-excluded too', async () => {
     twoUnusedExports();
-    writeFileSync(join(repo, 'package.json'), JSON.stringify({ name: 'app', main: 'src/entry.ts' }));
+    writeFileSync(join(repo, 'package.json'), JSON.stringify({ name: 'app', main: 'dist/entry.js' }));
 
     expect(await run(outArg())).toBe(0);
     expect(manifest().counts.deadExports).toBe(1);
     expect(manifest().counts.entryPointExclusions).toBe(1);
+    expect(manifest().entryPoints).toEqual([{ path: 'src/entry.ts', reason: 'package.json' }]);
   });
 
   it('does not over-exclude: with no entry points both exports stay dead', async () => {
@@ -360,7 +361,10 @@ describe('run() — entry-point reachability through re-export chains', () => {
 describe('run() — workspace packages are followed by the type-checker', () => {
   it('records a cross-package REFERENCES edge for a workspace-name import', async () => {
     src('package.json', JSON.stringify({ name: 'root', private: true, workspaces: ['packages/*'] }));
-    src('packages/ui/package.json', JSON.stringify({ name: '@myorg/ui', main: 'src/index.ts' }));
+    src('packages/ui/package.json', JSON.stringify({
+      name: '@myorg/ui',
+      exports: { '.': { types: './dist/index.d.ts', default: './dist/index.js' } },
+    }));
     src('packages/ui/src/index.ts', "export function Button() { return 'b'; }\n");
     src('packages/app/package.json', JSON.stringify({ name: '@myorg/app' }));
     src('packages/app/src/main.ts', "import { Button } from '@myorg/ui';\nexport const App = () => Button();\n");
@@ -387,6 +391,9 @@ describe('run() — workspace packages are followed by the type-checker', () => 
     // point (ui's `main`) accounts for nothing extra here.
     const manifest = JSON.parse(readFileSync(join(repo, '.kg-cache', 'references', 'manifest.json'), 'utf8'));
     expect(manifest.counts.deadExports).toBe(1); // only App
+    expect(manifest.entryPoints).toEqual([
+      { path: 'packages/ui/src/index.ts', reason: 'packages/ui/package.json' },
+    ]);
   });
 });
 

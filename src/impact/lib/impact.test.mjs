@@ -42,6 +42,7 @@ function buildFixture() {
       file('src/core/index.ts'),
       file('src/checkout/pay.ts'),
       file('src/ui/button.tsx'),
+      file('src/ui/button.module.css', 'asset'),
       file('docs/readme.md', 'doc'),
       file('test/pay.test.ts', 'test'),
       file('test/ui.test.ts', 'test'),
@@ -54,6 +55,7 @@ function buildFixture() {
       imp('src/core/index.ts', 'file:src/core/util.ts'),
       imp('src/checkout/pay.ts', 'file:src/core/index.ts'),
       imp('src/ui/button.tsx', 'file:src/core/index.ts'),
+      imp('src/ui/button.tsx', 'file:src/ui/button.module.css'),
       imp('src/ui/button.tsx', 'pkg:react'),
       imp('test/pay.test.ts', 'file:src/checkout/pay.ts'),
       imp('test/ui.test.ts', 'file:src/ui/button.tsx'),
@@ -89,6 +91,7 @@ function buildFixture() {
       belongs('src/core/index.ts', 'core'),
       belongs('src/checkout/pay.ts', 'checkout'),
       belongs('src/ui/button.tsx', 'ui'),
+      belongs('src/ui/button.module.css', 'ui'),
       belongs('test/pay.test.ts', 'test'),
       belongs('test/ui.test.ts', 'test'),
       belongs('test/util.test.ts', 'test'),
@@ -164,6 +167,13 @@ describe('buildImpact — blast radius', () => {
     const r = buildImpact(g, ['src/core/util.ts', 'src/core/index.ts']);
     expect(r.blastRadius.files).not.toContain('src/core/index.ts'); // it is a seed
     expect(r.blastRadius.count).toBe(5);
+  });
+
+  it('walks from a changed asset to its importing source and tests', () => {
+    const r = buildImpact(g, ['src/ui/button.module.css']);
+    expect(r.changed.unknown).toEqual([]);
+    expect(r.blastRadius.files).toEqual(['src/ui/button.tsx', 'test/ui.test.ts']);
+    expect(r.tests.files).toEqual(['test/ui.test.ts']);
   });
 });
 

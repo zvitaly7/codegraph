@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolveFileTarget, readRepoFile } from './file_target.mjs';
 import { listSourceFiles } from './source_files.mjs';
 
 let repo;
+let outsideLink = false;
 
 beforeAll(() => {
   repo = mkdtempSync(join(tmpdir(), 'lg-file-target-'));
@@ -20,6 +21,14 @@ beforeAll(() => {
   writeFileSync(join(repo, '.gitignore'), 'ignored/\n');
   mkdirSync(join(repo, 'ignored'), { recursive: true });
   writeFileSync(join(repo, 'ignored', 'skip.ts'), 'export const d = 4;\n');
+  const outside = mkdtempSync(join(tmpdir(), 'lg-file-target-outside-'));
+  writeFileSync(join(outside, 'secret.ts'), 'export const OUTSIDE_SECRET = 42;\n');
+  try {
+    symlinkSync(join(outside, 'secret.ts'), join(repo, 'src', 'leak.ts'));
+    outsideLink = true;
+  } catch {
+    outsideLink = false;
+  }
 });
 
 describe('listSourceFiles', () => {
@@ -66,6 +75,16 @@ describe('resolveFileTarget', () => {
 
   it('refuses to escape the repo root', () => {
     expect(resolveFileTarget(repo, '../../etc/passwd').kind).toBe('not-found');
+  });
+
+  it('refuses a file symlink whose target is outside the repo', () => {
+    if (!outsideLink) {
+      expect(process.platform).toBe('win32');
+      return;
+    }
+    expect(listSourceFiles(repo)).not.toContain('src/leak.ts');
+    expect(resolveFileTarget(repo, 'src/leak.ts').kind).toBe('not-found');
+    expect(readRepoFile(repo, 'src/leak.ts')).toBeNull();
   });
 });
 

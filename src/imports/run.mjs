@@ -1,9 +1,12 @@
 import { join, resolve } from 'node:path';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { resolveConfig } from '../config/load.mjs';
 import { writeJsonAtomic, writeJsonlAtomic } from '../inventory/write.mjs';
 import { normPosix } from '../inventory/schema.mjs';
-import { readInventorySources, readInventoryManifest } from '../lib/inventory_reader.mjs';
+import {
+  isAnalyzableSource, readInventoryFiles, readInventoryManifest,
+} from '../lib/inventory_reader.mjs';
+import { readRepoFile } from '../lib/file_target.mjs';
 import { TsconfigIndex } from '../lib/tsconfig_index.mjs';
 import { discoverWorkspaces } from '../lib/workspaces.mjs';
 import { suggestPathsFor } from '../lib/paths_suggest.mjs';
@@ -63,10 +66,12 @@ export async function run(argv) {
   }
 
   let invManifest;
+  let inventoryFiles;
   let sources;
   try {
     invManifest = readInventoryManifest(inventoryDir);
-    sources = readInventorySources(inventoryDir);
+    inventoryFiles = readInventoryFiles(inventoryDir, { repoRoot });
+    sources = inventoryFiles.filter(isAnalyzableSource);
   } catch (err) {
     console.error(`imports: failed to read inventory at ${inventoryDir}: ${err.message}`);
     return 2;
@@ -88,12 +93,8 @@ export async function run(argv) {
   for (const row of sources) {
     const path = normPosix(row.path);
     const absPath = join(repoRoot, path);
-    let text;
-    try {
-      text = readFileSync(absPath, 'utf8');
-    } catch {
-      continue; // source listed in inventory but unreadable now — skip gracefully
-    }
+    const text = readRepoFile(repoRoot, path);
+    if (text === null) continue; // unreadable, replaced or unsafe now
     // One read, both facts: the specifiers we can resolve, and how many dynamic
     // imports we cannot (see ./lib/specifier_extractor.mjs).
     const { specifiers, computedDynamicImports } = scanImports(absPath, text);
@@ -101,7 +102,11 @@ export async function run(argv) {
   }
 
   const { nodes, edges, counts, computedDynamicImportFiles } = buildGraph({
-    files, repoRoot, tsconfigIndex, workspaces: workspaces.byName,
+    files,
+    targetPaths: inventoryFiles.map((row) => normPosix(row.path)),
+    repoRoot,
+    tsconfigIndex,
+    workspaces: workspaces.byName,
   });
 
   const denom = counts.internal + counts.unresolved;

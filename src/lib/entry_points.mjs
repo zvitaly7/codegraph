@@ -21,7 +21,7 @@
 // would hide nothing but confuse everything.
 
 import ignore from 'ignore';
-import { readPackageManifest } from './workspaces.mjs';
+import { readPackageManifest, sourceTargetVariants } from './workspaces.mjs';
 import { SOURCE_EXTS } from './source_files.mjs';
 
 /**
@@ -88,7 +88,12 @@ export function collectEntryPoints({ repoRoot, patterns = [], filePaths = [], wo
       ...manifest.bin,
     ];
     for (const target of targets) {
-      remember(matchKnownSource(target, fileSet), manifestLabel(dir));
+      for (const candidate of sourceTargetVariants(target, dir)) {
+        const matched = matchKnownSource(candidate, fileSet);
+        if (!matched) continue;
+        remember(matched, manifestLabel(dir));
+        break;
+      }
     }
   }
 

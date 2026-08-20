@@ -11,19 +11,15 @@
 // to nothing. `outline`/`show` are also served over MCP, where the caller is a
 // model, so "stay in the repo" is enforced here rather than trusted upstream.
 
-import { existsSync, readFileSync, statSync } from 'node:fs';
-import { resolve, sep } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { relative, resolve } from 'node:path';
 import { normPosix } from '../inventory/schema.mjs';
 import { resolveFilePath } from './path_match.mjs';
 import { listSourceFiles, isSourcePath } from './source_files.mjs';
+import { safeRepoFilePath } from './repo_path.mjs';
 
 /** How many near-misses a `not-found` carries. */
 export const SUGGESTION_CAP = 8;
-
-/** True when `abs` is `root` itself or lives under it. */
-function insideRoot(root, abs) {
-  return abs === root || abs.startsWith(root.endsWith(sep) ? root : root + sep);
-}
 
 /** Substring near-misses over the known file list. */
 function suggest(files, target) {
@@ -49,13 +45,14 @@ export function resolveFileTarget(repoRoot, target, { files, ignoreFile } = {}) 
   const root = resolve(repoRoot);
   const rel = normPosix(target).replace(/^\.\//, '');
 
-  const abs = resolve(root, rel);
-  if (insideRoot(root, abs) && existsSync(abs) && statSync(abs).isFile()) {
-    const path = normPosix(abs.slice(root.length + 1));
+  const abs = safeRepoFilePath(root, rel);
+  if (abs) {
+    const path = normPosix(relative(root, abs));
     return isSourcePath(path) ? { kind: 'file', path } : { kind: 'unsupported', target, path };
   }
 
-  const known = files ?? listSourceFiles(root, ignoreFile ? { ignoreFile } : undefined);
+  const known = (files ?? listSourceFiles(root, ignoreFile ? { ignoreFile } : undefined))
+    .filter((path) => safeRepoFilePath(root, path) !== null);
   const { matches } = resolveFilePath(known, rel);
   if (matches.length === 1) return { kind: 'file', path: matches[0] };
   if (matches.length > 1) {
@@ -69,9 +66,8 @@ export function resolveFileTarget(repoRoot, target, { files, ignoreFile } = {}) 
  * outside the repo root.
  */
 export function readRepoFile(repoRoot, relPath) {
-  const root = resolve(repoRoot);
-  const abs = resolve(root, relPath);
-  if (!insideRoot(root, abs)) return null;
+  const abs = safeRepoFilePath(repoRoot, relPath);
+  if (!abs) return null;
   try {
     return readFileSync(abs, 'utf8');
   } catch {
